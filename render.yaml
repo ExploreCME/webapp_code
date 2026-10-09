@@ -79,5 +79,5 @@ services:
     plan: starter
     maxmemoryPolicy: allkeys-lru
     ipAllowList:
-      - cidrBlock: 0.0.0.0/0
-        description: Allow all inbound
+      - service: explorecme-web
+      - service: explorecme-worker
