@@ -4,22 +4,53 @@ import pymysql
 from dbutils.pooled_db import PooledDB
 from dotenv import load_dotenv
 
-# Point exactly to where your .env file lives
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
+# Load .env from the project root when present.
+base_dir = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(base_dir, '.env'))
 
-# One single, global pool for the entire web application
-mysql_pool = PooledDB(
-    creator=pymysql,
-    maxconnections=3,  # Safe limit: 3 connections per web worker
-    mincached=1,
-    blocking=True,
-    host=os.getenv('MYSQL_HOST'),
-    user=os.getenv('MYSQL_USER'),
-    password=os.getenv('MYSQL_PASSWORD'),
-    database=os.getenv('MYSQL_DB'),
-    cursorclass=pymysql.cursors.DictCursor
-)
+mysql_pool = None
+
+
+def _build_pool():
+    """Create the MySQL pool only when the environment is complete."""
+    global mysql_pool
+
+    required = [
+        os.getenv('MYSQL_HOST'),
+        os.getenv('MYSQL_USER'),
+        os.getenv('MYSQL_PASSWORD'),
+        os.getenv('MYSQL_DB'),
+    ]
+
+    if not all(required):
+        return None
+
+    mysql_pool = PooledDB(
+        creator=pymysql,
+        maxconnections=3,
+        mincached=1,
+        blocking=True,
+        host=os.getenv('MYSQL_HOST'),
+        user=os.getenv('MYSQL_USER'),
+        password=os.getenv('MYSQL_PASSWORD'),
+        database=os.getenv('MYSQL_DB'),
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=True,
+    )
+    return mysql_pool
+
 
 def get_db_connection():
-    """Returns a connection from the global pool."""
+    """Returns a connection from the global pool or raises a clear config error."""
+    global mysql_pool
+
+    if mysql_pool is None:
+        mysql_pool = _build_pool()
+
+    if mysql_pool is None:
+        raise RuntimeError(
+            "MySQL environment values are not set. Set MYSQL_HOST, MYSQL_USER, "
+            "MYSQL_PASSWORD, and MYSQL_DB before starting the app."
+        )
+
     return mysql_pool.connection()
