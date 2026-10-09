@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Review Attempt - PANCE Quiz App{% endblock %}
+
+{% block container_class %}container-large{% endblock %}
+
+{% block content %}
+    <!-- Header with Flexbox to align the title and the back button nicely -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
+        <div>
+            <h2 style="margin-bottom: 5px;">Review: {{ attempt.quiz_name }}</h2>
+            <p style="color: #666; margin: 0; font-size: 1.05em;">
+                <b>Date:</b> {{ attempt.start_time }} &nbsp;|&nbsp;
+                <b>Mode:</b> {{ attempt.mode.replace('_', ' ').title() }}
+            </p>
+        </div>
+
+        <!-- Top Back Button for quick navigation -->
+        {% if faculty_return_url %}
+            <a href="{{ faculty_return_url }}" class="btn btn-secondary" style="padding: 8px 16px;">Back to Class Review</a>
+        {% else %}
+            <a href="{{ url_for('quiz.quiz_attempts', quiz_name=attempt.quiz_name) }}" class="btn btn-secondary" style="padding: 8px 16px;">Back to History</a>
+        {% endif %}
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #ddd; margin-bottom: 30px;">
+
+    <!-- Loop through responses -->
+    {% for response in responses %}
+        <!-- Box color defaults to green if they got it right, red if they got it wrong -->
+        <div style="background: #f9f9f9; margin-bottom: 25px; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; {% if response.get('is_correct') %} border-left: 6px solid #28a745; {% else %} border-left: 6px solid #dc3545; {% endif %} box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+
+            <!-- Question Stem -->
+            <p style="font-size: 1.1em; line-height: 1.6; font-weight: 500; margin-top: 0; margin-bottom: 15px;">
+                <b>Question {{ loop.index }}:</b> {{ response.get('question_stem', '') }}
+            </p>
+
+            <!-- Answer Choices -->
+            <ul style="list-style-type: none; padding-left: 0; margin-bottom: 15px;">
+                <!-- SAFE BRACKET NOTATION ENSURES DATA LOADS -->
+                {% set choices = [
+                    ('A', response.get('answer_choice_A', '')),
+                    ('B', response.get('answer_choice_B', '')),
+                    ('C', response.get('answer_choice_C', '')),
+                    ('D', response.get('answer_choice_D', '')),
+                    ('E', response.get('answer_choice_E', ''))
+                ] %}
+                
+                {% for letter, choice_text in choices %}
+                    {% if choice_text %} 
+                        
+                        <!-- Trim and uppercase prevents whitespace bugs from ruining the color highlighting -->
+                        {% set is_user_choice = (response.get('user_choice', '') | string | trim | upper == letter) %}
+                        {% set is_correct = (response.get('correct_answer', '') | string | trim | upper == letter) %}
+                        
+                        <li style="padding: 12px 15px; margin-bottom: 8px; border-radius: 5px; border: 1px solid #ddd;
+                            {% if is_correct %} background-color: #d4edda; border-color: #c3e6cb; 
+                            {% elif is_user_choice %} background-color: #f8d7da; border-color: #f5c6cb;
+                            {% else %} background-color: #fff;
+                            {% endif %}
+                        ">
+                            <strong>{{ letter }}.</strong> {{ choice_text }}
+                            
+                            <!-- Indicators for Correct vs Selected -->
+                            <div style="float: right; font-weight: bold; font-size: 0.9em;">
+                                {% if is_correct %}
+                                    <span style="color: #155724;">✅ Correct Answer</span>
+                                {% endif %}
+                                
+                                {% if is_user_choice %}
+                                    <span style="color: {% if is_correct %}#155724{% else %}#721c24{% endif %}; margin-left: 10px;">
+                                        ⬅️ Your Selection
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <div style="clear: both;"></div>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+
+            <!-- Explanation Block (if available) -->
+            {% if response.get('explanation') %}
+                <div style="background-color: #e8f4f8; padding: 15px; border-left: 5px solid #17a2b8; margin-top: 15px; border-radius: 4px;">
+                    <strong style="color: #0c5460;">Explanation:</strong> 
+                    <p style="margin-bottom: 0; margin-top: 5px; line-height: 1.5; color: #333;">{{ response.get('explanation') }}</p>
+                </div>
+            {% endif %}
+
+            <div style="text-align: right; margin-top: 15px;">
+                <small style="color: #999;">Submitted at: {{ response.get('submitted_time', '') }}</small>
+            </div>
+        </div>
+    {% else %}
+        <div style="text-align: center; padding: 40px 0;">
+            <h3 style="color: #666;">No responses were recorded for this attempt.</h3>
+        </div>
+    {% endfor %}
+
+    <!-- Bottom Back Button -->
+    <div style="text-align: center; margin-top: 30px;">
+        {% if faculty_return_url %}
+            <a href="{{ faculty_return_url }}" class="btn btn-secondary" style="padding: 12px 24px; font-size: 16px;">&larr; Back to Class Review</a>
+        {% else %}
+            <a href="{{ url_for('quiz.quiz_attempts', quiz_name=attempt.quiz_name) }}" class="btn btn-secondary" style="padding: 12px 24px; font-size: 16px;">&larr; Back to Quiz History</a>
+        {% endif %}
+    </div>
+{% endblock %}

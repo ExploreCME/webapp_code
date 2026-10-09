@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Institutional Access{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 50px 20px;">
+    <h2>Enter Your Institutional Code</h2>
+    <p>If your program has provided you with an access code, enter it below.</p>
+    
+    <form action="/institutional-access" method="POST" style="max-width: 400px; margin: 30px auto;">
+        <input type="text" name="program_code" placeholder="e.g. MED-2026" required style="width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 6px; border: 1px solid #ccc; font-size: 1.1em;">
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 1.1em; background-color: #2b7080; border: none; border-radius: 6px; color: white; cursor: pointer;">Activate Access</button>
+    </form>
+    
+    <a href="{{ url_for('index') }}" style="color: #7f8c8d; text-decoration: none;">&larr; Back to Home</a>
+</div>
+{% endblock %}

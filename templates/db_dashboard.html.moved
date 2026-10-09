@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Database Statistics - PANCE Quiz App{% endblock %}
+
+{% block container_class %}container-large{% endblock %}
+
+{% block content %}
+<h1 style="color: red; font-size: 100px;">HELLO WORLD</h1>
+    <!-- Load Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom Styles for Modern Dashboard -->
+    <style>
+        /* Fade-in & Floating Animations */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in-card {
+            animation: fadeUp 0.6s ease-out forwards;
+        }
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+
+        /* Modern Glassmorphism & Card Styling */
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            padding: 30px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 128, 128, 0.15);
+        }
+
+        .stat-number {
+            font-size: 3em;
+            font-weight: 800;
+            color: #2C3E50;
+            margin: 0 0 5px 0;
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 1.1em;
+            color: #7f8c8d;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-size: 0.85em;
+            font-weight: 700;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .chart-title {
+            text-align: center;
+            margin-top: 0;
+            color: #2C3E50;
+            font-weight: 700;
+            margin-bottom: 25px;
+            letter-spacing: 0.5px;
+        }
+    </style>
+
+    <!-- ========================================== -->
+    <!-- STAT CARDS ROW                             -->
+    <!-- ========================================== -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 25px; margin-bottom: 40px;">
+
+        <div class="stat-card fade-in-card">
+            <p class="stat-number count-up" style="color: #2C3E50;" data-target="{{ total_questions }}">0</p>
+            <p class="stat-label">Total Questions</p>
+        </div>
+
+        <div class="stat-card fade-in-card delay-1">
+            <p class="stat-number count-up" style="color: #008080;" data-target="{{ organ_labels|length }}">0</p>
+            <p class="stat-label">Organ Systems</p>
+        </div>
+
+        <div class="stat-card fade-in-card delay-2">
+            <p class="stat-number" style="color: #48C9B0; font-size: 1.8em; padding: 15px 0;">
+                {{ task_labels[0] if task_labels else 'N/A' }}
+            </p>
+            <p class="stat-label">Top Task Area</p>
+        </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- CHARTS GRID                                -->
+    <!-- ========================================== -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 40px; margin-bottom: 40px;">
+
+        <!-- Organ Systems Chart -->
+        <div class="chart-container fade-in-card delay-3">
+            <h3 class="chart-title">Database Distribution (Scale Locked)</h3>
+            <div style="position: relative; height: 500px; width: 100%;">
+                <canvas id="organChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Task Areas Chart -->
+        <div class="chart-container fade-in-card delay-3">
+            <h3 class="chart-title">Task Area Competency Web (Scale Locked)</h3>
+            <div style="position: relative; height: 500px; width: 100%;">
+                <canvas id="taskChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- DYNAMIC ACCESS BUTTONS                     -->
+    <!-- ========================================== -->
+    <div style="text-align: center; margin-bottom: 20px;" class="fade-in-card delay-3">
+        {% if has_paid %}
+            <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-success" style="padding: 15px 40px; font-size: 1.3em; border-radius: 30px; background: linear-gradient(135deg, #008080, #20B2AA); border: none; box-shadow: 0 8px 20px rgba(0, 128, 128, 0.4); transition: transform 0.2s;">
+                Start PANCE Exam &rarr;
+            </a>
+        {% else %}
+            <!-- Form wrapped around a button to enforce a POST request for Stripe -->
+            <form action="{{ url_for('create_checkout_session') }}" method="POST" style="display: inline;">
+                <button type="submit" class="btn btn-primary" style="padding: 15px 40px; font-size: 1.3em; border-radius: 30px; background: linear-gradient(135deg, #34495E, #2C3E50); border: none; box-shadow: 0 8px 20px rgba(44, 62, 80, 0.4); transition: transform 0.2s;">
+                    Unlock Premium Access 🔒
+                </button>
+            </form>
+            <p style="margin-top: 15px; color: #7f8c8d; font-size: 1em; font-weight: 500;">Sign in and purchase to start taking quizzes.</p>
+        {% endif %}
+    </div>
+
+    <div style="text-align: center; margin-bottom: 40px;" class="fade-in-card delay-3">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary" style="padding: 10px 30px; border-radius: 20px;">&larr; Back to Home</a>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- JAVASCRIPT ANIMATIONS & CHART RENDERING    -->
+    <!-- ========================================== -->
+    <script>
+        // --- 1. Number Counter Animation ---
+        const counters = document.querySelectorAll('.count-up');
+        const speed = 40;
+
+        counters.forEach(counter => {
+            const updateCount = () => {
+                const target = +counter.getAttribute('data-target');
+                const count = +counter.innerText;
+                const inc = target / speed;
+
+                if (count < target) {
+                    counter.innerText = Math.ceil(count + inc);
+                    setTimeout(updateCount, 25);
+                } else {
+                    counter.innerText = target;
+                }
+            };
+            updateCount();
+        });
+
+        // --- 2. Chart Data Injection ---
+        const organLabels = {{ organ_labels | tojson }};
+        const organCounts = {{ organ_counts | tojson }};
+        const taskLabels = {{ task_labels | tojson }};
+        const taskCounts = {{ task_counts | tojson }};
+
+        // Vibrant Semi-Transparent Palette for Polar Area
+        const polarPalette = [
+            'rgba(44, 62, 80, 0.7)',   // Dark Slate
+            'rgba(0, 128, 128, 0.7)',  // Teal
+            'rgba(72, 201, 176, 0.7)', // Aqua/Mint
+            'rgba(52, 73, 94, 0.7)',   // Lighter Slate
+            'rgba(32, 178, 170, 0.7)', // Light Sea Green
+            'rgba(93, 173, 226, 0.7)', // Soft Blue
+            'rgba(170, 183, 184, 0.7)' // Muted Gray
+        ];
+
+        // --- 3. Polar Area Chart ---
+        const ctxOrgan = document.getElementById('organChart').getContext('2d');
+        new Chart(ctxOrgan, {
+            type: 'polarArea',
+            data: {
+                labels: organLabels,
+                datasets: [{
+                    data: organCounts,
+                    backgroundColor: polarPalette,
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { font: { family: "'Helvetica Neue', 'Arial', sans-serif", size: 12 } }
+                    }
+                },
+                // V3+ Syntax
+                scales: {
+                    r: { min: 0, max: 600, ticks: { display: false, stepSize: 100 } }
+                },
+                // V2 Syntax Fallback
+                scale: {
+                    ticks: { min: 0, max: 600, stepSize: 100, display: false }
+                }
+            }
+        });
+
+        // --- 4. Radar Chart ---
+        const ctxTask = document.getElementById('taskChart').getContext('2d');
+
+        let gradientRadar = ctxTask.createLinearGradient(0, 0, 0, 400);
+        gradientRadar.addColorStop(0, 'rgba(72, 201, 176, 0.8)');
+        gradientRadar.addColorStop(1, 'rgba(0, 128, 128, 0.4)');
+
+        new Chart(ctxTask, {
+            type: 'radar',
+            data: {
+                labels: taskLabels,
+                datasets: [{
+                    label: 'Questions in Database',
+                    data: taskCounts,
+                    backgroundColor: gradientRadar,
+                    borderColor: '#008080',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#008080',
+                    pointHoverBackgroundColor: '#008080',
+                    pointHoverBorderColor: '#ffffff',
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+
+                // V3+ Syntax
+                scales: {
+                    r: {
+                        min: 0,
+                        max: 600,
+                        angleLines: { color: 'rgba(0, 0, 0, 0.1)' },
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        ticks: { display: false, stepSize: 100 },
+                        pointLabels: {
+                            font: { size: 12, family: "'Helvetica Neue', 'Arial', sans-serif" },
+                            color: '#2C3E50',
+                            callback: function(label) {
+                                const maxLength = 15;
+                                if (label.length <= maxLength) return label;
+                                let words = label.split(' ');
+                                let lines = [];
+                                let currentLine = '';
+                                for (let i = 0; i < words.length; i++) {
+                                    if ((currentLine + words[i]).length > maxLength) {
+                                        if (currentLine.length > 0) lines.push(currentLine.trim());
+                                        currentLine = words[i] + ' ';
+                                    } else {
+                                        currentLine += words[i] + ' ';
+                                    }
+                                }
+                                if (currentLine.trim().length > 0) {
+                                    lines.push(currentLine.trim());
+                                }
+                                return lines;
+                            }
+                        }
+                    }
+                },
+                // V2 Syntax Fallback
+                scale: {
+                    ticks: {
+                        min: 0,
+                        max: 600,
+                        stepSize: 100,
+                        display: false
+                    }
+                }
+            }
+        });
+    </script>
+{% endblock %}

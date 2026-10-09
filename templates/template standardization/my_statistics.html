@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Statistics Dashboard</title>
+    <!-- Load Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: auto; }
+        h1 { text-align: center; color: #2c3e50; }
+        
+        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .btn-back { text-decoration: none; background: #3498db; color: white; padding: 10px 15px; border-radius: 5px; font-weight: bold;}
+        
+        .overview-box { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; margin-bottom: 30px;}
+        .overview-box h2 { margin: 0; color: #2ecc71; font-size: 2.5em; }
+        .overview-box p { margin: 5px 0 0; color: #7f8c8d; font-size: 1.1em; }
+        
+        /* UPDATED: Added flex-wrap: wrap so items stack on small screens */
+        .controls { background: #fff; padding: 15px 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;}
+        
+        /* UPDATED: Added max-width and box-sizing to keep the dropdown contained */
+        .controls select { padding: 10px; font-size: 16px; border-radius: 5px; border: 1px solid #bdc3c7; flex-grow: 1; cursor: pointer; max-width: 100%; box-sizing: border-box;}
+        
+        .dashboard-title { font-size: 1.8em; color: #2c3e50; margin-bottom: 25px; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; text-align: center;}
+        
+        /* Grid for Radar Charts */
+        .chart-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); 
+            gap: 30px; 
+            margin-bottom: 40px; 
+        }
+        
+        .chart-card { 
+            background: #fff; 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+            border-top: 4px solid #008080;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .chart-card h3 { margin: 0 0 5px 0; font-size: 1.4em; color: #2c3e50; text-align: center;}
+        .chart-card .stats-summary { 
+            color: #7f8c8d; 
+            font-size: 0.95em; 
+            margin-bottom: 15px; 
+            text-align: center;
+            font-weight: 600;
+        }
+        .chart-card .pct-badge {
+            color: #008080;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        
+        .chart-wrapper {
+            position: relative; 
+            height: 300px; 
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header-bar">
+        <!-- FIXED ROUTING LINK HERE -->
+        <a href="{{ url_for('index') }}" class="btn-back">← Back to Main Screen</a>
+        <h1>Performance Analytics for {{ username }}</h1>
+        <div style="width: 150px;"></div> <!-- Spacer for center alignment -->
+    </div>
+
+    <!-- Overall Total Stats -->
+    <div class="overview-box">
+        {% set overall_pct = ((total_correct / total_attempted) * 100)|round(1) if total_attempted > 0 else 0 %}
+        <h2>{{ overall_pct }}%</h2>
+        <p>Overall Accuracy ({{ total_correct }} Correct / {{ total_attempted }} Attempted)</p>
+    </div>
+
+    <!-- View Toggle -->
+    <div class="controls">
+        <label for="viewSelect"><strong>Visualize By:</strong></label>
+        <select id="viewSelect" onchange="renderDashboard()">
+            <option value="ORGANS">Organ Systems (Task Area Breakdown Plots)</option>
+            <option value="TASKS">Task Areas (Organ System Breakdown Plots)</option>
+        </select>
+    </div>
+
+    <div id="dashboard-content">
+        <!-- JS will inject the grids and canvas elements here -->
+    </div>
+</div>
+
+<script>
+    // 1. Parse the nested JSON data passed from Python
+    const statsData = {{ stats_data_json | safe }};
+    
+    // Arrays containing all possible labels to ensure every radar chart uses the same axes structure
+    const allOrganSystems = Object.keys(statsData.organ_systems).sort();
+    const allTaskAreas = Object.keys(statsData.task_areas).sort();
+
+    // Global array to track Chart.js instances so we can destroy them before re-rendering
+    let activeCharts = [];
+
+    // 2. Helper function to create a Radar Chart inside a container
+    function createRadarChart(containerId, title, labels, dataPoints) {
+        const ctx = document.getElementById(containerId).getContext('2d');
+        
+        // Setup gradient for the radar fill
+        let gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, 'rgba(0, 128, 128, 0.6)');
+        gradient.addColorStop(1, 'rgba(72, 201, 176, 0.2)');
+
+        const newChart = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Score (%)',
+                    data: dataPoints,
+                    backgroundColor: gradient,
+                    borderColor: '#008080',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#008080',
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ` Score: ${context.parsed.r}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    r: {
+                        min: 0,
+                        max: 100,
+                        ticks: { stepSize: 20 },
+                        pointLabels: {
+                            font: { size: 10 },
+                            color: '#34495e'
+                        }
+                    }
+                }
+            }
+        });
+        
+        activeCharts.push(newChart);
+    }
+
+    // 3. Main render logic
+    function renderDashboard() {
+        const selection = document.getElementById('viewSelect').value;
+        const dashboardContent = document.getElementById('dashboard-content');
+        
+        // Destroy old charts to prevent memory leaks and "flickering" canvas issues
+        activeCharts.forEach(chart => chart.destroy());
+        activeCharts = [];
+        
+        let html = '';
+        
+        // --- LOGIC FOR ORGAN SYSTEM PLOTS (14 Plots) ---
+        if (selection === 'ORGANS') {
+            html += `<h2 class="dashboard-title">Organ System Mastery (Broken down by Task Area)</h2><div class="chart-grid">`;
+            
+            allOrganSystems.forEach((organ, index) => {
+                const data = statsData.organ_systems[organ];
+                // Calculate Overall Percentage for this specific Organ
+                const overallPct = data.attempted > 0 ? Math.round((data.correct / data.attempted) * 100) : 0;
+                
+                // Build HTML Card
+                const canvasId = `chart-organ-${index}`;
+                html += `
+                    <div class="chart-card">
+                        <h3>${organ}</h3>
+                        <div class="stats-summary">
+                            Overall: <span class="pct-badge">${overallPct}%</span> | Attempted: ${data.attempted}
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="${canvasId}"></canvas>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+            dashboardContent.innerHTML = html;
+            
+            // Map the percentages to the charts
+            allOrganSystems.forEach((organ, index) => {
+                const data = statsData.organ_systems[organ];
+                const canvasId = `chart-organ-${index}`;
+                
+                // Calculate the percentage for each Task Area within this Organ
+                const dataPoints = allTaskAreas.map(task => {
+                    const breakdown = data.breakdown[task];
+                    if (!breakdown || breakdown.attempted === 0) return 0;
+                    return Math.round((breakdown.correct / breakdown.attempted) * 100);
+                });
+                
+                createRadarChart(canvasId, organ, allTaskAreas, dataPoints);
+            });
+        } 
+        
+        // --- LOGIC FOR TASK AREA PLOTS (7 Plots) ---
+        else if (selection === 'TASKS') {
+            html += `<h2 class="dashboard-title">Task Area Mastery (Broken down by Organ System)</h2><div class="chart-grid">`;
+            
+            allTaskAreas.forEach((task, index) => {
+                const data = statsData.task_areas[task];
+                // Calculate Overall Percentage for this specific Task
+                const overallPct = data.attempted > 0 ? Math.round((data.correct / data.attempted) * 100) : 0;
+                
+                // Build HTML Card
+                const canvasId = `chart-task-${index}`;
+                html += `
+                    <div class="chart-card">
+                        <h3>${task}</h3>
+                        <div class="stats-summary">
+                            Overall: <span class="pct-badge">${overallPct}%</span> | Attempted: ${data.attempted}
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="${canvasId}"></canvas>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+            dashboardContent.innerHTML = html;
+            
+            // Map the percentages to the charts
+            allTaskAreas.forEach((task, index) => {
+                const data = statsData.task_areas[task];
+                const canvasId = `chart-task-${index}`;
+                
+                // Calculate the percentage for each Organ System within this Task
+                const dataPoints = allOrganSystems.map(organ => {
+                    const breakdown = data.breakdown[organ];
+                    if (!breakdown || breakdown.attempted === 0) return 0;
+                    return Math.round((breakdown.correct / breakdown.attempted) * 100);
+                });
+                
+                // Truncate organ names for the radar labels so they don't overlap too much
+                const shortOrganLabels = allOrganSystems.map(name => name.length > 15 ? name.substring(0, 15) + '...' : name);
+                
+                createRadarChart(canvasId, task, shortOrganLabels, dataPoints);
+            });
+        }
+    }
+
+    // Initialize the default view on page load
+    document.addEventListener("DOMContentLoaded", function() {
+        renderDashboard();
+    });
+</script>
+</body>
+</html>

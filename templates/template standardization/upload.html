@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Source Material - PANCE Quiz App{% endblock %}
+
+{% block content %}
+    <!-- Centering wrapper for a sleek, compact form -->
+    <div style="max-width: 450px; margin: 0 auto; padding: 20px 0;">
+        <div style="text-align: center; margin-bottom: 25px;">
+            <h2 style="margin-bottom: 10px;">Upload Source Material</h2>
+            <p style="color: #666;">Select a raw document to build a new quiz.</p>
+        </div>
+
+        <form action="/upload" method="POST" enctype="multipart/form-data">
+            
+            <div class="form-group">
+                <label for="file">Select File:</label>
+                <!-- onchange triggers the JavaScript function when a file is picked -->
+                <input type="file" name="file" id="file" onchange="showQuizPrompt()" required>
+            </div>
+
+            <!-- This div is hidden by default using inline 'display: none' -->
+            <div id="quiz-details" style="display: none; background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; margin-top: 25px; margin-bottom: 20px;">
+                <div class="form-group">
+                    <label for="quiz_name">Quiz Name:</label>
+                    <input type="text" name="quiz_name" id="quiz_name" placeholder="Enter a name for your quiz" required>
+                </div>
+
+                <button type="submit" class="btn btn-success btn-full" style="margin-bottom: 0; padding: 12px; font-size: 16px;">
+                    Upload and Create Quiz
+                </button>
+            </div>
+
+            <!-- Cancel Button -->
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="{{ url_for('home') }}" class="btn btn-secondary btn-full" style="padding: 12px; font-size: 16px;">Cancel</a>
+            </div>
+
+        </form>
+    </div>
+
+    <!-- JavaScript to handle the display logic -->
+    <script>
+        function showQuizPrompt() {
+            // Instead of dealing with CSS classes, we just directly change the display style to 'block'
+            document.getElementById("quiz-details").style.display = "block";
+        }
+    </script>
+{% endblock %}

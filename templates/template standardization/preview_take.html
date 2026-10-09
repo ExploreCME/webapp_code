@@ -1,0 +1,53 @@
+{% extends "base.html" %} <!-- Adjust this if your main layout file has a different name -->
+
+{% block content %}
+<div class="container mt-5" style="max-width: 800px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Free Preview: {{ assignment_type | title }}</h2>
+    </div>
+
+    <div class="alert alert-info shadow-sm">
+        <strong>Preview Mode:</strong> Here is a sample of the questions included in this assignment. To select answers, receive grading, and track your performance, please log in or create a free account!
+    </div>
+
+    {% for q in questions %}
+    <div class="card mb-4 shadow-sm border-0">
+        <div class="card-header bg-light border-bottom-0 pt-3 pb-2">
+            <strong style="color: #6c757d;">Question {{ loop.index }} of {{ questions|length }}</strong>
+        </div>
+        <div class="card-body pt-2">
+            <p class="card-text" style="font-size: 1.1em; color: #2C3E50;">{{ q.question_stem | safe }}</p>
+            
+            <div class="mt-4" style="padding-left: 10px; border-left: 3px solid #eef2f5;">
+                {% if q.answer_choice_A %}
+                <div class="mb-2" style="color: #495057;"><strong>A)</strong> {{ q.answer_choice_A }}</div>
+                {% endif %}
+                
+                {% if q.answer_choice_B %}
+                <div class="mb-2" style="color: #495057;"><strong>B)</strong> {{ q.answer_choice_B }}</div>
+                {% endif %}
+
+                {% if q.answer_choice_C %}
+                <div class="mb-2" style="color: #495057;"><strong>C)</strong> {{ q.answer_choice_C }}</div>
+                {% endif %}
+
+                {% if q.answer_choice_D %}
+                <div class="mb-2" style="color: #495057;"><strong>D)</strong> {{ q.answer_choice_D }}</div>
+                {% endif %}
+
+                {% if q.answer_choice_E %}
+                <div class="mb-2" style="color: #495057;"><strong>E)</strong> {{ q.answer_choice_E }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="text-center mb-5 mt-5">
+        <!-- Change 'index' to whatever your signup/login route is named -->
+        <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg px-5" style="background-color: #2b7080; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            Sign Up to Take This Quiz &rarr;
+        </a>
+    </div>
+</div>
+{% endblock %}

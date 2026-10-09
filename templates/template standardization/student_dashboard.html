@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}Student Dashboard - PANCE Quiz App{% endblock %}
+
+{% block content %}
+<style>
+    /* Force max-width override so it doesn't get constrained by base.html */
+    .container, .content-container, main {
+        max-width: 1400px !important; 
+        padding: 0 20px;
+    }
+
+    /* Wrapper for the split view */
+    .dashboard-wrapper {
+        display: flex;
+        gap: 40px;
+        align-items: flex-start;
+        justify-content: center;
+        margin: 0 auto;
+    }
+
+    /* ------------------------------------
+       OLD DASHBOARD STYLES (LEFT SIDE)
+       ------------------------------------ */
+    .dashboard-main {
+        flex: 1;
+        max-width: 900px; /* Restores the original max-width of the old grid */
+    }
+    .dashboard-header {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+    .dashboard-header h2 {
+        color: #2c3e50;
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+    .dashboard-header p {
+        color: #7f8c8d;
+        font-size: 1.1em;
+    }
+
+    .student-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+    }
+
+    .student-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 30px 20px;
+        text-align: center;
+        text-decoration: none;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+        border: 1px solid #eaeded;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .student-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        border-color: #3498db;
+    }
+
+    .card-icon { font-size: 40px; margin-bottom: 15px; }
+    .card-title { color: #2c3e50; font-size: 1.25em; font-weight: 700; margin-bottom: 10px; }
+    .card-desc { color: #7f8c8d; font-size: 0.95em; line-height: 1.4; margin: 0; }
+
+    .card-stats:hover .card-title { color: #27ae60; }
+    .card-select:hover .card-title { color: #e67e22; }
+    .card-generate:hover .card-title { color: #8e44ad; }
+    .card-flashcards:hover .card-title { color: #3498db; }
+
+    /* ------------------------------------
+       NEW SIDEBAR STYLES (RIGHT SIDE)
+       ------------------------------------ */
+    .dashboard-sidebar {
+        width: 350px;
+        flex-shrink: 0;
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+        border: 1px solid #eaeded;
+        position: sticky;
+        top: 20px;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #f4f6f7;
+        padding-bottom: 10px;
+    }
+    .panel-header h3 {
+        margin: 0;
+        color: #2c3e50;
+        font-size: 1.3em;
+    }
+    .filter-select {
+        padding: 6px 10px;
+        border-radius: 6px;
+        border: 1px solid #bdc3c7;
+        font-size: 0.85em;
+        color: #34495e;
+        background-color: #fdfefe;
+        outline: none;
+        cursor: pointer;
+    }
+    .assignment-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+    .assignment-item {
+        padding: 12px 15px;
+        border-radius: 8px;
+        background: #f8f9f9;
+        border: 1px solid #eaeded;
+        margin-bottom: 10px;
+        transition: background 0.2s;
+    }
+    .assignment-item:hover {
+        background: #fdfefe;
+        border-color: #bdc3c7;
+    }
+    .item-title {
+        font-weight: 600;
+        color: #2c3e50;
+        display: block;
+        margin-bottom: 4px;
+        font-size: 1.05em;
+    }
+    .item-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85em;
+        color: #7f8c8d;
+    }
+    .tag-quiz { color: #e67e22; font-weight: 600; }
+    .tag-rem { color: #3498db; font-weight: 600; }
+    .due-date { color: #e74c3c; font-weight: 600; }
+
+    /* Responsive Breakpoint */
+    @media (max-width: 1000px) {
+        .dashboard-wrapper {
+            flex-direction: column;
+            align-items: center;
+        }
+        .dashboard-main, .dashboard-sidebar {
+            width: 100%;
+            max-width: 900px;
+        }
+    }
+</style>
+
+<div class="dashboard-wrapper">
+    
+    <!-- LEFT COLUMN: Exact old layout restored -->
+    <div class="dashboard-main">
+        <div class="dashboard-header">
+            <h2>Student Dashboard</h2>
+            <p>Track your progress, take assigned quizzes or remediations, generate study materials, and review flashcards.</p>
+        </div>
+
+        <div class="student-grid">
+            <!-- 1. My Statistics -->
+            <a href="{{ url_for('stats.my_statistics') }}" class="student-card card-stats">
+                <div class="card-icon">📈</div>
+                <div class="card-title">My Statistics</div>
+                <p class="card-desc">Review your performance history, highest scores, and subject mastery.</p>
+            </a>
+
+            <!-- 2. Select Assessment -->
+            <a href="{{ url_for('quiz.select_quiz') }}" class="student-card card-select">
+                <div class="card-icon">📝</div>
+                <div class="card-title">Select Assessment</div>
+                <p class="card-desc">View and take quizzes or remediations assigned to you by faculty or from your past generations.</p>
+            </a>
+
+            <!-- 3. Quiz Generation Menu -->
+            <a href="{{ url_for('quiz.menu') }}" class="student-card card-generate">
+                <div class="card-icon">⚡</div>
+                <div class="card-title">Generate Quiz</div>
+                <p class="card-desc">Create custom practice quizzes from your study documents or blueprint topics.</p>
+            </a>
+
+            <!-- 4. Flashcards -->
+            <a href="{{ url_for('quiz.flashcards_select_organ') }}" class="student-card card-flashcards">
+                <div class="card-icon">🗂️</div>
+                <div class="card-title">Flashcards</div>
+                <p class="card-desc">Review high-yield flashcards categorized by targeted organ systems.</p>
+            </a>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN: New Upcoming Assignments Box -->
+    <div class="dashboard-sidebar">
+        <div class="panel-header">
+            <h3>Upcoming</h3>
+            <select id="timeframeFilter" class="filter-select" onchange="filterAssignments()">
+                <option value="7" selected>Next 7 Days</option>
+                <option value="14">Next 14 Days</option>
+                <option value="30">Next 30 Days</option>
+                <option value="all">All Upcoming</option>
+            </select>
+        </div>
+
+        <ul class="assignment-list" id="assignmentList">
+            {% if upcoming_assignments %}
+                {% for item in upcoming_assignments %}
+                    <li class="assignment-item" data-days="{{ item.days_away }}">
+                        <span class="item-title">{{ item.name }}</span>
+                        <div class="item-meta">
+                            <span class="{% if item.type == 'Quiz' %}tag-quiz{% else %}tag-rem{% endif %}">
+                                {{ item.type }}
+                            </span>
+                            <span class="due-date">Due: {{ item.due_date_str }}</span>
+                        </div>
+                    </li>
+                {% endfor %}
+            {% else %}
+                <div style="text-align: center; color: #95a5a6; padding: 20px 0; font-size: 0.95em;" id="server-empty">
+                    No upcoming assignments found.
+                </div>
+            {% endif %}
+        </ul>
+        
+        <!-- Client-side empty state message -->
+        <div id="client-empty" style="display: none; text-align: center; color: #95a5a6; padding: 20px 0; font-size: 0.95em;">
+            No assignments due within this timeframe.
+        </div>
+        
+        <div style="margin-top: 15px; text-align: center;">
+            <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-primary btn-sm" style="width: 100%; font-weight: bold; padding: 10px; border-radius: 8px;">View All Assignments</a>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function filterAssignments() {
+        const filterValue = document.getElementById('timeframeFilter').value;
+        const items = document.querySelectorAll('.assignment-item');
+        let visibleCount = 0;
+
+        items.forEach(item => {
+            const daysAway = parseInt(item.getAttribute('data-days'));
+            
+            if (filterValue === 'all' || daysAway <= parseInt(filterValue)) {
+                item.style.display = 'block';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        const clientEmpty = document.getElementById('client-empty');
+        const serverEmpty = document.getElementById('server-empty');
+        
+        if (serverEmpty) {
+            clientEmpty.style.display = 'none';
+        } else {
+            clientEmpty.style.display = (visibleCount === 0) ? 'block' : 'none';
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", filterAssignments);
+</script>
+{% endblock %}

@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Review Modules - {{ remediation_name }}{% endblock %}
+
+{% block content %}
+<style>
+    /* Search Bar Input Styling */
+    #module-search:focus {
+        box-shadow: none;
+        border-color: #dee2e6;
+    }
+
+    /* --- GRID LAYOUT (Matched to review_remediation) --- */
+    .quiz-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 20px;
+        align-items: stretch;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .quiz-card {
+        background: #ffffff;
+        border-radius: 10px;
+        border: 2px solid #b3b3b3;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        box-sizing: border-box;
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        position: relative; /* Essential for stretched-link and absolute button */
+        text-align: left;
+    }
+
+    .quiz-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        border-color: #0d6efd;
+    }
+
+    .card-header-flex {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+        gap: 10px;
+        padding-right: 35px; /* Ensures title doesn't overlap the absolute delete button */
+    }
+
+    .quiz-title {
+        margin: 0;
+        font-size: 1.25em;
+        color: #2C3E50;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    /* Custom Badges */
+    .organ-badge {
+        background-color: #e3f2fd;
+        color: #0d47a1;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: bold;
+        border: 1px solid #bbdefb;
+        white-space: nowrap;
+    }
+
+    .task-badge {
+        background-color: #f5f5f5;
+        color: #616161;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: bold;
+        border: 1px solid #e0e0e0;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+    }
+
+    /* Floating Delete Button */
+    .btn-delete-card {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        background-color: rgba(220, 53, 69, 0.08);
+        color: #dc3545;
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        z-index: 5; /* Keeps it clickable above the stretched link */
+    }
+
+    .btn-delete-card:hover {
+        background-color: #dc3545;
+        color: #ffffff;
+        transform: scale(1.1);
+    }
+
+    /* Action button floating above stretched link */
+    .btn-questions {
+        position: relative;
+        z-index: 5;
+        width: 100%;
+        border-radius: 20px;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+</style>
+
+<div class="container mt-5 mb-5">
+    <!-- Header Section -->
+    <div class="d-flex justify-content-between align-items-center mb-5 pb-3 border-bottom">
+        <div>
+            <h2 class="fw-bold text-primary mb-1" style="font-size: 32px; color: #2c3e50 !important;">{{ remediation_name }}</h2>
+            <span class="text-secondary fs-5" style="color: #7f8c8d !important;">Module Review Details</span>
+        </div>
+        <!-- Return to Remediations List Button -->
+        <a href="{{ url_for('faculty.review_remediation') }}" class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-bold shadow-sm">
+            &larr; Back to Assignments
+        </a>
+    </div>
+
+    {% if modules %}
+        <!-- Live Search Bar -->
+        <div class="row justify-content-center mb-5">
+            <div class="col-md-8 col-lg-6">
+                <div class="input-group shadow-sm" style="border-radius: 12px; overflow: hidden; border: 1px solid #eaeded;">
+                    <span class="input-group-text bg-white border-0 text-muted" id="search-icon">🔍</span>
+                    <input type="text" id="module-search" class="form-control border-0 ps-0 py-3" placeholder="Search modules by topic..." aria-label="Search" autocomplete="off">
+                </div>
+            </div>
+        </div>
+
+        <!-- GRID CONTAINER -->
+        <div class="quiz-grid" id="module-list">
+            {% for module in modules %}
+            <div class="quiz-card module-item" data-name="{{ module.topic_area|upper }}">
+                
+                <!-- Floating Delete Action -->
+                <form action="{{ url_for('faculty.delete_remediation_module') }}" method="POST" class="m-0" style="position: relative; z-index: 5;" onsubmit="return confirm('WARNING: Are you sure you want to delete this specific module? This action cannot be undone.');">
+                    <input type="hidden" name="module_id" value="{{ module.id }}">
+                    <input type="hidden" name="remediation_name" value="{{ remediation_name }}">
+                    <button type="submit" class="btn-delete-card" title="Delete Module" aria-label="Delete">
+                        ✖
+                    </button>
+                </form>
+
+                <div class="card-header-flex">
+                    <h3 class="quiz-title">
+                        <!-- Stretched link: Clicking anywhere on the card opens the flashcard -->
+                        <a href="{{ url_for('quiz.view_remediation_flashcard', assignment_id=module.id, source='faculty') }}" class="stretched-link" style="color: inherit; text-decoration: none;">
+                            {{ module.topic_area }}
+                        </a>
+                    </h3>
+                </div>
+
+                <!-- Badges Row -->
+                <div class="mb-3 d-flex flex-wrap gap-2">
+                    <span class="organ-badge">{{ module.organ_system }}</span>
+                    <span class="task-badge">{{ module.task_area }}</span>
+                </div>
+
+                <!-- Footer / Action Area -->
+                <div style="margin-top: auto; padding-top: 15px; border-top: 1px solid #eee;">
+                    <!-- Z-Index 5 keeps this button clickable separately from the stretched link -->
+                    <a href="{{ url_for('faculty.review_remediation_questions', module_id=module.id) }}" class="btn btn-outline-primary btn-questions">
+                        Review Questions &rarr;
+                    </a>
+                </div>
+
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Empty State For Search -->
+        <div id="no-filter-results" class="text-center py-5" style="display: none;">
+            <h5 class="text-secondary fw-bold">No modules found.</h5>
+        </div>
+    {% else %}
+        <!-- Modern Empty State -->
+        <div class="text-center py-5 bg-light rounded-4 border border-secondary-subtle mt-4" style="max-width: 600px; margin: 0 auto;">
+            <div class="display-1 text-muted mb-3">📭</div>
+            <h4 class="text-secondary fw-bold">No modules left!</h4>
+            <p class="text-muted mb-0">All modules for this remediation assignment have been deleted.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Optimized Live Search JavaScript -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const searchInput = document.getElementById("module-search");
+        const items = document.querySelectorAll(".module-item");
+        const noResults = document.getElementById("no-filter-results");
+
+        if (searchInput) {
+            searchInput.addEventListener("input", function() {
+                const query = this.value.toLowerCase().trim();
+                let visibleCount = 0;
+
+                items.forEach(item => {
+                    const name = (item.dataset.name || "").toLowerCase();
+                    const isMatch = name.includes(query);
+                    
+                    // Natively hide/show grid items
+                    item.style.display = isMatch ? "" : "none";
+                    if (isMatch) visibleCount++;
+                });
+
+                if (noResults) {
+                    // Show the empty state if 0 items are visible, otherwise hide it
+                    noResults.style.display = (visibleCount === 0) ? "block" : "none";
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

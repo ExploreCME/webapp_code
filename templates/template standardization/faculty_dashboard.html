@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Faculty Dashboard - PANCE Quiz App{% endblock %}
+
+{% block content %}
+<style>
+    /* Modern Dashboard Styling */
+    .dashboard-header { text-align: center; margin-bottom: 40px; }
+    .dashboard-header h2 { color: #2c3e50; font-size: 32px; font-weight: 700; margin-bottom: 10px; }
+    .dashboard-header p { color: #7f8c8d; font-size: 1.1em; }
+
+    .faculty-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; max-width: 900px; margin: 0 auto; }
+    .faculty-card { background: #ffffff; border-radius: 12px; padding: 30px 20px; text-align: center; text-decoration: none; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); border: 1px solid #eaeded; transition: all 0.3s ease; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .faculty-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1); border-color: #3498db; }
+    .card-icon { font-size: 40px; margin-bottom: 15px; }
+    .card-title { color: #2c3e50; font-size: 1.25em; font-weight: 700; margin-bottom: 10px; }
+    .card-desc { color: #7f8c8d; font-size: 0.95em; line-height: 1.4; margin: 0; }
+
+    /* Specific Card Accents */
+    .card-classes:hover .card-title { color: #8e44ad; }
+    .card-generate:hover .card-title { color: #3498db; }
+    .card-assign:hover .card-title { color: #e67e22; }
+    .card-reports:hover .card-title { color: #27ae60; }
+</style>
+
+<div class="dashboard-header">
+    <h2>Faculty Dashboard</h2>
+    <p>Manage your classes, generate content, assign assessments, and track performance.</p>
+</div>
+
+<div class="faculty-grid">
+    <!-- 1. Class Maintenance -->
+    <a href="{{ url_for('faculty.manage_classes') }}" class="faculty-card card-classes">
+        <div class="card-icon">👥</div>
+        <div class="card-title">Class Maintenance</div>
+        <p class="card-desc">Create new classes, view rosters, and add or remove students.</p>
+    </a>
+
+    <!-- 2. Generate Quiz/Remediation -->
+    <a href="{{ url_for('faculty.generate_hub') }}" class="faculty-card card-generate">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">Generate & Review Content</div>
+        <p class="card-desc">Create and review practice quizzes and remediations.</p>
+    </a>
+
+    <!-- 3. Assign Content Menu (Updated Link) -->
+    <a href="{{ url_for('faculty.assign_menu') }}" class="faculty-card card-assign">
+        <div class="card-icon">📬</div>
+        <div class="card-title">Assign Content</div>
+        <p class="card-desc">Distribute content or review active assignments.</p>
+    </a>
+
+    <!-- 4. Review/Reports -->
+    <a href="{{ url_for('faculty.reports_hub') }}" class="faculty-card card-reports">
+        <div class="card-icon">📊</div>
+        <div class="card-title">Reports</div>
+        <p class="card-desc">Review student performance and download PDF reports.</p>
+    </a>
+</div>
+{% endblock %}

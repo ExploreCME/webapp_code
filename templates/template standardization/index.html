@@ -1,0 +1,485 @@
+{% extends "base.html" %}
+{% block title %}Question {{ current_question_number }} - PANCE Quiz{% endblock %}
+
+{% block head %}
+<style>
+    /* =========================================
+       OVERRIDE BASE.HTML RESTRAINTS
+       ========================================= */
+    nav, header, footer, .navbar {
+        display: none !important;
+    }
+
+    body, html {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: 100vh !important;
+        width: 100vw !important;
+        overflow: hidden !important; 
+        background-color: #fff !important;
+    }
+
+    .container, .container-fluid, .container-large, main {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* =========================================
+       FULL-SCREEN QUIZ INTERFACE
+       ========================================= */
+    .quiz-viewport {
+        display: flex;
+        flex-direction: column;
+        height: 100vh; 
+        width: 100vw;  
+        background: #ffffff;
+        margin: 0;
+        border: none;
+        border-radius: 0;
+    }
+
+    /* --- HEADER --- */
+    .quiz-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 30px;
+        background: #f8f9fa;
+        border-bottom: 2px solid #e9ecef;
+        font-weight: 600;
+        color: #2c3e50;
+        flex-shrink: 0;
+    }
+
+    /* --- MAIN SCROLLABLE BODY --- */
+    .quiz-body {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0; 
+    }
+
+    @media (min-width: 992px) {
+        .quiz-body {
+            flex-direction: row;
+        }
+    }
+
+    /* --- LEFT PANE: SIDEBAR GRID --- */
+    .quiz-sidebar {
+        display: none; 
+    }
+    @media (min-width: 992px) {
+        .quiz-sidebar {
+            display: flex;
+            flex-direction: column;
+            width: 260px;
+            flex-shrink: 0;
+            padding: 25px 20px;
+            background: #f8f9fa;
+            border-right: 2px solid #e9ecef;
+            overflow-y: auto;
+        }
+    }
+
+    /* --- MIDDLE PANE: QUESTION --- */
+    .question-pane {
+        flex: 1.3;
+        padding: 30px 40px;
+        overflow-y: auto;
+        font-size: 1.15em;
+        line-height: 1.6;
+        color: #333;
+        border-bottom: 1px solid #e9ecef;
+    }
+    @media (min-width: 992px) {
+        .question-pane {
+            border-bottom: none;
+            border-right: 2px solid #e9ecef;
+        }
+    }
+
+    /* --- RIGHT PANE: ANSWERS --- */
+    .answers-pane {
+        flex: 1;
+        padding: 30px 40px;
+        overflow-y: auto;
+        background: #fafbfa;
+    }
+
+    /* --- STATIC FOOTER --- */
+    .quiz-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 30px;
+        background: #f8f9fa;
+        border-top: 2px solid #e9ecef;
+        flex-shrink: 0;
+    }
+
+    @media (min-width: 992px) {
+        .mobile-only-btn {
+            display: none !important;
+        }
+    }
+
+    /* =========================================
+       ANSWER CHOICES STYLING
+       ========================================= */
+    .choice-label {
+        display: flex;
+        align-items: center;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        border: 2px solid #ced4da;
+        border-radius: 8px;
+        background: #fff;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        font-size: 1.05em;
+    }
+
+    .choice-label:hover:not(.disabled) {
+        border-color: #adb5bd;
+        background: #f1f3f5;
+    }
+
+    .choice-input {
+        position: absolute;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    .radio-indicator {
+        height: 22px;
+        width: 22px;
+        border: 2px solid #adb5bd;
+        border-radius: 50%;
+        margin-right: 15px;
+        display: inline-block;
+        position: relative;
+        flex-shrink: 0;
+    }
+
+    .choice-input:checked ~ .radio-indicator {
+        border-color: #0d6efd;
+    }
+    .choice-input:checked ~ .radio-indicator::after {
+        content: "";
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #0d6efd;
+    }
+
+    .choice-input:checked ~ .choice-text {
+        font-weight: 600;
+        color: #0d6efd;
+    }
+
+    .choice-label.disabled {
+        cursor: not-allowed;
+        opacity: 0.8;
+    }
+
+    .choice-label.correct-answer {
+        border-color: #198754 !important;
+        background-color: #d1e7dd !important;
+    }
+    .choice-label.correct-answer .choice-text {
+        color: #0f5132 !important;
+        font-weight: bold;
+    }
+    .choice-label.correct-answer .radio-indicator {
+        border-color: #198754;
+    }
+    .choice-label.correct-answer .radio-indicator::after {
+        background: #198754;
+    }
+
+    .choice-label.incorrect-answer {
+        border-color: #dc3545 !important;
+        background-color: #f8d7da !important;
+    }
+    .choice-label.incorrect-answer .choice-text {
+        color: #842029 !important;
+    }
+
+    .explanation-box {
+        margin-top: 25px;
+        padding: 25px;
+        background: #e0f3ff;
+        border-left: 5px solid #0dcaf0;
+        border-radius: 0 8px 8px 0;
+        font-size: 1.05em;
+    }
+
+    /* =========================================
+       QUESTION GRID (COLOR CODING)
+       ========================================= */
+    .grid-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .grid-item {
+        width: 38px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: bold;
+        color: #fff;
+        border: 2px solid transparent;
+        transition: transform 0.1s;
+    }
+    .grid-item:hover { color: #fff; filter: brightness(0.9); }
+    .grid-unanswered { background: #6c757d; }
+    .grid-answered { background: #0d6efd; }
+    .grid-correct { background: #198754; }
+    .grid-incorrect { background: #dc3545; }
+    .grid-current { border: 3px solid #ffc107; transform: scale(1.15); box-shadow: 0 0 10px rgba(255,193,7,0.5); z-index: 2; }
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('quiz.check_answer') }}" id="quizForm" class="quiz-viewport">
+    
+    <!-- SYSTEM STATE (HIDDEN) -->
+    <input type="hidden" name="question_id" value="{{ question.id }}">
+    <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
+    <input type="hidden" name="mode" value="{{ mode }}">
+    <input type="hidden" name="attempt_id" value="{{ attempt_id }}">
+    <input type="hidden" name="next_q_id" value="{{ next_q_id }}">
+
+    <!-- HEADER WITH NEW "REVIEW ATTEMPTS" BUTTON -->
+    <div class="quiz-header">
+        <div>
+            <span style="font-size: 1.2em;">Question <strong>{{ current_question_number }}</strong> of <strong>{{ total_questions }}</strong></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <span class="badge bg-secondary" style="font-size: 0.9em; padding: 6px 10px;">{{ mode | replace('_', ' ') | title }}</span>
+            <a href="{{ url_for('quiz.quiz_attempts', quiz_name=quiz_name) }}" class="btn btn-outline-primary btn-sm" style="font-weight: bold;">Review Attempts</a>
+            
+            <!-- DYNAMIC EXIT LOGIC FOR TOP BUTTON -->
+            {% if exit_url %}
+                <a href="{{ exit_url }}" class="btn btn-outline-danger btn-sm" style="font-weight: bold;">&#10006; Exit to Modules</a>
+            {% else %}
+                <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-outline-danger btn-sm" style="font-weight: bold;">&#10006; Exit</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- SCROLLABLE BODY (3 PANES) -->
+    <div class="quiz-body">
+        
+        <!-- PANE 1: SIDEBAR GRID (Desktop Only) -->
+        <div class="quiz-sidebar">
+            <h5 style="margin-top: 0; margin-bottom: 15px; color: #555; font-size: 0.95em; text-transform: uppercase; letter-spacing: 1px;">Question Map</h5>
+            
+            <div class="grid-container">
+                {% for grid_item in grid_data %}
+                    {% set bg_class = 'grid-unanswered' %}
+                    {% if grid_item.status == 'answered' %}{% set bg_class = 'grid-answered' %}{% endif %}
+                    {% if grid_item.status == 'correct' %}{% set bg_class = 'grid-correct' %}{% endif %}
+                    {% if grid_item.status == 'incorrect' %}{% set bg_class = 'grid-incorrect' %}{% endif %}
+                    
+                    {% set border_class = '' %}
+                    {% if grid_item.is_current %}{% set border_class = 'grid-current' %}{% endif %}
+
+                    <a href="{{ url_for('quiz.question_page', q=grid_item.question_id, quiz_name=quiz_name, mode=mode, attempt_id=attempt_id) }}" 
+                       class="grid-item {{ bg_class }} {{ border_class }}"
+                       title="Question {{ grid_item.question_number }}">
+                        {{ grid_item.question_number }}
+                    </a>
+                {% endfor %}
+            </div>
+
+            <div style="margin-top: 25px; font-size: 0.85em; color: #666; border-top: 1px solid #e0e0e0; padding-top: 15px;">
+                <div style="margin-bottom: 8px;"><span style="display:inline-block; width:14px; height:14px; background:#6c757d; border-radius:3px; vertical-align: middle; margin-right: 5px;"></span> Unanswered</div>
+                {% if mode == 'test' %}
+                    <div style="margin-bottom: 8px;"><span style="display:inline-block; width:14px; height:14px; background:#0d6efd; border-radius:3px; vertical-align: middle; margin-right: 5px;"></span> Answered</div>
+                {% else %}
+                    <div style="margin-bottom: 8px;"><span style="display:inline-block; width:14px; height:14px; background:#198754; border-radius:3px; vertical-align: middle; margin-right: 5px;"></span> Correct</div>
+                    <div style="margin-bottom: 8px;"><span style="display:inline-block; width:14px; height:14px; background:#dc3545; border-radius:3px; vertical-align: middle; margin-right: 5px;"></span> Incorrect</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- PANE 2: MIDDLE QUESTION STEM & RATING -->
+        <div class="question-pane">
+            <div class="question-text">
+                {{ question.question_stem | safe }}
+            </div>
+
+            <div style="margin-top: 20px; display: flex; gap: 10px; align-items: center; padding-top: 15px; border-top: 1px dashed #e9ecef;">
+                <span style="font-size: 0.9em; color: #666;">Rate this question:</span>
+                <button type="button" class="btn btn-sm btn-outline-success" onclick="rateQuestion('up', '{{ question.id }}')" title="Thumbs Up">👍</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="rateQuestion('down', '{{ question.id }}')" title="Thumbs Down">👎</button>
+                <span id="rating-feedback" style="font-size: 0.85em; color: #198754; display: none; font-weight: bold;">Feedback saved!</span>
+            </div>
+
+            <!-- UPDATED EXPLANATION LOGIC -->
+            {% if answered and mode not in ['test', 'study_no_exp'] %}
+                <div class="explanation-box">
+                    <h5 style="color: #087990; margin-bottom: 10px;">Explanation & Peer Stats</h5>
+                    <div>{{ question.explanation | safe }}</div>
+                    
+                    <hr style="border-color: #a8d7e6; margin: 20px 0;">
+                    
+                    <div style="font-size: 0.9em; color: #555;">
+                        <strong>Community Stats:</strong> 
+                        {{ question.correct }} answered correctly out of {{ question.correct + question.incorrect }} total attempts.
+                        <br>
+                        <em>(A: {{ question.choice_a_count }} | B: {{ question.choice_b_count }} | C: {{ question.choice_c_count }} | D: {{ question.choice_d_count }} | E: {{ question.choice_e_count }})</em>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- PANE 3: RIGHT ANSWER CHOICES -->
+        <div class="answers-pane">
+            {% set choices = [('A', question.answer_choice_A), ('B', question.answer_choice_B), ('C', question.answer_choice_C), ('D', question.answer_choice_D), ('E', question.answer_choice_E)] %}
+            
+            <h5 style="margin-bottom: 20px; color: #666; font-size: 1em; text-transform: uppercase; letter-spacing: 1px;">Select an answer</h5>
+
+            {% for letter, text in choices %}
+                {% if text and text.strip() != "" and text != "None" %}
+                    
+                    {% set is_selected = (previous_choice == letter) %}
+                    {% set is_correct_choice = (question.correct_answer | upper == letter) %}
+                    
+                    {% set state_class = "" %}
+                    {% if answered %}
+                        {% set state_class = "disabled" %}
+                        {% if mode != 'test' %}
+                            {% if is_correct_choice %}
+                                {% set state_class = state_class ~ " correct-answer" %}
+                            {% elif is_selected and not is_correct_choice %}
+                                {% set state_class = state_class ~ " incorrect-answer" %}
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+
+                    <label class="choice-label {{ state_class }}">
+                        <input type="radio" name="user_choice" value="{{ letter }}" class="choice-input" 
+                               {% if is_selected %}checked{% endif %} 
+                               {% if answered %}disabled{% endif %}>
+                        
+                        <span class="radio-indicator"></span>
+                        <span class="choice-text"><strong>{{ letter }}.</strong> {{ text }}</span>
+                    </label>
+
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- STATIC FOOTER -->
+    <div class="quiz-footer">
+        <div style="display: flex; gap: 10px; align-items: center;">
+            
+            <!-- DYNAMIC EXIT LOGIC FOR BOTTOM BUTTON -->
+            {% if exit_url %}
+                <a href="{{ exit_url }}" class="btn btn-outline-danger" style="font-weight: bold;">&#10006; Exit to Modules</a>
+            {% else %}
+                <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-outline-danger" style="font-weight: bold;">&#10006; Exit</a>
+            {% endif %}
+            
+            {% if prev_q_id %}
+                <a href="{{ url_for('quiz.question_page', q=prev_q_id, quiz_name=quiz_name, mode=mode, attempt_id=attempt_id) }}" class="btn btn-secondary">&larr; Prev</a>
+            {% endif %}
+        </div>
+
+        <div>
+            {% if mode == 'test' %}
+                {% if next_q_id == 'NEXT_MODULE' %}
+                    <button type="submit" id="submitBtn" class="btn btn-success" style="padding: 10px 30px; font-weight: bold;">Submit & Continue to Next Module</button>
+                {% elif next_q_id %}
+                    <button type="submit" id="submitBtn" class="btn btn-primary" style="padding: 10px 30px; font-weight: bold;">Save & Next &rarr;</button>
+                {% else %}
+                    <button type="submit" id="submitBtn" class="btn btn-success" style="padding: 10px 30px; font-weight: bold;">Submit Final Test</button>
+                {% endif %}
+            
+            {% else %}
+                {% if not answered %}
+                    <button type="submit" id="submitBtn" class="btn btn-primary" style="padding: 10px 30px; font-weight: bold;" disabled>Submit Answer</button>
+                {% else %}
+                    {% if next_q_id == 'NEXT_MODULE' %}
+                        <a href="{{ url_for('quiz.question_page', q=next_q_id, quiz_name=quiz_name, mode=mode, attempt_id=attempt_id) }}" id="nextBtn" class="btn btn-success" style="padding: 10px 30px; font-weight: bold;">Continue to Next Module &rarr;</a>
+                    {% elif next_q_id %}
+                        <a href="{{ url_for('quiz.question_page', q=next_q_id, quiz_name=quiz_name, mode=mode, attempt_id=attempt_id) }}" id="nextBtn" class="btn btn-success" style="padding: 10px 30px; font-weight: bold;">Next Question &rarr;</a>
+                    {% else %}
+                        <!-- CHANGED: Now properly routes fallback to select_quiz instead of dashboard -->
+                        <a href="{{ url_for('quiz.quiz_results', attempt_id=attempt_id, quiz_name=quiz_name) if attempt_id else url_for('quiz.select_quiz') }}" id="nextBtn" class="btn btn-success" style="padding: 10px 30px; font-weight: bold;">Finish & View Results</a>
+                    {% endif %}
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</form>
+
+<!-- ==========================================
+     RATING SCRIPT & BUTTON LOGIC
+     ========================================== -->
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const submitBtn = document.getElementById('submitBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const form = document.getElementById('quizForm');
+        const radios = document.querySelectorAll('.choice-input');
+
+        // 1. Auto-focus "Next" button so user can just hit Enter
+        if (nextBtn) {
+            nextBtn.focus();
+        }
+
+        // 2. Unlock Submit button only when a radio is clicked
+        if (submitBtn && !document.querySelector('.choice-input:checked')) {
+            submitBtn.disabled = true;
+        }
+
+        radios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (submitBtn) submitBtn.disabled = false;
+            });
+        });
+
+        // 3. Change Submit button to indicate processing
+        if (form) {
+            form.addEventListener('submit', () => {
+                if (submitBtn && !submitBtn.disabled) {
+                    submitBtn.innerHTML = 'Checking...';
+                    submitBtn.style.opacity = '0.7';
+                }
+            });
+        }
+    });
+
+    // Rating Logic
+    function rateQuestion(type, qId) {
+        fetch('{{ url_for("quiz.rate_question") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ question_id: qId, rating_type: type })
+        }).then(response => response.json())
+          .then(data => {
+              if (data.status === 'success') {
+                  const feedback = document.getElementById('rating-feedback');
+                  feedback.style.display = 'inline-block';
+                  setTimeout(() => { feedback.style.display = 'none'; }, 3000);
+              }
+          }).catch(err => console.error("Error submitting rating:", err));
+    }
+</script>
+{% endblock %}

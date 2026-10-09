@@ -1,0 +1,559 @@
+{% extends "base.html" %}
+
+{% block title %}PANCE Quiz App | Board Review & Practice for PA Students{% endblock %}
+{% block description %}Master the PANCE with confidence. A powerful, personalized quiz application and study databank designed specifically for Physician Assistant (PA) students to track progress and achieve high scores.{% endblock %}
+
+{% block container_class %}container-large{% endblock %}
+
+{% block head %}
+    <!-- SEO Meta Tags -->
+    <meta name="keywords" content="PANCE, PA students, Physician Assistant board prep, PANCE practice questions, PANCE quiz, medical study app">
+    <meta name="author" content="PANCE Quiz App">
+    <meta name="robots" content="index, follow">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="PANCE Quiz App | Board Review for PA Students">
+    <meta property="og:description" content="A powerful, personalized quiz application designed for Physician Assistant Students to master the PANCE and track their progress.">
+    <meta property="og:image" content="{{ url_for('static', filename='FullLogo.png', _external=True) }}">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="PANCE Quiz App | Board Review for PA Students">
+    <meta property="twitter:description" content="A powerful, personalized quiz application designed for Physician Assistant Students to master the PANCE and track their progress.">
+    <meta property="twitter:image" content="{{ url_for('static', filename='FullLogo.png', _external=True) }}">
+
+    <!-- Load Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom Styles for Modern Dashboard -->
+    <style>
+        /* --- NEW: Prevent the screen from ever scrolling horizontally --- */
+        body, html {
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+
+        /* Fade-in & Floating Animations */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in-card {
+            animation: fadeUp 0.6s ease-out forwards;
+        }
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+
+        /* Modern Glassmorphism & Card Styling */
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            padding: 30px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 128, 128, 0.15);
+        }
+
+        .stat-number {
+            font-size: 3em;
+            font-weight: 800;
+            color: #2C3E50;
+            margin: 0 0 5px 0;
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 1.1em;
+            color: #7f8c8d;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-size: 0.85em;
+            font-weight: 700;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .chart-title {
+            text-align: center;
+            margin-top: 0;
+            color: #2C3E50;
+            font-weight: 700;
+            margin-bottom: 25px;
+            letter-spacing: 0.5px;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 40px 20px;">
+
+   <!-- Logo Section -->
+    <div style="margin-bottom: 30px;">
+        <h2 style="color: #2c3e50; display: inline-flex; align-items: center; justify-content: center; gap: 15px; margin: 0;">
+            <!-- SEO Update: Better alt text for crawlers -->
+            <img src="{{ url_for('static', filename='FullLogo.png') }}" alt="PANCE Quiz App Logo - Where Knowledge Evolves" style="height: 120px; width: auto;">
+            <strong>Where Knowledge Evolves</strong>
+        </h2>
+    </div>
+
+    <!-- Main Headline -->
+    <h1 style="font-size: 3em; color: #1a4b57; margin-bottom: 20px; line-height: 1.2;">
+        Master the PANCE with <br> Confidence
+    </h1>
+
+    <!-- Subheadline -->
+    <p style="font-size: 1.2em; color: #444; max-width: 650px; margin: 0 auto 30px auto; line-height: 1.6;">
+        A powerful, personalized quiz application designed for <strong>Physician Assistant Students</strong>, helping you track your progress and pass with high scores.
+    </p>
+
+    <!-- Coupon Code Promo -->
+    <p style="color: #2b7080; font-size: 1.15em; font-weight: 500; margin-top: 0; margin-bottom: 40px;">
+        Use coupon code <strong style="background-color: #eef2f5; padding: 4px 8px; border-radius: 4px; border: 1px solid #dcdcdc; color: #2C3E50;">OneFree</strong> at checkout for one free month. Cancel at anytime.
+    </p>
+
+    <!-- Call to Action Button -->
+    <div style="margin-bottom: 40px;">
+        <!-- Dynamically route the button based on the user's status and platform -->
+        {% if is_premium %}
+            {% if is_app %}
+                <!-- APP USERS -->
+                <a href="{{ url_for('faculty.dashboard') if is_faculty else url_for('quiz.select_quiz') }}" class="btn btn-primary" style="font-size: 1.2em; padding: 15px 35px; border-radius: 8px; background-color: #2b7080; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-decoration: none; color: white; display: inline-block;">
+                    {% if is_faculty %}
+                        Take me to faculty access &rarr;
+                    {% else %}
+                        Take me to student access &rarr;
+                    {% endif %}
+                </a>
+            {% else %}
+                <!-- WEB USERS -->
+                <a href="{{ url_for('faculty.dashboard') if is_faculty else url_for('quiz.student_dashboard') }}" class="btn btn-primary" style="font-size: 1.2em; padding: 15px 35px; border-radius: 8px; background-color: #2b7080; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-decoration: none; color: white; display: inline-block;">
+                    {% if is_faculty %}
+                        Take me to faculty access &rarr;
+                    {% else %}
+                        Take me to student access &rarr;
+                    {% endif %}
+                </a>
+            {% endif %}
+        {% elif session.get('username') %}
+            <!-- USER IS LOGGED IN BUT NOT PREMIUM -->
+            {% if not is_app %}
+                <!-- For non-paid WEB users, trigger the Upgrade Modal -->
+                <button type="button" onclick="showUpgradeModal()" class="btn btn-secondary" style="font-size: 1.2em; padding: 15px 35px; border-radius: 8px; background-color: #e67e22; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: pointer; color: white; display: inline-block;">
+                    Unlock the Questions &rarr;
+                </button>
+
+                <!-- The Selection Modal -->
+                <div id="upgradeModal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); backdrop-filter: blur(5px); text-align: left;">
+                  <!-- Styled to match your .stat-card glassmorphism aesthetic -->
+                  <div style="background: rgba(255, 255, 255, 0.95); margin: 10% auto; padding: 40px; border-radius: 16px; width: 90%; max-width: 600px; text-align: center; box-shadow: 0 15px 35px rgba(0,0,0,0.2); border: 1px solid rgba(255, 255, 255, 0.2);">
+                    <h2 style="color: #2C3E50; margin-top: 0; font-size: 2em;">Unlock Premium Access</h2>
+                    <p style="color: #7f8c8d; margin-bottom: 30px; font-size: 1.1em;">Select your preferred method to activate your account.</p>
+
+                    <div style="display:flex; flex-wrap: wrap; justify-content:space-around; gap: 20px;">
+
+                      <!-- Option 1: Stripe Checkout -->
+                      <form action="/create-checkout-session" method="POST" style="flex:1; min-width: 220px;">
+                        <button type="submit" style="width:100%; height:100%; padding:25px 15px; cursor:pointer; background-color: white; border: 2px solid #2b7080; border-radius: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 20px rgba(43,112,128,0.15)';" onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
+                          <strong style="color: #2b7080; font-size: 1.3em; display: block; margin-bottom: 8px;">Individual Subscription</strong>
+                          <span style="color: #7f8c8d; font-size: 0.95em;">Pay securely via Stripe</span>
+                        </button>
+                      </form>
+
+                      <!-- Option 2: Institutional Routing -->
+                      <form action="/institutional-access" method="GET" style="flex:1; min-width: 220px;">
+                         <button type="submit" style="width:100%; height:100%; padding:25px 15px; cursor:pointer; background-color: white; border: 2px solid #e67e22; border-radius: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 20px rgba(230,126,34,0.15)';" onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
+                           <strong style="color: #e67e22; font-size: 1.3em; display: block; margin-bottom: 8px;">Institutional Access</strong>
+                           <span style="color: #7f8c8d; font-size: 0.95em;">Use a program access code</span>
+                         </button>
+                      </form>
+
+                    </div>
+
+                    <button type="button" onclick="closeUpgradeModal()" style="margin-top: 35px; padding: 12px 30px; cursor: pointer; background-color: #f4f7f6; border: 1px solid #eef2f5; border-radius: 8px; color: #7f8c8d; font-weight: bold; font-size: 1em; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#eef2f5'" onmouseout="this.style.backgroundColor='#f4f7f6'">Cancel</button>
+                  </div>
+                </div>
+
+                <script>
+                  function showUpgradeModal() {
+                    document.getElementById('upgradeModal').style.display = 'block';
+                  }
+                  function closeUpgradeModal() {
+                    document.getElementById('upgradeModal').style.display = 'none';
+                  }
+                </script>
+            {% endif %}
+            <!-- Note: APP users who are not premium will see NO button here to avoid Apple/Google rejecting the app. -->
+        {% else %}
+            <!-- USER IS NOT LOGGED IN AT ALL -->
+            <p style="font-size: 1.1em; color: #e67e22; font-weight: bold;">Please sign in to access or unlock the questions.</p>
+        {% endif %}
+    </div>
+
+    <!-- NEW: Embedded YouTube Video Walkthroughs (Side-by-Side) -->
+    <div style="max-width: 1000px; margin: 0 auto 60px auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 30px; padding: 0 15px;">
+
+        <!-- Student Video Block -->
+        <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid rgba(255, 255, 255, 0.2);">
+            <h3 style="color: #2C3E50; margin-top: 0; margin-bottom: 15px; font-size: 1.5em; text-align: center;">For Students</h3>
+            <div style="position: relative; padding-bottom: 56.25%; height: 0; background: #000; border-radius: 12px; overflow: hidden;">
+                <iframe
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;"
+                    src="https://www.youtube.com/embed/2CXUBtVBVCI"
+                    title="Student Walkthrough"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+
+        <!-- Program Video Block -->
+        <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid rgba(255, 255, 255, 0.2);">
+            <h3 style="color: #2C3E50; margin-top: 0; margin-bottom: 15px; font-size: 1.5em; text-align: center;">For Programs</h3>
+            <div style="position: relative; padding-bottom: 56.25%; height: 0; background: #000; border-radius: 12px; overflow: hidden;">
+                <iframe
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;"
+                    src="https://www.youtube.com/embed/Eie-dukycuY"
+                    title="Program Walkthrough"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ========================================== -->
+<!-- MODERN DATABASE PREVIEW SECTION            -->
+<!-- ========================================== -->
+<div id="database-preview" style="margin-top: 20px; padding: 50px 20px; background: linear-gradient(to bottom, #f4f7f6, #ffffff); border-top: 1px solid #eef2f5; border-radius: 12px;">
+
+    <h2 style="color: #2c3e50; text-align: center; margin-bottom: 40px; font-size: 2.2em;">
+        Explore Our Comprehensive Databank
+    </h2>
+
+    <!-- STAT CARDS ROW -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 25px; margin-bottom: 50px; max-width: 1000px; margin-left: auto; margin-right: auto;">
+
+        <div class="stat-card fade-in-card">
+            <p class="stat-number count-up" style="color: #2C3E50;" data-target="{{ total_questions }}">0</p>
+            <p class="stat-label">Total Questions</p>
+        </div>
+
+        <div class="stat-card fade-in-card delay-1">
+            <p class="stat-number count-up" style="color: #008080;" data-target="{{ organ_labels|length }}">0</p>
+            <p class="stat-label">Organ Systems</p>
+        </div>
+
+        <div class="stat-card fade-in-card delay-2">
+            <p class="stat-number" style="color: #48C9B0; font-size: 1.8em; padding: 15px 0;">
+                {{ task_labels[0] if task_labels else 'N/A' }}
+            </p>
+            <p class="stat-label">Top Task Area</p>
+        </div>
+
+    </div>
+
+    <!-- CHARTS GRID -->
+    <!-- NEW: Changed minmax from 400px to 280px so it fits on mobile screens -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 40px; margin-bottom: 40px; max-width: 1100px; margin-left: auto; margin-right: auto;">
+
+        <!-- Organ Systems Chart (Horizontal Bar) -->
+        <div class="chart-container fade-in-card delay-3">
+            <h3 class="chart-title">Database Distribution</h3>
+            <!-- NEW: Added max-width and overflow-x hidden to strictly contain the canvas -->
+            <div style="position: relative; height: 500px; width: 100%; max-width: 100%; overflow-x: hidden;">
+                <canvas id="organChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Task Areas Chart (Radar Web) -->
+        <div class="chart-container fade-in-card delay-3">
+            <h3 class="chart-title">Task Area Competency Web</h3>
+            <!-- NEW: Added max-width and overflow-x hidden to strictly contain the canvas -->
+            <div style="position: relative; height: 500px; width: 100%; max-width: 100%; overflow-x: hidden;">
+                <canvas id="taskChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- JAVASCRIPT ANIMATIONS & CHART RENDERING    -->
+<!-- ========================================== -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // --- 1. Number Counter Animation ---
+    const counters = document.querySelectorAll('.count-up');
+    const speed = 40; // Lower is faster
+
+    counters.forEach(counter => {
+        const updateCount = () => {
+            const target = +counter.getAttribute('data-target');
+            const count = +counter.innerText;
+            const inc = target / speed;
+
+            if (count < target) {
+                counter.innerText = Math.ceil(count + inc);
+                setTimeout(updateCount, 25);
+            } else {
+                counter.innerText = target;
+            }
+        };
+
+        // Use IntersectionObserver to start counting only when scrolled into view
+        let observer = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if(entry.isIntersecting){
+                    updateCount();
+                    observer.unobserve(entry.target);
+                }
+            });
+        });
+        observer.observe(counter);
+    });
+
+    // --- 2. Chart Data Injection ---
+    const organLabels = {{ organ_labels | tojson | safe }};
+    const organCounts = {{ organ_counts | tojson | safe }};
+    const taskLabels = {{ task_labels | tojson | safe }};
+    const taskCounts = {{ task_counts | tojson | safe }};
+
+    // Vibrant Semi-Transparent Palette
+    const polarPalette = [
+        'rgba(44, 62, 80, 0.7)',   // Dark Slate
+        'rgba(0, 128, 128, 0.7)',  // Teal
+        'rgba(72, 201, 176, 0.7)', // Aqua/Mint
+        'rgba(52, 73, 94, 0.7)',   // Lighter Slate
+        'rgba(32, 178, 170, 0.7)', // Light Sea Green
+        'rgba(93, 173, 226, 0.7)', // Soft Blue
+        'rgba(170, 183, 184, 0.7)' // Muted Gray
+    ];
+
+    // --- 3. Horizontal Bar Chart (Replaces Polar Area) ---
+    const ctxOrgan = document.getElementById('organChart').getContext('2d');
+    new Chart(ctxOrgan, {
+        type: 'bar', // Changed from polarArea to bar
+        data: {
+            labels: organLabels,
+            datasets: [{
+                label: 'Questions',
+                data: organCounts,
+                backgroundColor: polarPalette, // Reusing your existing color palette
+                borderColor: 'rgba(0,0,0,0.1)',
+                borderWidth: 1,
+                borderRadius: 6, // Adds modern rounded corners to the bars
+                barPercentage: 0.7
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            indexAxis: 'y', // This makes the bar chart horizontal!
+            plugins: {
+                legend: {
+                    display: false // Hides the legend since the Y-axis already labels everything
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return ` ${context.raw} Questions`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Questions in Database',
+                        color: '#7f8c8d',
+                        font: { weight: 'bold' }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false // Hides horizontal grid lines for a cleaner look
+                    },
+                    ticks: {
+                        font: {
+                            family: "'Helvetica Neue', 'Arial', sans-serif",
+                            size: 12
+                        },
+                        color: '#2C3E50'
+                    }
+                }
+            }
+        }
+    });
+
+    // --- 4. Radar Chart ---
+    const ctxTask = document.getElementById('taskChart').getContext('2d');
+
+    // Create a stunning Canvas Gradient for the Radar Web
+    let gradientRadar = ctxTask.createLinearGradient(0, 0, 0, 400);
+    gradientRadar.addColorStop(0, 'rgba(72, 201, 176, 0.8)');
+    gradientRadar.addColorStop(1, 'rgba(0, 128, 128, 0.4)');
+
+    new Chart(ctxTask, {
+        type: 'radar',
+        data: {
+            labels: taskLabels,
+            datasets: [{
+                label: 'Questions in Database',
+                data: taskCounts,
+                backgroundColor: gradientRadar,
+                borderColor: '#008080',
+                borderWidth: 2,
+                pointBackgroundColor: '#ffffff',
+                pointBorderColor: '#008080',
+                pointHoverBackgroundColor: '#008080',
+                pointHoverBorderColor: '#ffffff',
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            // V3+ Syntax for dynamic scale and darker lines
+            scales: {
+                r: {
+                    min: 0,
+                    angleLines: { color: 'rgba(0, 0, 0, 0.4)' },
+                    grid: { color: 'rgba(0, 0, 0, 0.3)' },
+                    ticks: { display: false },
+                    pointLabels: {
+                        font: { size: 12, family: "'Helvetica Neue', 'Arial', sans-serif" },
+                        color: '#2C3E50',
+                        callback: function(label) {
+                            const maxLength = 15;
+                            if (label.length <= maxLength) return label;
+
+                            let words = label.split(' ');
+                            let lines = [];
+                            let currentLine = '';
+
+                            for (let i = 0; i < words.length; i++) {
+                                if ((currentLine + words[i]).length > maxLength) {
+                                    if (currentLine.length > 0) lines.push(currentLine.trim());
+                                    currentLine = words[i] + ' ';
+                                } else {
+                                    currentLine += words[i] + ' ';
+                                }
+                            }
+                            if (currentLine.trim().length > 0) {
+                                lines.push(currentLine.trim());
+                            }
+                            return lines;
+                        }
+                    }
+                }
+            },
+            // V2 Syntax Fallback
+            scale: {
+                ticks: {
+                    min: 0,
+                    display: false
+                }
+            }
+        }
+    });
+});
+</script>
+<script>
+    // Force the browser to hard-reload if it tries to load this page from memory/bfcache
+    window.addEventListener('pageshow', function(event) {
+        // If the page is pulled from the browser's memory (persisted)...
+        if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+            // ...force a hard reload from the server!
+            window.location.reload();
+        }
+    });
+</script>
+<!-- ========================================== -->
+<!-- CLERK COOKIE AUTO-SYNC (POLLING FIX)       -->
+<!-- ========================================== -->
+<script>
+    // Only run this if Flask thinks we are NOT premium (Orange Button)
+    const flaskMissedPremium = {% if is_premium %}false{% else %}true{% endif %};
+
+    if (flaskMissedPremium) {
+        let checkCount = 0;
+
+        // Check for the Clerk cookie every 100 milliseconds
+        const cookieCheckInterval = setInterval(function() {
+            checkCount++;
+
+            // If Clerk's JavaScript finally drops the cookie...
+            if (document.cookie.includes('__session=')) {
+                clearInterval(cookieCheckInterval); // Stop checking
+
+                // Prevent infinite reload loops
+                if (!sessionStorage.getItem('clerk_synced')) {
+                    sessionStorage.setItem('clerk_synced', 'true');
+                    window.location.reload(true); // Force the blue button!
+                }
+            }
+
+            // Give up after 2 seconds (20 checks) so it doesn't run forever
+            if (checkCount >= 20) {
+                clearInterval(cookieCheckInterval);
+            }
+        }, 100);
+    } else {
+        // If Flask got it right (Blue Button), clean up our storage
+        sessionStorage.removeItem('clerk_synced');
+    }
+</script>
+
+<!-- ========================================== -->
+<!-- FREE PREVIEW SECTION                       -->
+<!-- ========================================== -->
+<div style="text-align: center; padding: 60px 20px; margin-top: 20px; background-color: #f9fbfb; border-top: 1px solid #eef2f5;">
+    <h2 style="color: #2C3E50; margin-top: 0; font-size: 2em;">Want to see how it works?</h2>
+    <p style="color: #7f8c8d; margin-bottom: 30px; font-size: 1.1em; max-width: 600px; margin-left: auto; margin-right: auto;">
+        Experience our testing and study modes firsthand with no account required. Results are purely for practice and won't be saved.
+    </p>
+
+    <!-- This button routes to the preview_menu route in preview_app.py -->
+    <a href="{{ url_for('preview.preview_menu') }}" class="btn btn-primary" style="font-size: 1.2em; padding: 15px 35px; border-radius: 8px; background-color: #2b7080; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-decoration: none; color: white; display: inline-block; transition: transform 0.2s ease, box-shadow 0.2s ease;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 20px rgba(43,112,128,0.15)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';">
+        Explore Sample Content &rarr;
+    </a>
+</div>
+
+<!-- ========================================== -->
+<!-- FOOTER & LEGAL                             -->
+<!-- ========================================== -->
+<div style="text-align: center; padding: 30px 20px; margin-top: 40px; border-top: 1px solid #eef2f5;">
+    <a href="{{ url_for('static', filename='privacypolicy.pdf') }}" target="_blank" class="btn btn-secondary btn-sm" style="background-color: transparent; color: #7f8c8d; border: 1px solid #7f8c8d; text-decoration: none;">
+        Privacy Policy
+    </a>
+</div>
+
+{% endblock %}

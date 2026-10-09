@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Database Statistics - PANCE Quiz App{% endblock %}
+
+<!-- Use the wider container so the charts have plenty of room -->
+{% block container_class %}container-large{% endblock %}
+
+{% block content %}
+    <!-- Load Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Header Card -->
+    <div style="background: linear-gradient(135deg, #007bff, #0056b3); color: white; padding: 30px; border-radius: 8px; text-align: center; margin-bottom: 30px;">
+        <h1 style="margin: 0; font-size: 3em;">{{ total_questions }}</h1>
+        <p style="margin: 10px 0 0 0; font-size: 1.2em; opacity: 0.9;">Total Questions in Database</p>
+    </div>
+
+    <!-- Charts Grid (Side-by-side on desktop, stacks on mobile) -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 30px; margin-bottom: 30px;">
+        
+        <!-- Organ Systems Chart -->
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0;">
+            <h3 style="text-align: center; margin-top: 0; border-bottom: 2px solid #ddd; padding-bottom: 10px;">Questions by Organ System</h3>
+            <canvas id="organChart"></canvas>
+        </div>
+
+        <!-- Task Areas Chart -->
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0;">
+            <h3 style="text-align: center; margin-top: 0; border-bottom: 2px solid #ddd; padding-bottom: 10px;">Questions by Task Area</h3>
+            <canvas id="taskChart"></canvas>
+        </div>
+        
+    </div>
+
+    <div style="text-align: center;">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="padding: 12px 24px;">&larr; Back to Dashboard</a>
+    </div>
+
+    <!-- Chart Rendering Logic -->
+    <script>
+        // Use Jinja's 'tojson' filter to securely pass the Python lists into JavaScript
+        const organLabels = {{ organ_labels | tojson }};
+        const organCounts = {{ organ_counts | tojson }};
+        
+        const taskLabels = {{ task_labels | tojson }};
+        const taskCounts = {{ task_counts | tojson }};
+
+        // Shared background colors to keep the theme consistent
+        const bgColors = [
+            'rgba(54, 162, 235, 0.7)',
+            'rgba(255, 99, 132, 0.7)',
+            'rgba(255, 206, 86, 0.7)',
+            'rgba(75, 192, 192, 0.7)',
+            'rgba(153, 102, 255, 0.7)',
+            'rgba(255, 159, 64, 0.7)',
+            'rgba(201, 203, 207, 0.7)'
+        ];
+        const borderColors = bgColors.map(color => color.replace('0.7', '1'));
+
+        // 1. Organ System Doughnut Chart
+        const ctxOrgan = document.getElementById('organChart').getContext('2d');
+        new Chart(ctxOrgan, {
+            type: 'doughnut',
+            data: {
+                labels: organLabels,
+                datasets: [{
+                    data: organCounts,
+                    backgroundColor: bgColors,
+                    borderColor: borderColors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        // 2. Task Area Horizontal Bar Chart
+        const ctxTask = document.getElementById('taskChart').getContext('2d');
+        new Chart(ctxTask, {
+            type: 'bar',
+            data: {
+                labels: taskLabels,
+                datasets: [{
+                    label: 'Questions',
+                    data: taskCounts,
+                    backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                indexAxis: 'y', // Turns the bar chart sideways for long text
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { beginAtZero: true }
+                }
+            }
+        });
+    </script>
+{% endblock %}

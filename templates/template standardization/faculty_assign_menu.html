@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 700px; margin: 0 auto; background: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #eaeaea;">
+    
+    <div style="text-align: center; margin-bottom: 40px;">
+        <h2 style="color: #2c3e50; margin-bottom: 10px; font-size: 28px;">Assignment Menu</h2>
+        <p style="color: #7f8c8d; font-size: 1.1em; margin: 0;">Choose an action to manage student assignments.</p>
+    </div>
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
+        
+        <!-- Assign Content Card -->
+        <a href="{{ url_for('faculty.assign_quiz') }}" 
+           style="flex: 1; min-width: 250px; text-decoration: none; color: inherit; display: block; border: 1px solid #bdc3c7; border-radius: 8px; padding: 25px; text-align: center; transition: all 0.2s ease; background: #f9fbfc;" 
+           onmouseover="this.style.borderColor='#3498db'; this.style.boxShadow='0 4px 12px rgba(52, 152, 219, 0.15)'; this.style.transform='translateY(-2px)';" 
+           onmouseout="this.style.borderColor='#bdc3c7'; this.style.boxShadow='none'; this.style.transform='translateY(0)';">
+            <div style="font-size: 40px; margin-bottom: 15px;">📝</div>
+            <h3 style="color: #2c3e50; margin-bottom: 10px; font-size: 20px;">Assign Content</h3>
+            <p style="color: #7f8c8d; font-size: 0.95em; line-height: 1.5; margin: 0;">
+                Distribute standard quizzes or remediations to your classes or individual students.
+            </p>
+        </a>
+
+        <!-- Review Assigned Content Card -->
+        <a href="{{ url_for('faculty.review_assigned') }}" 
+           style="flex: 1; min-width: 250px; text-decoration: none; color: inherit; display: block; border: 1px solid #bdc3c7; border-radius: 8px; padding: 25px; text-align: center; transition: all 0.2s ease; background: #f9fbfc;" 
+           onmouseover="this.style.borderColor='#3498db'; this.style.boxShadow='0 4px 12px rgba(52, 152, 219, 0.15)'; this.style.transform='translateY(-2px)';" 
+           onmouseout="this.style.borderColor='#bdc3c7'; this.style.boxShadow='none'; this.style.transform='translateY(0)';">
+            <div style="font-size: 40px; margin-bottom: 15px;">📊</div>
+            <h3 style="color: #2c3e50; margin-bottom: 10px; font-size: 20px;">Review Assigned</h3>
+            <p style="color: #7f8c8d; font-size: 0.95em; line-height: 1.5; margin: 0;">
+                View, manage, and delete previously assigned content for your classes and students.
+            </p>
+        </a>
+
+    </div>
+
+    <div style="margin-top: 40px; text-align: center;">
+        <a href="{{ url_for('faculty.dashboard') }}" style="color: #95a5a6; text-decoration: none; font-weight: 500; font-size: 0.95em; transition: color 0.2s;" onmouseover="this.style.color='#7f8c8d'" onmouseout="this.style.color='#95a5a6'">&larr; Back to Faculty Dashboard</a>
+    </div>
+</div>
+{% endblock %}

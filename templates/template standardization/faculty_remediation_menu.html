@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Remediation Menu - PANCE Quiz App{% endblock %}
+
+{% block content %}
+<style>
+    .menu-header {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+    .menu-header h2 {
+        color: #2c3e50;
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+    
+    /* Grid Layout for Sub-Menu */
+    .remediation-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    /* Sub-Menu Cards */
+    .menu-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 30px 20px;
+        text-align: center;
+        text-decoration: none;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+        border: 1px solid #eaeded;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .menu-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        border-color: #16a085;
+    }
+
+    .menu-icon {
+        font-size: 40px;
+        margin-bottom: 15px;
+    }
+
+    .menu-title {
+        color: #2c3e50;
+        font-size: 1.25em;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    .menu-desc {
+        color: #7f8c8d;
+        font-size: 0.95em;
+        line-height: 1.4;
+        margin: 0;
+    }
+
+    /* Specific Card Accents on Hover */
+    .card-create:hover .menu-title { color: #27ae60; }
+    .card-review:hover .menu-title { color: #3498db; }
+    .card-assign:hover .menu-title { color: #e67e22; }
+</style>
+
+<div class="container mt-5">
+    <div class="menu-header">
+        <h2>Remediation Management</h2>
+        <p class="text-muted">Create, review, and assign AI-generated remediation modules.</p>
+    </div>
+
+    <div class="remediation-grid">
+        
+        <!-- 1. Create Remediation -->
+        <a href="{{ url_for('faculty.create_remediation') }}" class="menu-card card-create">
+            <div class="menu-icon">📄</div>
+            <div class="menu-title">Create Remediation</div>
+            <p class="menu-desc">Upload a PDF to automatically generate a new targeted remediation packet.</p>
+        </a>
+
+        <!-- 2. Review Remediation -->
+        <a href="{{ url_for('faculty.review_remediation') }}" class="menu-card card-review">
+            <div class="menu-icon">🔍</div>
+            <div class="menu-title">Review Remediation</div>
+            <p class="menu-desc">View and explore your previously generated remediation packets and modules.</p>
+        </a>
+
+        <!-- 3. Assign Remediation (Placeholder for later) -->
+        <a href="#" class="menu-card card-assign" onclick="alert('Assign Remediation coming soon!'); return false;">
+            <div class="menu-icon">📬</div>
+            <div class="menu-title">Assign Remediation</div>
+            <p class="menu-desc">Distribute specific remediation packets to your targeted students.</p>
+        </a>
+        
+    </div>
+
+    <div style="margin-top: 40px; text-align: center; padding-bottom: 60px;">
+        <a href="{{ url_for('faculty.dashboard') }}" class="btn btn-outline-secondary px-4 py-2 fw-bold">
+            &larr; Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

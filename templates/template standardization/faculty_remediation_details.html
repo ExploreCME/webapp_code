@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Remediation Modules{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <!-- Display the custom remediation name -->
+        <h2>Modules for: <span class="text-primary">{{ batch_name }}</span></h2>
+        <a href="{{ url_for('faculty.review_remediation') }}" class="btn btn-outline-secondary">Back to List</a>
+    </div>
+
+    {% if modules %}
+        <div class="row">
+            {% for module in modules %}
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 shadow-sm border-primary">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title text-primary fw-bold">{{ module.topic_area }}</h5>
+                        <h6 class="card-subtitle mb-3 text-muted">{{ module.organ_system }}</h6>
+                        <p class="card-text small mb-4"><strong>Task Area:</strong> {{ module.task_area }}</p>
+                        
+                        <!-- Pushes the button to the bottom of the card -->
+                        <div class="mt-auto">
+                            <!-- Make sure 'quiz.view_remediation_flashcard' matches your actual route name for viewing a flashcard -->
+                            <a href="{{ url_for('quiz.view_remediation_flashcard', assignment_id=module.id) }}" class="btn btn-primary w-100">
+                                Review Module &rarr;
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-warning shadow-sm">
+            <h5 class="alert-heading">No modules found!</h5>
+            <p class="mb-0">It looks like no valid topics were extracted or saved for this batch.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

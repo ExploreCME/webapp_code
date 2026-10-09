@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block title %}Create Custom Quiz - PANCE Quiz App{% endblock %}
+
+{% block container_class %}container-large{% endblock %}
+
+{% block content %}
+<style>
+    /* =========================================
+       MODERN UI STYLES
+       ========================================= */
+    .setup-header { text-align: center; margin-bottom: 30px; }
+    .setup-header h2 { color: #2c3e50; font-size: 32px; font-weight: 700; margin-bottom: 5px; }
+    .setup-header p { color: #7f8c8d; font-size: 1.1em; }
+
+    /* Modern Card Container */
+    .card-section {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #eaeded;
+        padding: 30px;
+        margin-bottom: 30px;
+    }
+    .card-title {
+        color: #2c3e50;
+        font-size: 1.4em;
+        margin-top: 0;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .card-subtitle { color: #7f8c8d; font-size: 0.95em; margin-bottom: 20px; line-height: 1.5; }
+
+    /* Sticky Tracker Bar */
+    .tracker-bar {
+        position: sticky;
+        top: 15px;
+        background: #2c3e50;
+        color: white;
+        padding: 15px 25px;
+        border-radius: 12px;
+        z-index: 100;
+        margin-bottom: 25px;
+        box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .tracker-stat { display: flex; flex-direction: column; align-items: center; }
+    .tracker-label { font-size: 0.85em; text-transform: uppercase; color: #bdc3c7; letter-spacing: 0.5px; font-weight: 600; }
+    .tracker-value { font-size: 1.4em; font-weight: bold; color: #fff; }
+    .tracker-value.highlight { color: #f1c40f; }
+    .error-msg { color: #ff6b6b; font-size: 0.85em; display: none; font-weight: bold; margin-top: 4px; background: rgba(255,107,107,0.1); padding: 2px 8px; border-radius: 4px; }
+
+    /* Form Elements */
+    .input-clean { width: 100%; padding: 12px 15px; border: 1px solid #dcdde1; border-radius: 8px; font-size: 16px; background: #f9fbfc; transition: border-color 0.2s; box-sizing: border-box; }
+    .input-clean:focus { outline: none; border-color: #3498db; background: #fff; }
+
+    .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .grid-box { border: 1px solid #e2e8f0; padding: 20px; border-radius: 10px; background: #f8fafc; transition: all 0.2s ease; }
+    .grid-box:hover { border-color: #cbd5e0; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+    .grid-box h4 { margin-top: 0; margin-bottom: 15px; color: #34495e; font-size: 1.1em; border-bottom: 2px solid #edf2f7; padding-bottom: 8px; }
+
+    .grid-box select { width: 100%; height: 120px; margin-top: 8px; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e0; background: #fff; }
+    .input-label { font-size: 0.9em; font-weight: 600; color: #4a5568; display: block; margin-bottom: 5px; }
+
+    /* Radio Switch Styles */
+    .source-option { display: flex; align-items: flex-start; padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; margin-bottom: 10px; transition: all 0.2s; }
+    .source-option:hover { border-color: #3498db; background: #f1f8fc; }
+    .source-option input { margin-top: 4px; margin-right: 15px; transform: scale(1.2); }
+    .source-text strong { display: block; color: #2d3748; font-size: 1.05em; margin-bottom: 3px; }
+    .source-text span { color: #718096; font-size: 0.9em; }
+
+    /* Progress Loader */
+    .loader-box { padding: 40px 20px; background: #fff; border-radius: 12px; text-align: center; border: 1px solid #eaeded; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 30px; }
+    .progress-track { width: 100%; max-width: 600px; margin: 25px auto; background-color: #edf2f7; border-radius: 20px; overflow: hidden; height: 24px; position: relative; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); border-radius: 20px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); width: 0%; }
+</style>
+
+<div class="setup-header">
+    <h2>Blueprint Builder</h2>
+    <p>Design a custom assessment based on specific organs and tasks.</p>
+</div>
+
+<!-- PROGRESS UI (Hidden initially) -->
+<div id="progress-container" style="display: none;">
+    <div class="loader-box">
+        <!-- aria-live polite added for screen readers -->
+        <h3 id="progress-text" aria-live="polite" style="color: #2c3e50; margin-bottom: 10px;">Initializing Quiz Generation...</h3>
+        <p style="color: #7f8c8d; font-size: 0.95em;">Please do not refresh this page.</p>
+
+        <div class="progress-track">
+            <div id="progress-bar" class="progress-fill"></div>
+        </div>
+
+        <!-- START QUIZ PROMPT (Shows at 100%) -->
+        <div id="start-quiz-container" style="display: none; margin-top: 30px; background: #f8fafc; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0; display: inline-block; max-width: 500px; width: 100%;">
+            <h3 style="color: #27ae60; margin-top: 0;">✅ Your quiz is ready!</h3>
+
+            <form action="{{ url_for('quiz.start_quiz') }}" method="POST" style="margin-top: 20px; text-align: left;">
+                <input type="hidden" name="quiz_name" id="start-quiz-name">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label class="input-label" for="mode">Select Mode:</label>
+                    <select name="mode" id="mode" class="input-clean" style="cursor: pointer;">
+                        <option value="study_exp">Study Mode (With Explanations)</option>
+                        <option value="study_no_exp">Study Mode (No Explanations)</option>
+                        <option value="test">Test Mode</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success btn-full" style="font-size: 18px; padding: 16px; font-weight: bold; border-radius: 8px;">Start Quiz Now &rarr;</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MAIN FORM -->
+<div id="form-container">
+
+    <!-- Floating Tracker -->
+    <div class="tracker-bar">
+        <div class="tracker-stat">
+            <span class="tracker-label">Questions</span>
+            <span class="tracker-value" id="q-count">10</span>
+        </div>
+        <div class="tracker-stat">
+            <span class="tracker-label">Organ Systems</span>
+            <span class="tracker-value highlight" id="organ-total">0%</span>
+            <span class="error-msg" id="organ-error">⚠️ Must equal 100% or 0%</span>
+        </div>
+        <div class="tracker-stat">
+            <span class="tracker-label">Task Areas</span>
+            <span class="tracker-value highlight" id="task-total">0%</span>
+            <span class="error-msg" id="task-error">⚠️ Must equal 100% or 0%</span>
+        </div>
+    </div>
+
+    <form id="quiz-form">
+
+        <!-- STEP 1: Basic Info & Source -->
+        <div class="card-section">
+            <h3 class="card-title"><span>1️⃣</span> Quiz Details & Source</h3>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
+                <div>
+                    <!-- Added 'for' attribute to match input id -->
+                    <label class="input-label" for="quiz_name">Quiz Name</label>
+                    <input type="text" id="quiz_name" name="quiz_name" class="input-clean" required placeholder="E.g., Cardio Block 1">
+                </div>
+                <div>
+                    <!-- Added 'for' attribute to match input id -->
+                    <label class="input-label" for="num_questions">Number of Questions (Max 120)</label>
+                    <input type="number" id="num_questions" name="num_questions" class="input-clean" min="1" max="120" value="10" required>
+                </div>
+            </div>
+
+            <!-- RESTRICTED: Question Source Generation Method (Faculty Only) -->
+            {% if is_faculty %}
+                <label class="input-label" style="margin-top: 10px;">Question Source Generation Method</label>
+                <label class="source-option">
+                    <input type="radio" name="use_existing" value="yes" checked>
+                    <div class="source-text">
+                        <strong>Pull from Database First (Fast)</strong>
+                        <span>Pulls matching questions from the database first, and only generates new questions if there are missing gaps.</span>
+                    </div>
+                </label>
+                <label class="source-option">
+                    <input type="radio" name="use_existing" value="no">
+                    <div class="source-text">
+                        <strong>Create Brand New Questions (Slower)</strong>
+                        <span>Generate 100% brand new questions completely ignoring the existing database.</span>
+                    </div>
+                </label>
+            {% else %}
+                <input type="hidden" name="use_existing" value="yes">
+            {% endif %}
+        </div>
+
+        <!-- STEP 2: Organ Systems -->
+        <div class="card-section">
+            <h3 class="card-title"><span>2️⃣</span> Organ Systems Weighting</h3>
+            <p class="card-subtitle">Enter percentage values for the systems you want to test. <strong>The total must equal 100%.</strong><br>
+            <em>If you leave ALL boxes blank (0%), systems will be distributed completely at random.</em></p>
+
+            <div class="grid-container">
+                <!-- SORTED ORGAN SYSTEMS ALPHABETICALLY -->
+                {% for organ, topics in organ_data.items()|sort(case_sensitive=False) %}
+                <div class="grid-box">
+                    <h4>{{ organ }}</h4>
+                    <!-- Added 'for' and 'id' -->
+                    <label class="input-label" for="organ_pct_{{ organ.replace(' ', '_').replace('/', '_') }}">Allocation Percentage:</label>
+                    <input type="number" id="organ_pct_{{ organ.replace(' ', '_').replace('/', '_') }}" name="organ_pct_{{ organ.replace(' ', '_').replace('/', '_') }}" class="input-clean organ-input" min="0" max="100" placeholder="0%">
+
+                    <label class="input-label" for="organ_topics_{{ organ.replace(' ', '_').replace('/', '_') }}" style="margin-top: 15px;">Specific Topics (Optional):</label>
+                    <small style="color: #95a5a6; display: block; margin-bottom: 5px; font-size: 0.85em;">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</small>
+                    <select id="organ_topics_{{ organ.replace(' ', '_').replace('/', '_') }}" name="organ_topics_{{ organ.replace(' ', '_').replace('/', '_') }}" multiple>
+                        <!-- SORTED TOPICS ALPHABETICALLY AND CASE-INSENSITIVE -->
+                        {% for topic in topics|sort(case_sensitive=False) %}
+                            <option value="{{ topic }}">{{ topic }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- STEP 3: Task Areas -->
+        <div class="card-section">
+            <h3 class="card-title"><span>3️⃣</span> Task Area Weighting</h3>
+            <p class="card-subtitle">Enter percentage values for the tasks you want to test. <strong>The total must equal 100%.</strong><br>
+            <em>If you leave ALL boxes blank (0%), tasks will be distributed completely at random.</em></p>
+
+            <div class="grid-container">
+                {% for task in task_areas %}
+                <div class="grid-box" style="padding-bottom: 30px;">
+                    <h4>{{ task }}</h4>
+                    <!-- Added 'for' and 'id' -->
+                    <label class="input-label" for="task_pct_{{ task.replace(' ', '_').replace(',', '') }}">Allocation Percentage:</label>
+                    <input type="number" id="task_pct_{{ task.replace(' ', '_').replace(',', '') }}" name="task_pct_{{ task.replace(' ', '_').replace(',', '') }}" class="input-clean task-input" min="0" max="100" placeholder="0%">
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div style="background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 -4px 15px rgba(0,0,0,0.05); position: sticky; bottom: 0; z-index: 99; border-top: 1px solid #eaeded; text-align: center;">
+            <!-- Added id="submit-btn" here -->
+            <button type="submit" id="submit-btn" class="btn btn-primary" style="font-size: 18px; padding: 15px 40px; font-weight: bold; border-radius: 8px; width: 100%; max-width: 400px; margin-bottom: 10px;">
+                Generate & Build Quiz
+            </button>
+            <a href="{{ url_for('quiz.menu') }}" style="display: block; color: #7f8c8d; text-decoration: none; font-size: 0.95em; font-weight: 500;">Cancel and Return to Menu</a>
+        </div>
+    </form>
+</div>
+
+<!-- JAVASCRIPT BLOCK -->
+<script>
+    // 1. Cache DOM Elements Once to improve performance
+    const organInputs = document.querySelectorAll('.organ-input');
+    const taskInputs = document.querySelectorAll('.task-input');
+    const organTotalEl = document.getElementById('organ-total');
+    const taskTotalEl = document.getElementById('task-total');
+    const organErrorEl = document.getElementById('organ-error');
+    const taskErrorEl = document.getElementById('task-error');
+    const submitBtn = document.getElementById('submit-btn');
+    const qCountEl = document.getElementById('q-count');
+    const numQuestionsInput = document.getElementById('num_questions');
+
+    // 2. Live Tracker Logic
+    function updateTotals() {
+        let organTotal = 0;
+        let taskTotal = 0;
+
+        // Iterate over cached arrays instead of querying the DOM every time
+        organInputs.forEach(input => { organTotal += parseInt(input.value) || 0; });
+        taskInputs.forEach(input => { taskTotal += parseInt(input.value) || 0; });
+
+        organTotalEl.innerText = organTotal + '%';
+        taskTotalEl.innerText = taskTotal + '%';
+
+        // Check Validity
+        const isOrganValid = (organTotal === 100 || organTotal === 0);
+        const isTaskValid = (taskTotal === 100 || taskTotal === 0);
+
+        // UI Updates for formatting
+        organTotalEl.style.color = isOrganValid ? '#2ecc71' : '#f1c40f';
+        taskTotalEl.style.color = isTaskValid ? '#2ecc71' : '#f1c40f';
+        
+        organErrorEl.style.display = !isOrganValid ? 'inline-block' : 'none';
+        taskErrorEl.style.display = !isTaskValid ? 'inline-block' : 'none';
+
+        // Proactively disable the submit button if invalid
+        submitBtn.disabled = !(isOrganValid && isTaskValid);
+        submitBtn.style.opacity = (isOrganValid && isTaskValid) ? '1' : '0.5';
+        submitBtn.style.cursor = (isOrganValid && isTaskValid) ? 'pointer' : 'not-allowed';
+    }
+
+    // Attach Listeners
+    organInputs.forEach(input => { input.addEventListener('input', updateTotals); });
+    taskInputs.forEach(input => { input.addEventListener('input', updateTotals); });
+    
+    numQuestionsInput.addEventListener('input', function() {
+        qCountEl.innerText = this.value || 0;
+    });
+
+    // 3. Form Submission & Batch Processing
+    document.getElementById('quiz-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        // The button is disabled unless totals are valid, so no need for an alert() check here anymore.
+        document.getElementById('form-container').style.display = 'none';
+
+        // Reset Progress UI
+        document.getElementById('progress-container').style.display = 'block';
+        document.getElementById('start-quiz-container').style.display = 'none';
+        document.getElementById('progress-bar').style.width = '10%';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        let formData = new FormData(this);
+        let quizName = formData.get('quiz_name');
+        document.getElementById('start-quiz-name').value = quizName;
+
+        try {
+            // Fetch Blueprint Math (Includes the use_existing preference)
+            let response = await fetch("{{ url_for('quiz.custom_quiz') }}", { method: "POST", body: formData });
+            let data = await response.json();
+
+            // FIXED: Dynamically capture the error message sent from the Python server
+            if (data.status !== 'success') {
+                alert(data.message || data.error || "Error creating blueprint. Please try again.");
+                document.getElementById('form-container').style.display = 'block';
+                document.getElementById('progress-container').style.display = 'none';
+                return;
+            }
+
+            let blueprint = data.blueprint;
+
+            // Batch Generation Updates
+            const progressText = document.getElementById('progress-text');
+            progressText.innerText = `Batch Generating ${blueprint.length} Questions...`;
+            document.getElementById('progress-bar').style.width = '50%';
+
+            // Pass the blueprint AND the use_existing flag to the backend
+            let batchResponse = await fetch("{{ url_for('quiz.build_quiz_batch') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    quiz_name: quizName,
+                    blueprint: blueprint,
+                    use_existing: data.use_existing 
+                })
+            });
+
+            let batchData = await batchResponse.json();
+
+            // FIXED: Capture batch-level errors
+            if (batchData.status !== 'success') {
+                 alert(batchData.message || batchData.error || "There was an error generating the quiz.");
+                 document.getElementById('form-container').style.display = 'block';
+                 document.getElementById('progress-container').style.display = 'none';
+                 return;
+            }
+
+            document.getElementById('progress-bar').style.width = '100%';
+
+            setTimeout(() => {
+                if (batchData.background_started) {
+                    // Replaced alert() with a cleaner inline UI message
+                    progressText.innerHTML = `
+                        Quiz Assembly Started! 🎉<br>
+                        <small style="color:#7f8c8d; font-weight:normal; display:block; margin-top:5px;">
+                            (Pulled from Database: ${batchData.duplicated} | AI Generating: ${batchData.generated})
+                        </small>
+                        <p style="color:#d35400; font-weight:bold; margin-top:15px; font-size:16px;">
+                            Generating missing AI questions in the background. Redirecting to Dashboard...
+                        </p>`;
+                    
+                    setTimeout(() => { window.location.href = "{{ url_for('quiz.select_quiz') }}"; }, 3000);
+                } else {
+                    progressText.innerHTML = `Quiz Assembly Complete! 🎉<br><small style="color:#7f8c8d; font-weight:normal; display:block; margin-top:5px;">(All ${batchData.duplicated} questions processed instantly!)</small>`;
+                    document.getElementById('start-quiz-container').style.display = 'inline-block';
+                }
+            }, 600); 
+
+        } catch (error) {
+            console.error(error); 
+            alert("An error occurred: " + error.message);
+            document.getElementById('form-container').style.display = 'block';
+            document.getElementById('progress-container').style.display = 'none';
+        }
+    });
+
+    // Initialize Tracker on Load
+    updateTotals();
+</script>
+{% endblock %}

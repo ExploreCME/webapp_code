@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4 mb-5">
+    
+    <!-- Header Area -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Reviewing Remediation: {{ module.topic_area }}</h2>
+            <p class="text-muted mb-0">From: {{ module.remediation_name }} | {{ module.organ_system }}</p>
+        </div>
+        <a href="{{ url_for('faculty.review_remediation_details', remediation_name=module.remediation_name) }}" class="btn btn-secondary">
+            &larr; Back to Modules
+        </a>
+    </div>
+
+    <!-- Questions Loop -->
+    {% if questions %}
+        {% for q in questions %}
+        
+        <!-- FIX: securely cleans the database answer (removes hidden spaces and forces uppercase) -->
+        {% set correct_ans = q.correct_answer | string | trim | upper %}
+        
+        <div class="card mb-4 shadow-sm border-0">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><strong>Question {{ loop.index }}</strong></h5>
+                
+                <!-- Remove Question Button -->
+                <form action="{{ url_for('faculty.remove_remediation_question') }}" method="POST" class="m-0" onsubmit="return confirm('Are you sure you want to remove this question from the remediation module?');">
+                    <input type="hidden" name="question_id" value="{{ q.id }}">
+                    <input type="hidden" name="module_id" value="{{ module.id }}">
+                    <button type="submit" class="btn btn-sm btn-danger">Remove</button>
+                </form>
+            </div>
+            
+            <div class="card-body">
+                <!-- Question Text using question_stem -->
+                <p class="card-text text-dark" style="white-space: pre-wrap; font-size: 1.1em;">{{ q.question_stem }}</p>
+                
+                <!-- Answer Options using answer_choice_A, B, C, D, E -->
+                <ul class="list-group list-group-flush mb-4">
+                    <li class="list-group-item {% if correct_ans == 'A' %}list-group-item-success fw-bold{% endif %}">
+                        A) {{ q.answer_choice_A }}
+                        {% if correct_ans == 'A' %}<span class="float-end fs-5">✅</span>{% endif %}
+                    </li>
+                    <li class="list-group-item {% if correct_ans == 'B' %}list-group-item-success fw-bold{% endif %}">
+                        B) {{ q.answer_choice_B }}
+                        {% if correct_ans == 'B' %}<span class="float-end fs-5">✅</span>{% endif %}
+                    </li>
+                    <li class="list-group-item {% if correct_ans == 'C' %}list-group-item-success fw-bold{% endif %}">
+                        C) {{ q.answer_choice_C }}
+                        {% if correct_ans == 'C' %}<span class="float-end fs-5">✅</span>{% endif %}
+                    </li>
+                    <li class="list-group-item {% if correct_ans == 'D' %}list-group-item-success fw-bold{% endif %}">
+                        D) {{ q.answer_choice_D }}
+                        {% if correct_ans == 'D' %}<span class="float-end fs-5">✅</span>{% endif %}
+                    </li>
+                    {% if q.answer_choice_E %}
+                        <li class="list-group-item {% if correct_ans == 'E' %}list-group-item-success fw-bold{% endif %}">
+                            E) {{ q.answer_choice_E }}
+                            {% if correct_ans == 'E' %}<span class="float-end fs-5">✅</span>{% endif %}
+                        </li>
+                    {% endif %}
+                </ul>
+                
+                <!-- Explanation -->
+                <div class="alert alert-secondary mb-0">
+                    <strong>Explanation:</strong>
+                    <p class="mt-2 mb-0" style="white-space: pre-wrap;">{{ q.explanation }}</p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-warning text-center p-4">
+            No questions found for this module.
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

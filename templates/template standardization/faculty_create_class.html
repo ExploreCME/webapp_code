@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Create a New Class</h2>
+<p>You are viewing students assigned to Program Code: <strong>{{ faculty_program }}</strong>.</p>
+
+<form action="{{ url_for('faculty.create_class') }}" method="POST">
+    <div class="form-group">
+        <label for="class_name">Class Name:</label>
+        <input type="text" name="class_name" id="class_name" placeholder="e.g. Clinical Medicine - Cohort 1" required>
+    </div>
+
+    <div class="form-group">
+        <label>Select Students:</label>
+        <div style="max-height: 250px; overflow-y: auto; border: 1px solid #ccc; padding: 15px; border-radius: 8px; background: #fafafa;">
+            {% for student in students %}
+                <div style="margin-bottom: 8px;">
+                    <label style="font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                        <!-- Using the new dictionary key for the ID -->
+                        <input type="checkbox" name="selected_users" value="{{ student.clerk_id }}"> 
+                        
+                        <!-- SAFETY CHECK: Prints the smart display name (or email) -->
+                        {% if student.display_name %}
+                            {{ student.display_name }}
+                        {% else %}
+                            <span style="color: #999; font-style: italic;">No email on file (ID: {{ student.clerk_id[:12] }}...)</span>
+                        {% endif %}
+
+                    </label>
+                </div>
+            {% else %}
+                <p style="color: #666; font-style: italic;">No other students found with program code {{ faculty_program }}.</p>
+            {% endfor %}
+        </div>
+        <small style="color: #666;">Check the boxes next to the students you want to add.</small>
+    </div>
+
+    <button type="submit" class="btn btn-success btn-full">Create Class</button>
+</form>
+
+<div style="text-align: center; margin-top: 20px;">
+    <a href="{{ url_for('faculty.manage_classes') }}" class="btn btn-secondary">Cancel</a>
+</div>
+{% endblock %}

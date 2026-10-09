@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Select Organ System - Flashcards{% endblock %}
+
+{% block container_class %}container-large{% endblock %}
+
+{% block content %}
+    <!-- Flexbox header matching select_quiz.html -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h2 style="margin: 0;">Flashcards: Select Organ System</h2>
+        <a href="{{ url_for('quiz.student_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+    <p style="color: #666; font-size: 1.05em; margin-bottom: 25px;">
+        Choose a category to begin your targeted review.
+    </p>
+    
+    <!-- Grid layout using standard button styles -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 15px;">
+        {% for organ in organ_systems %}
+            <!-- FIXED: Pointing to the new topic selection route -->
+            <a href="{{ url_for('quiz.flashcards_select_topic', organ_system=organ) }}" 
+               style="text-align: left; padding: 15px 20px; font-weight: 500; display: flex; align-items: center; gap: 12px; background-color: #f8f9fa; color: #333; border: 1px solid #ccc; border-radius: 6px; text-decoration: none; transition: background-color 0.2s;"
+               onmouseover="this.style.backgroundColor='#e2e6ea'"
+               onmouseout="this.style.backgroundColor='#f8f9fa'">
+                <!-- Clean blue icon -->
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+                    <path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.3.3 0 1 0 .2.3"/>
+                    <path d="M8 15v1a6 6 0 0 0 6 6h2a4 4 0 0 0 4-4v-3"/>
+                    <circle cx="20" cy="10" r="2" fill="#3498db"/>
+                </svg>
+                <span style="font-size: 1.05rem;">{{ organ }}</span>
+            </a>
+        {% endfor %}
+    </div>
+{% endblock %}

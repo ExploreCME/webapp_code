@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Login - PANCE Quiz App{% endblock %}
+
+{% block content %}
+    <div style="text-align: center; padding: 20px 0;">
+        <h2 style="margin-bottom: 10px;">Welcome!</h2>
+        <p style="color: #666; margin-bottom: 30px;">Please enter your username to continue.</p>
+
+        <!-- Centered form with a max-width so the input box doesn't look overly stretched -->
+        <form method="POST" action="{{ url_for('login') }}" style="max-width: 300px; margin: 0 auto;">
+            <div class="form-group">
+                <input type="text" name="username" placeholder="Username" required style="text-align: center; font-size: 18px;">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full" style="font-size: 18px; padding: 12px; margin-bottom: 15px;">Enter</button>
+
+            <!-- NEW DASHBOARD BUTTON -->
+            <a href="{{ url_for('database_stats') }}" class="btn btn-secondary btn-full" style="font-size: 18px; padding: 12px; box-sizing: border-box;">View Database Stats</a>
+        </form>
+    </div>
+{% endblock %}

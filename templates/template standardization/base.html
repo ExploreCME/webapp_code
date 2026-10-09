@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- =========================================
+         SEO & DYNAMIC META TAGS
+         ========================================= -->
+    <title>{% block title %}ExploreCME | PANCE Practice Questions & Reviews{% endblock %}</title>
+    <meta name="description" content="{% block description %}Master the PANCE with ExploreCME. Track your CME, practice topic-specific questions, and review core medical concepts.{% endblock %}">
+
+    <!-- Optional block for page-specific scripts (like Chart.js on the dashboard) -->
+    {% block head %}{% endblock %}
+
+    <!-- NEW: Modern Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Clerk Authentication -->
+    <script
+      async crossorigin="anonymous"
+      data-clerk-publishable-key="pk_live_Y2xlcmsuZXhwbG9yZWNtZS5jb20k"
+      src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+      type="text/javascript">
+    </script>
+
+    <style>
+        /* =========================================
+           GLOBAL TYPOGRAPHY & BACKGROUND
+           ========================================= */
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8fafc; /* Cooler, modern off-white */
+            color: #333;
+            /* Disable text selection */
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10 and IE 11 */
+            user-select: none; /* Standard syntax */
+        }
+
+        /* =========================================
+           GLOBAL NAVIGATION BAR (Glassmorphism)
+           ========================================= */
+        .navbar {
+            background-color: rgba(44, 62, 80, 0.85); /* Slightly transparent Slate Blue */
+            backdrop-filter: blur(12px); /* Glassmorphism blur */
+            -webkit-backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* Modern shadow */
+            margin-bottom: 40px;
+        }
+        .navbar-left {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+        .navbar-brand {
+            color: #48C9B0; /* Mint */
+            font-size: 1.5em;
+            font-weight: 700;
+            text-decoration: none;
+            letter-spacing: 1px;
+        }
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover {
+            color: #48C9B0;
+        }
+
+        /* Styles for the Manage Subscription form button in the nav */
+        .nav-links form {
+            display: inline;
+            margin: 0;
+        }
+        .nav-link-btn {
+            background: none;
+            border: none;
+            padding: 0;
+            margin: 0;
+            font: inherit;
+            color: white;
+            cursor: pointer;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-link-btn:hover {
+            color: #48C9B0;
+        }
+
+        .navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: white;
+        }
+
+        /* =========================================
+           MAIN CONTAINER (Layered Shadows)
+           ========================================= */
+        .container {
+            max-width: 600px;
+            margin: 0 auto 40px auto;
+            background: #ffffff;
+            padding: 40px 30px;
+            border-radius: 20px; /* Softer corners */
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01); /* Layered modern shadow */
+            border: 1px solid #f1f5f9; /* Cleaner border */
+        }
+        .container-large {
+            max-width: 1100px;
+        }
+        h1, h2, h3, h4 {
+            color: #2C3E50;
+            margin-top: 0;
+            font-weight: 700;
+        }
+
+        /* =========================================
+           BUTTONS (Micro-Interactions)
+           ========================================= */
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px; /* Softer corners */
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 600; /* Inter looks better at 600 than bold */
+            text-align: center;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+            box-sizing: border-box;
+        }
+        /* Utility class for smaller buttons */
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 13px;
+        }
+        
+        .btn-primary { background-color: #008080; color: white; }
+        .btn-primary:hover { 
+            background-color: #006666; 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 15px -3px rgba(0, 128, 128, 0.3), 0 4px 6px -2px rgba(0, 128, 128, 0.15); 
+        }
+        
+        .btn-success { background-color: #48C9B0; color: white; }
+        .btn-success:hover { 
+            background-color: #3BA994; 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 15px -3px rgba(72, 201, 176, 0.3), 0 4px 6px -2px rgba(72, 201, 176, 0.15); 
+        }
+        
+        .btn-danger { background-color: #e74c3c; color: white; }
+        .btn-danger:hover { 
+            background-color: #c0392b; 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 15px -3px rgba(231, 76, 60, 0.3), 0 4px 6px -2px rgba(231, 76, 60, 0.15); 
+        }
+        
+        /* Modified secondary button for the dark navbar */
+        .btn-secondary { background-color: #34495E; color: white; border: 1px solid #48C9B0; }
+        .btn-secondary:hover { 
+            background-color: #48C9B0; 
+            color: #2C3E50; 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 15px -3px rgba(72, 201, 176, 0.3), 0 4px 6px -2px rgba(72, 201, 176, 0.15);
+        }
+        
+        .btn-info { background-color: #20B2AA; color: white; }
+        .btn-info:hover { 
+            background-color: #178B85; 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 15px -3px rgba(32, 178, 170, 0.3), 0 4px 6px -2px rgba(32, 178, 170, 0.15);
+        }
+        
+        .btn-full { width: 100%; margin-bottom: 15px; padding: 15px; font-size: 16px; }
+
+        /* =========================================
+           FORMS & INPUTS (Modern Focus Rings)
+           ========================================= */
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #2C3E50; }
+        input[type="text"], input[type="number"], input[type="file"], select, textarea {
+            width: 100%;
+            padding: 12px;
+            box-sizing: border-box;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px; /* Match button/container softness */
+            font-size: 15px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            font-family: inherit;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #48C9B0;
+            box-shadow: 0 0 0 4px rgba(72, 201, 176, 0.2); /* Mint focus ring */
+        }
+        
+        /* Allow typing/selection inside inputs so users can still fill forms out */
+        input, select, textarea {
+            -webkit-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+        }
+
+        /* =========================================
+           FLASH MESSAGES
+           ========================================= */
+        .flash-message { padding: 15px; margin-bottom: 25px; border-radius: 10px; font-weight: 500; }
+        .success { background-color: #e8f8f5; color: #117a65; border: 1px solid #d1f2eb; }
+        .error { background-color: #fdedec; color: #a93226; border: 1px solid #fadbd8; }
+
+        /* =========================================
+           TABLES
+           ========================================= */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; background: white; border-radius: 10px; overflow: hidden; }
+        th, td { border-bottom: 1px solid #eef2f5; padding: 15px; text-align: left; }
+        th { background-color: #f8fafc; color: #2C3E50; font-weight: 600; }
+
+        /* =========================================
+           RESPONSIVE DESIGN (Phones & Tablets)
+           ========================================= */
+        @media (max-width: 768px) {
+            /* Stack the navbar vertically */
+            .navbar {
+                flex-direction: column;
+                padding: 15px;
+                gap: 15px;
+                position: relative; /* Disable sticky on very small screens for better space */
+            }
+            .navbar-left {
+                flex-direction: column;
+                gap: 15px;
+                width: 100%;
+            }
+            .nav-links {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 10px;
+            }
+            .navbar-right {
+                width: 100%;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            /* Shrink container padding to maximize screen space */
+            .container {
+                padding: 20px 15px;
+                margin: 0 10px 20px 10px;
+                border-radius: 16px;
+            }
+            /* Adjust Modal for smaller screens */
+            #aboutModal > div, #feedbackModal > div, #formbricksModal > div, #pricingModal > div {
+                margin: 10% auto !important;
+                padding: 20px 15px !important;
+                width: 95% !important;
+            }
+            #aboutModal h2, #feedbackModal h2 {
+                font-size: 1.5em;
+            }
+        }
+        /* Responsive Table Wrapper */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+            margin-bottom: 20px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body oncopy="return false" oncut="return false" onpaste="return false" oncontextmenu="return false" onselectstart="return false" ondragstart="return false">
+
+    <!-- Unified Navigation Bar with Clerk Integration -->
+    <nav class="navbar">
+        <div class="navbar-left">
+            <a href="{{ url_for('index') }}" class="navbar-brand">PANCE Prep</a>
+
+            <div class="nav-links">
+                <!-- Only show these links if the user is signed in AND has purchased -->
+                {% if is_premium %}
+
+                    <!-- Student Access Button -->
+                    <a href="/student_dashboard" style="color: #3498db; font-weight: 600;">Student Access</a>
+
+                    <!-- Faculty Access Button -->
+                    {% if is_faculty %}
+                        <a href="/faculty_dashboard" style="color: #F39C12; font-weight: 600;">Faculty Access</a>
+                    {% endif %}
+
+                    <!-- Hide Stripe Portal if in the app -->
+                    {% if not is_app %}
+                    <form action="/create-customer-portal-session" method="POST">
+                        <button type="submit" class="nav-link-btn">Manage Subscription</button>
+                    </form>
+                    {% endif %}
+                {% endif %}
+
+                <!-- Pricing Link -->
+                <a href="#" onclick="document.getElementById('pricingModal').style.display='block'; return false;">Pricing</a>
+
+                <!-- Feedback Modal Trigger -->
+                <a href="#" onclick="document.getElementById('feedbackModal').style.display='block'; return false;">Feedback</a>
+
+                <!-- The About modal -->
+                <a href="#" onclick="document.getElementById('aboutModal').style.display='block'; return false;">About</a>
+            </div>
+        </div>
+
+        <!-- Clerk Authentication UI -->
+        <div class="navbar-right">
+            <span id="welcome-message" style="font-weight: 600; color: white;"></span>
+            <button id="sign-out-button" class="btn btn-secondary btn-sm" style="display: none;">Logout</button>
+            <button id="sign-in-button" class="btn btn-primary btn-sm" style="display: none;">Sign In</button>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container {% block container_class %}{% endblock %}">
+        <!-- Global Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash-message {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <!-- Child Template Injection -->
+        {% block content %}
+        {% endblock %}
+    </div>
+    
+    <!-- Pricing Modal -->
+    <div id="pricingModal" style="display:none; position:fixed; z-index:9999; left: 0; top:0; width:100%; height:100%; background-color:rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);">
+        <div style="background-color:#fff; margin:5% auto; padding:30px 40px; border-radius:16px; width:90%; max-width: 800px; text-align:center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); max-height: 85vh; overflow-y: auto;">
+            
+            <h2 style="margin-top: 0; color: #2C3E50; margin-bottom: 25px;">ExploreCME Pricing</h2>
+            
+            <img src="{{ url_for('static', filename='ExploreCME_pricing.png') }}" alt="ExploreCME Pricing" style="width: 100%; height: auto; display: block; margin: 0 auto 25px auto; border-radius: 10px;">
+            
+            <button onclick="document.getElementById('pricingModal').style.display='none'" class="btn btn-secondary" style="padding: 10px 30px; font-size: 1.1em;">Close</button>
+        </div>
+    </div>
+
+    <!-- About Modal -->
+    <div id="aboutModal" style="display:none; position:fixed; z-index:9999; left: 0; top:0; width:100%; height:100%; background-color:rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);">
+        <div style="background-color:#fff; margin:5% auto; padding:30px 40px; border-radius:16px; width:90%; max-width: 700px; text-align:center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); max-height: 85vh; overflow-y: auto;">
+            <h2 style="margin-top: 0; color: #2C3E50; margin-bottom: 25px;">About ExploreCME</h2>
+            <div style="color: #444; line-height: 1.6; text-align: left; font-size: 0.95em;">
+                <p style="margin-bottom: 15px;">
+                    At ExploreCME, we believe exceptional medical education begins with real-world clinical expertise. Our content is developed by an experienced team of practicing clinicians and medical educators who understand the challenges learners face because they have lived them. From the classroom to the bedside, our team brings decades of experience in patient care, clinical instruction, curriculum development, and board preparation.
+                </p>
+                <p style="margin-bottom: 15px;">
+                    Our mission is simple: provide high-quality, clinically relevant learning resources that help students build confidence, deepen understanding, and succeed at every stage of their medical education.
+                </p>
+                <p style="margin-bottom: 15px;">
+                    At the heart of ExploreCME is a comprehensive and continually expanding question database designed to mirror the complexity and clinical reasoning required in modern healthcare. Rather than relying on static content, our question bank is constantly reviewed, refined, and updated to reflect current evidence, evolving educational standards, learner feedback, and emerging examination trends. This ensures students are always preparing with relevant, high-yield material.
+                </p>
+                <p style="margin-bottom: 15px;">
+                    We also harness the power of artificial intelligence to create a smarter, more personalized learning experience. AI-driven insights help identify knowledge gaps, reinforce challenging concepts, and deliver targeted practice that adapts to each learner's progress. Combined with expert clinical oversight, our technology enhances learning while maintaining the highest standards of educational quality and accuracy.
+                </p>
+                <p style="margin-bottom: 15px;">
+                    Whether you are beginning your healthcare journey, preparing for course examinations, mastering clinical rotations, or studying for board certification, ExploreCME adapts to your educational needs. Our resources are intentionally designed to support learners at every level—from foundational knowledge to advanced clinical decision-making.
+                </p>
+                <p style="margin-bottom: 25px;">
+                    At ExploreCME, we are committed to helping students move beyond memorization to develop the clinical reasoning and critical thinking skills required to excel in today's healthcare environment. By combining the expertise of experienced clinicians, a dynamic and ever-evolving question bank, and the innovative capabilities of artificial intelligence, we empower learners to achieve their goals with confidence and become exceptional healthcare professionals.
+                </p>
+            </div>
+            <button onclick="document.getElementById('aboutModal').style.display='none'" class="btn btn-secondary" style="padding: 10px 30px; font-size: 1.1em;">Close</button>
+        </div>
+    </div>
+
+    <!-- Feedback Options Modal -->
+    <div id="feedbackModal" style="display:none; position:fixed; z-index:9999; left: 0; top:0; width:100%; height:100%; background-color:rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);">
+        <div style="background-color:#fff; margin:10% auto; padding:30px 40px; border-radius:16px; width:90%; max-width: 450px; text-align:center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);">
+            <h2 style="margin-top: 0; color: #2C3E50; margin-bottom: 15px;">Feedback & Support</h2>
+            <p style="color: #7f8c8d; margin-bottom: 25px;">How can we help you today?</p>
+
+            <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
+                <!-- Support Email -->
+                <a href="mailto:customer.support@explorecme.com?subject=ExploreCME%20Support%20Request" class="btn btn-primary" style="padding: 15px; font-size: 1.1em; text-decoration: none;" onclick="document.getElementById('feedbackModal').style.display='none'">
+                    Contact Support
+                </a>
+
+                <!-- Formbricks Form Trigger -->
+                <a href="#" onclick="document.getElementById('feedbackModal').style.display='none'; document.getElementById('formbricksModal').style.display='block'; return false;" class="btn btn-success" style="padding: 15px; font-size: 1.1em; text-decoration: none;">
+                    Leave Feedback
+                </a>
+            </div>
+
+            <button onclick="document.getElementById('feedbackModal').style.display='none'" class="btn btn-secondary" style="padding: 10px 30px; font-size: 1em;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Formbricks Iframe Modal -->
+    <div id="formbricksModal" style="display:none; position:fixed; z-index:10000; left: 0; top:0; width:100%; height:100%; background-color:rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);">
+        <div style="background-color:#fff; margin:5vh auto; border-radius:16px; width:95%; max-width: 800px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); position: relative; overflow: hidden;">
+            <!-- Close button for the Formbricks iframe -->
+            <button onclick="document.getElementById('formbricksModal').style.display='none'" style="position: absolute; right: 15px; top: 15px; z-index: 10; background: #e74c3c; color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-weight: bold; font-size: 16px;">&times;</button>
+
+            <!-- User's Formbricks Code -->
+            <div style="position: relative; height:80dvh; overflow:auto; width: 100%;">
+              <iframe
+                src="https://app.formbricks.com/s/cmtyp6wpxw3yk01y8syzqr3y2"
+                frameborder="0" style="position: absolute; left:0; top:0; width:100%; height:100%; border:0;">
+              </iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clerk Initialization Script -->
+    <script>
+      window.addEventListener("load", async function() {
+        if (window.Clerk) {
+            try {
+                await Clerk.load();
+
+                // =========================================
+                // CRITICAL BRIDGE FOR FLASK COOKIE SYNC
+                // =========================================
+                if (Clerk.session) {
+                    const token = await Clerk.session.getToken();
+                    const cookieExists = document.cookie.split('; ').some(c => c.startsWith('__session='));
+
+                    // Manually write the cookie as a first-party cookie so browsers don't block it
+                    document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax; Secure`;
+
+                    // If Flask didn't have the cookie when the page loaded, refresh so it can see it!
+                    if (!cookieExists) {
+                        window.location.reload();
+                    }
+                } else {
+                    // If user is logged out, clear the cookie so Flask knows
+                    document.cookie = "__session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                }
+                // =========================================
+
+                const signInBtn = document.getElementById("sign-in-button");
+                const signOutBtn = document.getElementById("sign-out-button");
+                const welcomeMsg = document.getElementById("welcome-message");
+
+                if (Clerk.user) {
+                  // 1. Set the Name
+                  let displayName = "Student";
+                  if (Clerk.user.username) displayName = Clerk.user.username;
+                  else if (Clerk.user.firstName) displayName = Clerk.user.firstName;
+                  else if (Clerk.user.primaryEmailAddress) displayName = Clerk.user.primaryEmailAddress.emailAddress.split('@')[0];
+
+                  if (welcomeMsg) welcomeMsg.innerText = `Welcome, ${displayName}!`;
+
+                  // 2. Show Logout Button
+                  if (signOutBtn) {
+                      signOutBtn.style.display = "inline-block";
+                  }
+
+                  // 3. NEW: SILENTLY SYNC USER DATA TO FLASK DATABASE
+                  let primaryEmail = Clerk.user.primaryEmailAddress ? Clerk.user.primaryEmailAddress.emailAddress : '';
+                  fetch('/sync_clerk_user', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                          clerk_id: Clerk.user.id,
+                          first_name: Clerk.user.firstName || '',
+                          last_name: Clerk.user.lastName || '',
+                          email: primaryEmail
+                      })
+                  });
+                } else {
+                  // Show Sign In button if logged out
+                  if (signInBtn) {
+                      signInBtn.style.display = "inline-block";
+                  }
+                }
+
+                // =========================================
+                // ROBUST EVENT LISTENERS
+                // =========================================
+                if (signOutBtn) {
+                    signOutBtn.addEventListener("click", async (e) => {
+                        e.preventDefault();
+                        if (Clerk.user) {
+                            await Clerk.signOut();
+                        }
+                        // CRITICAL FIX: Send them to the Flask logout route to clear the server memory!
+                        window.location.href = "/logout";
+                    });
+                }
+
+                if (signInBtn) {
+                    signInBtn.addEventListener("click", (e) => {
+                        e.preventDefault();
+                        Clerk.redirectToSignIn();
+                    });
+                }
+
+            } catch (error) {
+                console.error("Clerk script failed:", error);
+            }
+        }
+      });
+    </script>
+</body>
+</html>

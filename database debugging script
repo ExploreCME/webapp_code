@@ -1,0 +1,45 @@
+import sqlite3
+import os
+
+# Update this path if your database is located elsewhere
+db_path = '/home/ps51632/databases/pa_questions.db'
+
+def view_database_contents():
+    if not os.path.exists(db_path):
+        print(f"Error: Database not found at {db_path}")
+        return
+
+    try:
+        # Connect to the database
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row  # Allows accessing columns by name
+        cursor = conn.cursor()
+
+        # Execute query sorted by username, then quiz_name
+        cursor.execute('''
+            SELECT username, quiz_name, id, organ_system, topic_area, question_stem 
+            FROM questions 
+            ORDER BY username ASC, quiz_name ASC
+        ''')
+        
+        rows = cursor.fetchall()
+        
+        if not rows:
+            print("The 'questions' table is currently empty.")
+        else:
+            print(f"--- Found {len(rows)} Questions ---\n")
+            for row in rows:
+                # Truncate the question stem so it fits on one line
+                stem = row['question_stem']
+                short_stem = stem[:40] + "..." if stem and len(stem) > 40 else stem
+                
+                print(f"User: {row['username']:<15} | Quiz: {row['quiz_name']:<15} | Topic: {row['topic_area']:<20} | Q: {short_stem}")
+
+    except sqlite3.Error as e:
+        print(f"SQLite Error: {e}")
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+# Run the function
+view_database_contents()

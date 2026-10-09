@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}{{ organ_system }} Flashcards - {{ topic }}{% endblock %}
+
+{% block container_class %}container-large{% endblock %}
+
+{% block head %}
+<style>
+    /* Streamlined Flashcard CSS */
+    .flashcard-wrapper {
+        perspective: 1000px;
+        width: 100%;
+        height: 450px;
+        margin: 0 auto 30px auto;
+        cursor: pointer;
+    }
+    .flashcard-inner {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        text-align: center;
+        transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+        transform-style: preserve-3d;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        border-radius: 12px;
+    }
+    .flashcard-wrapper.flipped .flashcard-inner {
+        transform: rotateY(180deg);
+    }
+    .flashcard-face {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        backface-visibility: hidden;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        background-color: #fff;
+        border: 1px solid #ddd;
+    }
+    .flashcard-front {
+        border-top: 5px solid #3498db; /* Primary Blue */
+    }
+    .flashcard-back {
+        transform: rotateY(180deg);
+        border-top: 5px solid #48C9B0; /* Success Green */
+        background-color: #fafbfc;
+    }
+    
+    /* Inner Layout Elements */
+    .card-header-custom {
+        padding: 15px 20px;
+        display: flex;
+        justify-content: flex-end;
+    }
+    .card-body-custom {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 20px 40px;
+        overflow-y: auto;
+    }
+    .card-footer-custom {
+        padding: 15px;
+        color: #888;
+        font-size: 0.9em;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    /* Badges */
+    .task-badge {
+        background-color: #edf2f7;
+        color: #4a5568;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.85em;
+        font-weight: bold;
+    }
+    .answer-badge {
+        background-color: #48C9B0;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.85em;
+        font-weight: bold;
+    }
+
+    /* Text Formatting */
+    .prompt-text {
+        font-size: 1.6em;
+        color: #2c3e50;
+        font-weight: 600;
+        line-height: 1.4;
+    }
+    .answer-text {
+        font-size: 1.15em;
+        color: #333;
+        text-align: left;
+        line-height: 1.6;
+    }
+    .answer-text ul { padding-left: 25px; }
+    .answer-text li { margin-bottom: 10px; }
+    .answer-text li::marker { color: #48C9B0; font-weight: bold; }
+
+    /* Custom Scrollbar for Card Body */
+    .card-body-custom::-webkit-scrollbar { width: 6px; }
+    .card-body-custom::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+
+    /* Hide arrows on number input */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; margin: 0; 
+    }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% endblock %}
+
+{% block content %}
+    <!-- Flexbox header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+        <div>
+            <h2 style="margin: 0; color: #2C3E50;">{{ organ_system }}</h2>
+            <span style="color: #7f8c8d; font-size: 1.1em;">Topic: {{ topic }}</span>
+        </div>
+        <!-- FIXED: Exit button points back to the topic selection screen for this specific organ -->
+        <a href="{{ url_for('quiz.flashcards_select_topic', organ_system=organ_system) }}" class="btn btn-secondary">Exit</a>
+    </div>
+
+    <!-- The Flashcard -->
+    <div id="flashcard" class="flashcard-wrapper" onclick="flipCard()">
+        <div class="flashcard-inner" id="cardInner">
+            
+            <!-- FRONT OF CARD (Prompt) -->
+            <div class="flashcard-face flashcard-front">
+                <div class="card-header-custom">
+                    <span id="cardTask" class="task-badge">Task</span>
+                </div>
+                <div class="card-body-custom text-center">
+                    <h3 id="cardPrompt" class="prompt-text">Loading prompt...</h3>
+                </div>
+                <div class="card-footer-custom">
+                    <span>Tap card to reveal answer</span>
+                </div>
+            </div>
+
+            <!-- BACK OF CARD (Answer) -->
+            <div class="flashcard-face flashcard-back">
+                <div class="card-header-custom pb-0">
+                    <span class="answer-badge">High-Yield Overview</span>
+                </div>
+                <div class="card-body-custom">
+                    <div id="cardAnswer" class="answer-text">Loading answer...</div>
+                </div>
+                <div class="card-footer-custom">
+                    <span>Tap card to hide</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Footer Matching index.html -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 25px; padding-top: 20px; border-top: 1px solid #ddd;">
+        
+        <button id="prevBtn" class="btn btn-secondary" onclick="prevCard(event)" style="padding: 10px 20px; font-weight: bold;">
+            &larr; Previous Card
+        </button>
+
+        <!-- Progress and Jump To -->
+        <div style="display: flex; align-items: center; margin: 0;">
+            <span id="cardProgress" style="font-weight: 600; color: #555; margin-right: 20px; font-size: 1.1em;">1 / 1</span>
+            
+            <label for="goToInput" style="margin: 0 10px 0 0; font-weight: 500;">Jump to:</label>
+            <input type="number" id="goToInput" min="1" 
+                   style="width: 60px; padding: 6px; margin-right: 8px; text-align: center; border: 1px solid #ccc; border-radius: 4px;"
+                   onkeydown="handleGoToKeyPress(event)" oninput="this.style.borderColor='#ccc'">
+            <button type="button" class="btn btn-info" style="padding: 6px 12px;" onclick="goToCard(event)">Go</button>
+        </div>
+
+        <button id="nextBtn" class="btn btn-primary" onclick="nextCard(event)" style="padding: 10px 20px; font-weight: bold;">
+            Next Card &rarr;
+        </button>
+
+    </div>
+
+    <!-- Interactivity Script -->
+    <script>
+        const cards = {{ cards|tojson }};
+        const organSystem = "{{ organ_system }}";
+        const topic = "{{ topic }}"; 
+        
+        let currentIndex = parseInt("{{ saved_index }}", 10) || 0;
+
+        function saveProgress(index) {
+            fetch("{{ url_for('quiz.save_flashcard_progress') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // Ensures progress saves to the specific topic row in the database
+                body: JSON.stringify({ organ_system: organSystem, topic: topic, current_index: index })
+            }).catch(err => console.log('Failed to save progress:', err));
+        }
+
+        function renderCard() {
+            const cardElement = document.getElementById('flashcard');
+            cardElement.classList.remove('flipped'); 
+            
+            setTimeout(() => {
+                const taskBadge = document.getElementById('cardTask');
+                if (cards[currentIndex].task_area) {
+                    taskBadge.innerText = cards[currentIndex].task_area;
+                    taskBadge.style.display = "inline-block";
+                } else {
+                    taskBadge.style.display = "none";
+                }
+
+                document.getElementById('cardPrompt').innerText = cards[currentIndex].prompt;
+                document.getElementById('cardAnswer').innerHTML = marked.parse(cards[currentIndex].answer);
+                document.getElementById('cardProgress').innerText = `${currentIndex + 1} / ${cards.length}`;
+                
+                // Reset scrollbar to top
+                document.querySelectorAll('.card-body-custom').forEach(el => el.scrollTop = 0);
+                
+                const inputField = document.getElementById('goToInput');
+                inputField.value = '';
+                inputField.placeholder = currentIndex + 1;
+                inputField.style.borderColor = '#ccc';
+                
+                document.getElementById('prevBtn').disabled = currentIndex === 0;
+                document.getElementById('nextBtn').disabled = currentIndex === cards.length - 1;
+            }, 250);
+        }
+
+        function flipCard() {
+            document.getElementById('flashcard').classList.toggle('flipped');
+            // Reset scrollbar when flipping
+            document.querySelectorAll('.card-body-custom').forEach(el => el.scrollTop = 0);
+        }
+
+        function nextCard(event) {
+            if (event) event.stopPropagation(); 
+            if (currentIndex < cards.length - 1) {
+                currentIndex++;
+                renderCard();
+                saveProgress(currentIndex);
+            }
+        }
+
+        function prevCard(event) {
+            if (event) event.stopPropagation(); 
+            if (currentIndex > 0) {
+                currentIndex--;
+                renderCard();
+                saveProgress(currentIndex);
+            }
+        }
+
+        function goToCard(event) {
+            if (event) event.stopPropagation();
+            
+            const inputField = document.getElementById('goToInput');
+            const inputVal = parseInt(inputField.value, 10);
+            
+            if (!isNaN(inputVal) && inputVal >= 1 && inputVal <= cards.length) {
+                currentIndex = inputVal - 1;
+                renderCard();
+                saveProgress(currentIndex);
+                inputField.blur();
+            } else {
+                inputField.style.borderColor = '#e53e3e'; // Red error border
+                inputField.focus();
+            }
+        }
+
+        function handleGoToKeyPress(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                goToCard(event);
+            }
+        }
+
+        // Keyboard Shortcuts
+        document.addEventListener("keydown", (event) => {
+            if (document.activeElement.tagName === 'INPUT') return;
+            
+            if (event.key === "ArrowRight") {
+                nextCard();
+            } else if (event.key === "ArrowLeft") {
+                prevCard();
+            } else if (event.key === " ") {
+                event.preventDefault();
+                flipCard();
+            }
+        });
+
+        document.addEventListener("DOMContentLoaded", renderCard);
+    </script>
+{% endblock %}

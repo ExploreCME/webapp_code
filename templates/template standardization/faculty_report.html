@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .report-container { max-width: 800px; margin: 0 auto; background: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eaeaea; }
+    
+    .section-title { font-weight: 700; color: #2c3e50; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; font-size: 1.1em; }
+    .section-title span { background: #3498db; color: #fff; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.85em; }
+
+    /* Modern Radio Toggles */
+    .toggle-group { display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; }
+    .toggle-input { display: none; }
+    .toggle-label { 
+        flex: 1; text-align: center; padding: 12px; border-radius: 8px; 
+        background: #f8f9f9; color: #7f8c8d; font-weight: 600; cursor: pointer; 
+        border: 1px solid #bdc3c7; transition: all 0.2s ease; 
+    }
+    .toggle-label:hover { background: #ecf0f1; }
+    .toggle-input:checked + .toggle-label { 
+        background: #3498db; color: #fff; border-color: #3498db; 
+        box-shadow: 0 4px 10px rgba(52, 152, 219, 0.2);
+    }
+    .toggle-input:disabled + .toggle-label {
+        opacity: 0.5; cursor: not-allowed; background: #f4f6f7;
+    }
+
+    .custom-select { width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 8px; background: #fff; font-size: 16px; margin-bottom: 25px; }
+    .custom-select:focus { border-color: #3498db; outline: none; }
+    
+    .hidden-block { display: none; }
+</style>
+
+<div class="report-container">
+    
+    <div style="text-align: center; margin-bottom: 40px;">
+        <h2 style="color: #2c3e50; margin-bottom: 10px; font-size: 30px; font-weight: 700;">Report Generator</h2>
+        <p style="color: #7f8c8d; font-size: 1.1em; margin: 0;">Export grades, usage statistics, and psychometric item analyses.</p>
+    </div>
+
+    <form action="{{ url_for('faculty.generate_report') }}" method="POST" id="reportForm">
+        
+        <!-- STEP 1: TARGET TYPE -->
+        <div class="section-title"><span>1</span> Who is this report for?</div>
+        <div class="toggle-group">
+            <input type="radio" name="report_target" id="target_class" value="class" class="toggle-input" checked onchange="updateFormUI()">
+            <label for="target_class" class="toggle-label">👥 Entire Class</label>
+
+            <input type="radio" name="report_target" id="target_student" value="student" class="toggle-input" onchange="updateFormUI()">
+            <label for="target_student" class="toggle-label">👤 Individual Student</label>
+        </div>
+
+        <!-- TARGET DROPDOWNS -->
+        <div id="class_select_block">
+            <select name="target_class_id" id="target_class_id" class="custom-select" required>
+                <option value="" disabled selected>-- Select a Class --</option>
+                {% for c in classes %}
+                    <option value="{{ c['id'] }}">{{ c['class_name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div id="student_select_block" class="hidden-block">
+            <select name="target_student_id" id="target_student_id" class="custom-select">
+                <option value="" disabled selected>-- Select a Student --</option>
+                {% for s in students %}
+                    <option value="{{ s['clerk_id'] }}">{{ s['display_name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <hr style="border: 0; border-top: 1px dashed #bdc3c7; margin: 30px 0;">
+
+        <!-- STEP 2: REPORT TYPE -->
+        <div class="section-title"><span>2</span> What kind of report?</div>
+        <div class="toggle-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            
+            <input type="radio" name="report_type" id="type_usage" value="usage" class="toggle-input" checked onchange="updateFormUI()">
+            <label for="type_usage" class="toggle-label">📊 Overall Usage Stats</label>
+
+            <input type="radio" name="report_type" id="type_quiz" value="quiz" class="toggle-input" onchange="updateFormUI()">
+            <label for="type_quiz" class="toggle-label">📝 Quiz Grades</label>
+
+            <input type="radio" name="report_type" id="type_remediation" value="remediation" class="toggle-input" onchange="updateFormUI()">
+            <label for="type_remediation" class="toggle-label">🎯 Remediation Grades</label>
+
+            <!-- Item Analysis (Disabled for Individual Students) -->
+            <div style="position: relative;">
+                <input type="radio" name="report_type" id="type_item_analysis" value="item_analysis" class="toggle-input" onchange="updateFormUI()">
+                <label for="type_item_analysis" id="label_item_analysis" class="toggle-label">🔬 Item Analysis (CSV)</label>
+            </div>
+        </div>
+
+        <!-- ASSIGNMENT DROPDOWNS -->
+        <div id="quiz_select_block" class="hidden-block">
+            <div class="section-title"><span>3</span> Select the Quiz</div>
+            <select name="quiz_name" id="quiz_name" class="custom-select">
+                <option value="" disabled selected>-- Select a Quiz --</option>
+                {% for q in quizzes %}
+                    <option value="{{ q }}">{{ q }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div id="remediation_select_block" class="hidden-block">
+            <div class="section-title"><span>3</span> Select the Remediation</div>
+            <select name="remediation_name" id="remediation_name" class="custom-select">
+                <option value="" disabled selected>-- Select a Remediation --</option>
+                {% for r in remediations %}
+                    <option value="{{ r }}">{{ r }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <!-- SPECIAL ITEM ANALYSIS BLOCK -->
+        <div id="item_analysis_select_block" class="hidden-block" style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #eaeded; margin-bottom: 25px;">
+            <div class="section-title" style="margin-bottom: 10px;"><span>3</span> Select Assignment to Analyze</div>
+            <p style="font-size: 0.9em; color: #7f8c8d; margin-top: 0;">Calculates p-value and discrimination index for tests taken by this class.</p>
+            <select id="analysis_selector" class="custom-select" style="margin-bottom: 0;" onchange="routeItemAnalysis()">
+                <option value="" disabled selected>-- Choose Assignment --</option>
+                <optgroup label="Quizzes">
+                    {% for q in quizzes %}
+                        <option value="quiz|{{ q }}">{{ q }}</option>
+                    {% endfor %}
+                </optgroup>
+                <optgroup label="Remediations">
+                    {% for r in remediations %}
+                        <option value="remediation|{{ r }}">{{ r }}</option>
+                    {% endfor %}
+                </optgroup>
+            </select>
+            <!-- Hidden inputs to feed the backend routing dynamically -->
+            <input type="hidden" name="ia_quiz_name" id="ia_quiz_name" value="">
+            <input type="hidden" name="ia_remediation_name" id="ia_remediation_name" value="">
+        </div>
+
+        <!-- NEW: ATTEMPT FILTER SELECTION -->
+        <div id="attempt_filter_block" class="hidden-block" style="margin-top: 20px;">
+            <div class="section-title"><span>4</span> Which attempt should be scored?</div>
+            <select name="attempt_filter" id="attempt_filter" class="custom-select">
+                <option value="highest" selected>Highest Score Only (Default)</option>
+                <option value="recent">Most Recent Attempt</option>
+                <option value="all">All Attempts</option>
+            </select>
+        </div>
+
+        <!-- SUBMIT -->
+        <button type="submit" class="btn btn-success" style="width: 100%; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 8px; margin-top: 10px;">
+            Download Report
+        </button>
+
+    </form>
+    
+    <div style="margin-top: 25px; text-align: center;">
+        <a href="{{ url_for('faculty.reports_hub') }}" style="color: #95a5a6; text-decoration: none; font-weight: 500;">&larr; Back to Reports Hub</a>
+    </div>
+</div>
+
+<script>
+    function updateFormUI() {
+        const target = document.querySelector('input[name="report_target"]:checked').value;
+        const type = document.querySelector('input[name="report_type"]:checked').value;
+
+        // 1. Handle Target Swapping
+        if (target === 'class') {
+            document.getElementById('class_select_block').style.display = 'block';
+            document.getElementById('target_class_id').required = true;
+            
+            document.getElementById('student_select_block').style.display = 'none';
+            document.getElementById('target_student_id').required = false;
+            
+            // Enable Item Analysis
+            document.getElementById('type_item_analysis').disabled = false;
+            document.getElementById('label_item_analysis').title = "";
+        } else {
+            document.getElementById('class_select_block').style.display = 'none';
+            document.getElementById('target_class_id').required = false;
+            
+            document.getElementById('student_select_block').style.display = 'block';
+            document.getElementById('target_student_id').required = true;
+            
+            // Disable Item Analysis for Individuals
+            document.getElementById('type_item_analysis').disabled = true;
+            document.getElementById('label_item_analysis').title = "Item analysis is only available for class cohorts.";
+            
+            // If they had item analysis selected, boot them back to Usage stats
+            if (type === 'item_analysis') {
+                document.getElementById('type_usage').checked = true;
+                updateFormUI(); // Recalculate
+                return;
+            }
+        }
+
+        // 2. Handle Report Type Swapping
+        document.getElementById('quiz_select_block').style.display = 'none';
+        document.getElementById('quiz_name').required = false;
+        
+        document.getElementById('remediation_select_block').style.display = 'none';
+        document.getElementById('remediation_name').required = false;
+        
+        document.getElementById('item_analysis_select_block').style.display = 'none';
+        document.getElementById('analysis_selector').required = false;
+
+        document.getElementById('attempt_filter_block').style.display = 'none';
+        const filterDropdown = document.getElementById('attempt_filter');
+
+        if (type === 'quiz') {
+            document.getElementById('quiz_select_block').style.display = 'block';
+            document.getElementById('quiz_name').required = true;
+            document.getElementById('attempt_filter_block').style.display = 'block';
+            
+            filterDropdown.disabled = false;
+
+        } else if (type === 'remediation') {
+            document.getElementById('remediation_select_block').style.display = 'block';
+            document.getElementById('remediation_name').required = true;
+            document.getElementById('attempt_filter_block').style.display = 'block';
+            
+            filterDropdown.disabled = false;
+
+        } else if (type === 'item_analysis') {
+            document.getElementById('item_analysis_select_block').style.display = 'block';
+            document.getElementById('analysis_selector').required = true;
+            document.getElementById('attempt_filter_block').style.display = 'block';
+            
+            // Allow all filters for Item Analysis
+            filterDropdown.disabled = false;
+        }
+        
+        // Note: If type === 'usage', the attempt filter block remains hidden entirely.
+    }
+
+    // Intercepts the combined select box for Item Analysis and routes it to the proper hidden fields
+    function routeItemAnalysis() {
+        const selector = document.getElementById('analysis_selector').value;
+        const hiddenQuiz = document.getElementById('ia_quiz_name');
+        const hiddenRem = document.getElementById('ia_remediation_name');
+        
+        hiddenQuiz.value = "";
+        hiddenRem.value = "";
+        
+        // Remove standard required attributes so the form submits cleanly
+        document.getElementById('quiz_name').required = false;
+        document.getElementById('remediation_name').required = false;
+
+        if (selector) {
+            const parts = selector.split('|');
+            if (parts[0] === 'quiz') {
+                // Temporarily map it into the main quiz_name select so backend catches it perfectly
+                document.getElementById('quiz_name').innerHTML = `<option value="${parts[1]}" selected>${parts[1]}</option>`;
+                document.getElementById('quiz_name').value = parts[1];
+            } else if (parts[0] === 'remediation') {
+                document.getElementById('remediation_name').innerHTML = `<option value="${parts[1]}" selected>${parts[1]}</option>`;
+                document.getElementById('remediation_name').value = parts[1];
+            }
+        }
+    }
+
+    // Reactivate the disabled dropdown right before submit so the value gets passed to Flask!
+    document.getElementById('reportForm').addEventListener('submit', function() {
+        document.getElementById('attempt_filter').disabled = false;
+    });
+
+    // Initialize UI on page load
+    document.addEventListener("DOMContentLoaded", updateFormUI);
+</script>
+{% endblock %}

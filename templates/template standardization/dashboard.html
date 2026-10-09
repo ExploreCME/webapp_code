@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - PANCE Quiz App{% endblock %}
+
+{% block content %}
+    <div style="text-align: center;">
+        <h2 style="margin-bottom: 10px;">Welcome to your Quizzes</h2>
+
+        {% if is_premium %}
+            <!-- ========================================== -->
+            <!-- PREMIUM USER VIEW                          -->
+            <!-- ========================================== -->
+            <p style="color: #444; font-size: 1.5em; font-weight: 500; margin-bottom: 30px;">What would you like to do today?</p>
+
+            <!-- Using btn-success (Green) for taking quizzes -->
+            <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-success btn-full" style="padding: 15px; font-size: 18px; margin-bottom: 15px; display: block;">
+                Take or Review a Quiz
+            </a>
+
+            <!-- Using btn-primary (Blue) for generating to create visual separation -->
+            <a href="{{ url_for('quiz.menu') }}" class="btn btn-primary btn-full" style="padding: 15px; font-size: 18px; margin-bottom: 20px; display: block;">
+                Generate a Quiz
+            </a>
+
+        {% else %}
+            <!-- ========================================== -->
+            <!-- NON-PREMIUM USER VIEW (PAYWALL)            -->
+            <!-- ========================================== -->
+            <div style="padding: 40px 30px; background-color: #f9f9f9; border-radius: 12px; margin-top: 30px; border: 1px solid #eef2f5; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                <h3 style="color: #2c3e50; margin-top: 0; font-size: 1.8em;">Premium Access Required</h3>
+                <p style="color: #555; font-size: 1.1em; line-height: 1.6; margin-bottom: 30px;">
+                    Unlock full access to create custom quizzes, track your progress, and review your performance history from our comprehensive question bank.
+                </p>
+
+                <!-- Notice we removed the 'quiz.' prefix because this route lives in your main display_database.py file -->
+                <form action="{{ url_for('create_checkout_session') }}" method="POST">
+                    <button type="submit" class="btn btn-success" style="font-size: 1.2em; padding: 15px 30px; border-radius: 8px; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        Purchase Premium Access &rarr;
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+
+    </div>
+{% endblock %}

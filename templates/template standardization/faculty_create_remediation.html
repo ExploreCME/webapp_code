@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Create Remediation Assignment</h2>
+    <p>Upload an EOR PDF report to generate a customized remediation assignment.</p>
+
+    <form action="{{ url_for('faculty.create_remediation') }}" method="POST" enctype="multipart/form-data">
+
+        <!-- Remediation Name Input -->
+        <div class="form-group mb-3">
+            <label for="remediation_name" class="fw-bold">Remediation Name</label>
+            <input type="text" class="form-control" id="remediation_name" name="remediation_name" required placeholder="e.g., Cardiology EOR Remediation Module">
+        </div>
+
+        <!-- File Upload -->
+        <div class="form-group mb-4">
+            <label for="eor_pdf" class="fw-bold">Upload EOR Report (PDF)</label>
+            <input type="file" class="form-control" id="eor_pdf" name="eor_pdf" accept=".pdf" required>
+        </div>
+
+        <!-- Submit button with loading spinner -->
+        <button type="submit" class="btn btn-success" onclick="this.innerHTML='<span class=\'spinner-border spinner-border-sm\' role=\'status\' aria-hidden=\'true\'></span> Generating... Please wait.';">
+            Generate Remediation Assignment
+        </button>
+        <!-- Update the cancel button to return to the new remediation menu -->
+        <a href="{{ url_for('faculty.generate_hub') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

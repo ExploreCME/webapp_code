@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}Review Remediation Assignments{% endblock %}
+
+{% block content %}
+<style>
+    /* Search Bar Input Styling */
+    #remediation-search:focus {
+        box-shadow: none;
+        border-color: #dee2e6;
+    }
+
+    /* --- VIEW 1: GRID LAYOUT --- */
+    .quiz-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 20px;
+        align-items: stretch;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .quiz-card {
+        background: #ffffff;
+        border-radius: 10px;
+        border: 2px solid #b3b3b3;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        box-sizing: border-box;
+        transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+        cursor: pointer;
+        position: relative; /* Essential for the absolute overlay link */
+        text-align: left;
+    }
+
+    /* ENHANCED HOVER EFFECT: Card background changes slightly */
+    .quiz-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        border-color: #0d6efd;
+        background-color: #f8fbff; 
+    }
+
+    .card-header-flex {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 15px;
+        gap: 10px;
+        padding-right: 35px; /* Ensures title doesn't overlap the absolute delete button */
+    }
+
+    .quiz-title {
+        margin: 0;
+        font-size: 1.25em;
+        color: #2C3E50;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .badge-container {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        align-items: flex-end;
+    }
+
+    .remediation-badge {
+        background-color: #f3e5f5;
+        color: #8e24aa;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: bold;
+        border: 1px solid #e1bee7;
+        white-space: nowrap;
+    }
+
+    /* Floating Delete Button */
+    .btn-delete-card {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        background-color: rgba(220, 53, 69, 0.08);
+        color: #dc3545;
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        z-index: 10; /* Ensures this sits ABOVE the clickable card overlay */
+    }
+
+    .btn-delete-card:hover {
+        background-color: #dc3545;
+        color: #ffffff;
+        transform: scale(1.1);
+    }
+
+    /* ENHANCED ACTION FOOTER: Looks like a button */
+    .card-action-footer {
+        margin-top: 15px;
+        padding: 12px;
+        text-align: center;
+        font-weight: bold;
+        color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+
+    /* When the card is hovered, the footer lights up solid */
+    .quiz-card:hover .card-action-footer {
+        background-color: #0d6efd;
+        color: #ffffff;
+    }
+</style>
+
+<div class="container mt-5 mb-5">
+    <!-- Header Section -->
+    <div class="text-center mb-5">
+        <h2 class="fw-bold text-primary mb-2" style="font-size: 32px; color: #2c3e50 !important;">Your Remediation Assignments</h2>
+        <p class="text-secondary fs-5" style="color: #7f8c8d !important;">Select an assignment to review its modules</p>
+    </div>
+
+    {% if remediations %}
+        <!-- Live Search Bar -->
+        <div class="row justify-content-center mb-5">
+            <div class="col-md-8 col-lg-6">
+                <div class="input-group shadow-sm" style="border-radius: 12px; overflow: hidden; border: 1px solid #eaeded;">
+                    <span class="input-group-text bg-white border-0 text-muted" id="search-icon">🔍</span>
+                    <input type="text" id="remediation-search" class="form-control border-0 ps-0 py-3" placeholder="Search assignments by name..." aria-label="Search" autocomplete="off">
+                </div>
+            </div>
+        </div>
+
+        <!-- GRID CONTAINER -->
+        <div class="quiz-grid" id="remediation-list">
+            {% for remediation in remediations %}
+            <div class="quiz-card remediation-item" data-name="{{ remediation.remediation_name|upper }}">
+
+                <!-- Full-Card Clickable Overlay (z-index: 5 sits over the text, but under the delete button) -->
+                <a href="{{ url_for('faculty.review_remediation_details', remediation_name=remediation.remediation_name) }}" 
+                   style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; text-decoration: none;" 
+                   aria-label="Review {{ remediation.remediation_name }}">
+                </a>
+
+                <!-- Floating Delete Action (z-index: 10 ensures it can be clicked without triggering the overlay link) -->
+                <form action="{{ url_for('faculty.delete_entire_remediation') }}" method="POST" class="m-0" style="position: relative; z-index: 10;" onsubmit="return confirm('WARNING: Are you sure you want to delete this ENTIRE remediation assignment?');">
+                    <input type="hidden" name="remediation_name" value="{{ remediation.remediation_name }}">
+                    <button type="submit" class="btn-delete-card" title="Delete Assignment" aria-label="Delete">
+                        ✖
+                    </button>
+                </form>
+
+                <div class="card-header-flex">
+                    <h3 class="quiz-title">
+                        {{ remediation.remediation_name if remediation.remediation_name else "Unnamed Assignment" }}
+                    </h3>
+                    <div class="badge-container">
+                        <span class="remediation-badge">Remediation</span>
+                    </div>
+                </div>
+
+                <div style="font-size: 0.95em; color: #555; margin-top: auto;">
+                    <div style="margin-bottom: 5px;">
+                        <strong>Modules:</strong> {{ remediation.module_count }}
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <strong>Created:</strong> {{ remediation.latest_date }}
+                    </div>
+
+                    <!-- Enhanced Footer -->
+                    <div class="card-action-footer">
+                        Review Modules &rarr;
+                    </div>
+                </div>
+
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Empty State For Search -->
+        <div id="no-filter-results" class="text-center py-5" style="display: none;">
+            <h5 class="text-secondary fw-bold">No assignments found.</h5>
+        </div>
+    {% else %}
+        <!-- Empty State (No Remediations) -->
+        <div class="text-center py-5 bg-light rounded-4 border border-secondary-subtle mt-4" style="max-width: 600px; margin: 0 auto;">
+            <div class="display-1 text-muted mb-3">📭</div>
+            <h4 class="text-secondary fw-bold">No remediations found!</h4>
+            <p class="text-muted mb-4">You haven't generated any remediation assignments yet.</p>
+            <a href="{{ url_for('faculty.create_remediation') }}" class="btn btn-primary px-4 py-2 fw-semibold rounded-pill">Create Remediation</a>
+        </div>
+    {% endif %}
+
+    <!-- Back Button -->
+    <div class="d-flex justify-content-center mt-5 pt-4">
+        <a href="{{ url_for('faculty.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-5 py-2 fw-bold">
+            &larr; Back to Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- Optimized Live Search JavaScript -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const searchInput = document.getElementById("remediation-search");
+        const items = document.querySelectorAll(".remediation-item");
+        const noResults = document.getElementById("no-filter-results");
+
+        if (searchInput) {
+            searchInput.addEventListener("input", function() {
+                const query = this.value.toLowerCase().trim();
+                let visibleCount = 0;
+
+                items.forEach(item => {
+                    const name = (item.dataset.name || "").toLowerCase();
+                    const isMatch = name.includes(query);
+
+                    // Natively hide/show grid items
+                    item.style.display = isMatch ? "" : "none";
+                    if (isMatch) visibleCount++;
+                });
+
+                if (noResults) {
+                    noResults.style.display = (visibleCount === 0) ? "block" : "none";
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

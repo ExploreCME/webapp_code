@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Generate Content - PANCE Quiz App{% endblock %}
+
+{% block content %}
+<style>
+    .dashboard-header { text-align: center; margin-bottom: 40px; }
+    .dashboard-header h2 { color: #2c3e50; font-size: 32px; font-weight: 700; margin-bottom: 10px; }
+    .dashboard-header p { color: #7f8c8d; font-size: 1.1em; }
+    .faculty-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; max-width: 900px; margin: 0 auto; }
+    .faculty-card { background: #ffffff; border-radius: 12px; padding: 30px 20px; text-align: center; text-decoration: none; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); border: 1px solid #eaeded; transition: all 0.3s ease; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .faculty-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1); border-color: #3498db; }
+    .card-icon { font-size: 40px; margin-bottom: 15px; }
+    .card-title { color: #2c3e50; font-size: 1.25em; font-weight: 700; margin-bottom: 10px; }
+    .card-desc { color: #7f8c8d; font-size: 0.95em; line-height: 1.4; margin: 0; }
+
+    .card-quiz:hover .card-title { color: #3498db; }
+    .card-review:hover .card-title { color: #e74c3c; }
+    .card-rem-create:hover .card-title { color: #16a085; }
+    .card-rem-review:hover .card-title { color: #f39c12; }
+</style>
+
+<div class="dashboard-header">
+    <h2>Generate & Review Content</h2>
+    <p>Select an option below to create or edit quizzes and remediations.</p>
+</div>
+
+<div class="faculty-grid">
+    <a href="{{ url_for('quiz.menu') }}" class="faculty-card card-quiz">
+        <div class="card-icon">🧠</div>
+        <div class="card-title">Generate Quiz</div>
+        <p class="card-desc">Create custom practice quizzes based on specific topics or documents.</p>
+    </a>
+    
+    <a href="{{ url_for('faculty.review_list') }}" class="faculty-card card-review">
+        <div class="card-icon">📝</div>
+        <div class="card-title">Review Quizzes</div>
+        <p class="card-desc">Review your generated quizzes and remove or adjust questions.</p>
+    </a>
+    
+    <a href="{{ url_for('faculty.create_remediation') }}" class="faculty-card card-rem-create">
+        <div class="card-icon">🎯</div>
+        <div class="card-title">Generate Remediation</div>
+        <p class="card-desc">Upload an EOR PDF to generate targeted AI remediation tasks.</p>
+    </a>
+    
+    <a href="{{ url_for('faculty.review_remediation') }}" class="faculty-card card-rem-review">
+        <div class="card-icon">🔍</div>
+        <div class="card-title">Review Remediation</div>
+        <p class="card-desc">Review, edit, and delete generated remediation assignments.</p>
+    </a>
+</div>
+
+<div style="margin-top: 40px; text-align: center;">
+    <a href="{{ url_for('faculty.dashboard') }}" class="btn btn-secondary">&larr; Back to Dashboard</a>
+</div>
+{% endblock %}

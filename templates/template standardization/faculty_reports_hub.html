@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Reports & Results - PANCE Quiz App{% endblock %}
+
+{% block content %}
+<style>
+    .dashboard-header { text-align: center; margin-bottom: 40px; }
+    .dashboard-header h2 { color: #2c3e50; font-size: 32px; font-weight: 700; margin-bottom: 10px; }
+    .dashboard-header p { color: #7f8c8d; font-size: 1.1em; }
+    .faculty-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; max-width: 900px; margin: 0 auto; }
+    .faculty-card { background: #ffffff; border-radius: 12px; padding: 30px 20px; text-align: center; text-decoration: none; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); border: 1px solid #eaeded; transition: all 0.3s ease; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .faculty-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1); border-color: #3498db; }
+    .card-icon { font-size: 40px; margin-bottom: 15px; }
+    .card-title { color: #2c3e50; font-size: 1.25em; font-weight: 700; margin-bottom: 10px; }
+    .card-desc { color: #7f8c8d; font-size: 0.95em; line-height: 1.4; margin: 0; }
+
+    .card-results:hover .card-title { color: #27ae60; }
+    .card-reports:hover .card-title { color: #e74c3c; }
+</style>
+
+<div class="dashboard-header">
+    <h2>Review & Reports</h2>
+    <p>Track class performance and generate PDF reports.</p>
+</div>
+
+<div class="faculty-grid">
+    <a href="{{ url_for('faculty.class_results') }}" class="faculty-card card-results">
+        <div class="card-icon">📊</div>
+        <div class="card-title">Class Results</div>
+        <p class="card-desc">Review student performance, highest test scores, and individual attempts.</p>
+    </a>
+
+    <!-- UPDATED REPORTS CARD -->
+    <a href="{{ url_for('faculty.generate_report') }}" class="faculty-card card-reports">
+        <div class="card-icon">📄</div>
+        <div class="card-title">Reports</div>
+        <p class="card-desc">Generate individual or class-wide performance spreadsheets and PDFs.</p>
+    </a>
+</div>
+
+<div style="margin-top: 40px; text-align: center;">
+    <a href="{{ url_for('faculty.dashboard') }}" class="btn btn-secondary">&larr; Back to Dashboard</a>
+</div>
+{% endblock %}

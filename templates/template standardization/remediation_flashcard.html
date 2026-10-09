@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Remediation: {{ assignment.topic_area }}{% endblock %}
+{% block container_class %}container-large{% endblock %}
+
+{% block head %}
+<style>
+    .flashcard-wrapper {
+        perspective: 1200px;
+        width: 100%;
+        max-width: 850px;
+        height: 650px !important; 
+        max-height: 75vh; 
+        margin: 0 auto 40px auto !important;
+        cursor: default; /* Changed from pointer since it's no longer clickable */
+        position: relative;
+        z-index: 1;
+        transform-style: preserve-3d;
+    }
+    .flashcard-inner {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    }
+    
+    /* Animated Top Borders */
+    @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    
+    .flashcard-face {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        background-color: #fff;
+        border: 1px solid #eaeaea;
+        padding: 25px;
+        text-align: left;
+        overflow: hidden !important; 
+    }
+    
+    .flashcard-front {
+        border-top: 5px solid transparent;
+        background-image: linear-gradient(white, white), linear-gradient(90deg, #3498db, #9b59b6, #3498db);
+        background-origin: border-box;
+        background-clip: padding-box, border-box;
+        background-size: 100% 100%, 200% 100%;
+        animation: gradientShift 4s ease infinite;
+    }
+    
+    .card-content-scroll {
+        flex: 1 1 auto;
+        min-height: 0; 
+        min-width: 0;
+        overflow-y: auto !important; 
+        overflow-x: auto !important;
+        padding: 10px;
+        background-color: transparent;
+        border-radius: 8px;
+        overscroll-behavior: contain;
+    }
+    
+    :fullscreen {
+        background-color: #f8f9fa; 
+        padding: 40px;
+        overflow-y: auto;
+    }
+
+    /* --- DYNAMIC MARKDOWN STYLING --- */
+    .markdown-content {
+        font-size: 1.15em; 
+        line-height: 1.6; 
+        color: #333; 
+        padding-right: 15px;
+    }
+    
+    .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+        font-size: 1.25em;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        color: #2c3e50;
+        border-bottom: 2px solid #f1f2f6;
+        padding-bottom: 5px;
+    }
+    .markdown-content h1:first-child, .markdown-content h2:first-child, .markdown-content h3:first-child {
+        margin-top: 0;
+    }
+    
+    .markdown-content ul, .markdown-content ol {
+        padding-left: 25px;
+        margin-bottom: 15px;
+    }
+    
+    /* Interactive List Items */
+    .markdown-content li {
+        margin-bottom: 8px;
+        transition: all 0.2s ease;
+        padding: 4px 8px;
+        border-radius: 6px;
+        border-left: 3px solid transparent;
+    }
+    .markdown-content li:hover {
+        background-color: #f4f8fb;
+        border-left: 3px solid #3498db;
+        transform: translateX(4px);
+        color: #2980b9;
+    }
+    
+    .markdown-content p {
+        margin-bottom: 15px;
+    }
+
+    /* Highlighted Headers (New Rule) */
+    .theme-highlight {
+        background-color: rgba(52, 152, 219, 0.15);
+        border-left: 4px solid #3498db !important;
+        padding: 6px 12px;
+        border-radius: 0 6px 6px 0;
+        display: block;
+        color: inherit;
+        margin: 5px 0;
+        font-weight: bold;
+    }
+
+    /* --- CASCADING FADE-IN ANIMATION --- */
+    @keyframes slideFadeUp {
+        0% { opacity: 0; transform: translateY(15px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+    
+    .trigger-cascade .markdown-content > *,
+    .trigger-cascade > p,
+    .trigger-cascade .mermaid {
+        animation: slideFadeUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+    
+    .trigger-cascade .markdown-content > *:nth-child(1) { animation-delay: 0.05s; }
+    .trigger-cascade .markdown-content > *:nth-child(2) { animation-delay: 0.1s; }
+    .trigger-cascade .markdown-content > *:nth-child(3) { animation-delay: 0.15s; }
+    .trigger-cascade .markdown-content > *:nth-child(4) { animation-delay: 0.2s; }
+    .trigger-cascade .markdown-content > *:nth-child(5) { animation-delay: 0.25s; }
+    .trigger-cascade .markdown-content > *:nth-child(n+6) { animation-delay: 0.3s; }
+
+    /* MERMAID FIX */
+    .mermaid { display: block; text-align: center; margin: 0 auto; }
+    .mermaid foreignObject { overflow: visible !important; }
+    .mermaid foreignObject div { text-align: left !important; }
+    .mermaid ul { margin: 8px 0 !important; padding-left: 20px !important; text-align: left !important; }
+    .mermaid li { display: list-item !important; list-style-type: disc !important; list-style-position: outside !important; margin-bottom: 4px !important; line-height: 1.4 !important; }
+    
+    /* Beautiful Scrollbars */
+    .card-content-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+    .card-content-scroll::-webkit-scrollbar-track { background: #f8f9fa; border-radius: 6px; }
+    .card-content-scroll::-webkit-scrollbar-thumb { background-color: #bdc3c7; border-radius: 6px; border: 2px solid #f8f9fa; }
+    .card-content-scroll::-webkit-scrollbar-thumb:hover { background-color: #95a5a6; }
+    
+    .action-button-wrapper { text-align: center; margin-top: 50px; margin-bottom: 80px; position: relative; clear: both; z-index: 2; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+    <h2 style="margin: 0; color: #2C3E50;">{{ assignment.organ_system }} - {{ assignment.topic_area }}</h2>
+    <div>
+        <button onclick="toggleFullScreen()" class="btn btn-primary" style="margin-right: 10px; background-color: #34495e; border: none; border-radius: 8px;">
+            ⛶ Fullscreen
+        </button>
+        
+        {% if request.args.get('source') == 'faculty' %}
+            <a href="{{ url_for('faculty.review_remediation_details', remediation_name=assignment.remediation_name) }}" class="btn btn-secondary" style="border-radius: 8px;">Back to Modules</a>
+        {% else %}
+            <a href="{{ url_for('quiz.remediation_modules', remediation_name=assignment.remediation_name, attempt_id=attempt_id) }}" class="btn btn-secondary" style="border-radius: 8px;">Exit</a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Single-State Flashcard -->
+<div id="flashcard" class="flashcard-wrapper">
+    <div class="flashcard-inner" id="card-inner">
+        
+        <!-- SIDE 1: SUMMARY ONLY -->
+        <div class="flashcard-face flashcard-front" id="face-summary">
+            <h3 style="color: #3498db; text-align: center; margin-bottom: 15px; flex-shrink: 0; letter-spacing: 1px;">Topic Summary</h3>
+            <div class="card-content-scroll trigger-cascade" id="scroll-summary">
+                <div id="rendered-summary" class="markdown-content"></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Safe Action Button Wrapper -->
+<div class="action-button-wrapper">
+    {% if request.args.get('source') == 'faculty' %}
+        <a href="{{ url_for('faculty.review_remediation_questions', module_id=assignment.id) }}" class="btn btn-primary shadow" style="padding: 15px 40px; font-size: 1.2em; background-color: #27ae60; border-color: #27ae60; border-radius: 30px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            Review Generated Questions &rarr;
+        </a>
+    {% else %}
+        <a href="{{ url_for('quiz.remediation_question_page', assignment_id=assignment.id, attempt_id=attempt_id) }}" class="btn btn-primary shadow" style="padding: 15px 40px; font-size: 1.2em; border-radius: 30px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            Module Questions &rarr;
+        </a>
+    {% endif %}
+</div>
+
+<!-- Parsers & Interactivity Logic -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> 
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        
+        // Parse Markdown Safely and Highlight '?' Headers
+        const rawSummary = {{ assignment.summary | tojson | safe }};
+        if (rawSummary) {
+            let cleanSummary = rawSummary
+                .replace(/\uFFFD/g, "")
+                .replace(/[\u200B\uFEFF]/g, "");
+
+            // Pattern 1: Catches '### ? Header' (Hashes first)
+            cleanSummary = cleanSummary.replace(/^\s*(#+)\s*\?\s*(.*)/gm, "$1 <span class='theme-highlight'>$2</span>");
+            
+            // Pattern 2: Catches '? ### Header' (Question mark first)
+            cleanSummary = cleanSummary.replace(/^\s*\?\s*(#+)\s*(.*)/gm, "$1 <span class='theme-highlight'>$2</span>");
+            
+            // Pattern 3: Catches '? Header' (No hashes at all, converts to a standard h3 header)
+            cleanSummary = cleanSummary.replace(/^\s*\?\s+([^#\n].*)/gm, "### <span class='theme-highlight'>$1</span>");
+
+            document.getElementById('rendered-summary').innerHTML = marked.parse(cleanSummary);
+        }
+
+        // Initialize Mermaid (Kept in case diagrams are passed in the summary content)
+        mermaid.initialize({ 
+            startOnLoad: true, 
+            securityLevel: 'loose',
+            theme: 'default',
+            flowchart: { useMaxWidth: false, htmlLabels: true } 
+        });
+    });
+
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch((err) => {});
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "index_for_display.html" %}
+
+{% block container_class %}container-large{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Reviewing: {{ quiz_name }}</h2>
+    <a href="{{ url_for('faculty.search_add_questions', quiz_name=quiz_name) }}" class="btn btn-primary">
+        + Search & Add Additional Questions
+    </a>
+</div>
+
+<p>Review the questions below. If a question does not meet your requirements, you can remove it from this quiz.</p>
+
+{% for q in questions %}
+<div style="border: 1px solid #eef2f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; background-color: #fafafa;">
+    <p><strong>Topic:</strong> {{ q['organ_system'] }} - {{ q['topic_area'] }}</p>
+    <p><strong>Question:</strong> {{ q['question_stem'] }}</p>
+    <ul style="list-style-type: none; padding-left: 0;">
+        <li>A) {{ q['answer_choice_A'] }}</li>
+        <li>B) {{ q['answer_choice_B'] }}</li>
+        <li>C) {{ q['answer_choice_C'] }}</li>
+        <li>D) {{ q['answer_choice_D'] }}</li>
+        <li>E) {{ q['answer_choice_E'] }}</li>
+    </ul>
+    <p><strong>Correct Answer:</strong> {{ q['correct_answer'] }}</p>
+    
+    <form action="{{ url_for('faculty.remove_question') }}" method="POST" onsubmit="return confirm('Are you sure you want to remove this question? This cannot be undone.');">
+        <input type="hidden" name="question_id" value="{{ q['id'] }}">
+        <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
+        <button type="submit" class="btn btn-danger btn-sm">Remove Question</button>
+    </form>
+</div>
+{% else %}
+<p>No questions found in this quiz.</p>
+{% endfor %}
+
+<a href="{{ url_for('faculty.review_list') }}" class="btn btn-secondary">Back to Quizzes</a>
+{% endblock %}

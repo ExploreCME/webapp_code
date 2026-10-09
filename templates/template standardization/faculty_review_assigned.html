@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .review-container { max-width: 1000px; margin: 0 auto; background: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eaeaea; }
+    
+    /* Modern Pill Toggles */
+    .toggle-group { display: flex; justify-content: center; gap: 15px; margin-bottom: 30px; flex-wrap: wrap; }
+    .toggle-input { display: none; }
+    .toggle-label { 
+        padding: 12px 24px; 
+        border-radius: 30px; 
+        background: #f8f9f9; 
+        color: #7f8c8d; 
+        font-weight: 600; 
+        cursor: pointer; 
+        transition: all 0.2s ease; 
+        border: 1px solid #bdc3c7;
+        font-size: 15px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .toggle-label:hover { background: #ecf0f1; color: #2c3e50; }
+    .toggle-input:checked + .toggle-label { 
+        background: #3498db; 
+        color: #fff; 
+        border-color: #3498db; 
+        box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+    }
+
+    /* Form Sections */
+    .search-block { display: none; background: #f9fbfc; padding: 25px; border-radius: 10px; border: 1px solid #eaeded; margin-bottom: 40px; animation: fadeIn 0.3s ease; }
+    .search-block.active { display: block; }
+    
+    .custom-select { width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 8px; margin-bottom: 20px; background: #fff; font-size: 16px; outline: none; transition: border-color 0.2s; }
+    .custom-select:focus { border-color: #3498db; }
+    
+    /* Table Styling */
+    .results-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 15px; }
+    .results-table th { padding: 15px; background: #f4f6f7; color: #34495e; text-align: left; font-weight: 600; border-bottom: 2px solid #bdc3c7; }
+    .results-table td { padding: 15px; border-bottom: 1px solid #eaeded; vertical-align: middle; }
+    .results-table tr:last-child td { border-bottom: none; }
+    .results-table tbody tr:hover { background: #fdfefe; }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="review-container">
+    
+    <div style="text-align: center; margin-bottom: 35px;">
+        <h2 style="color: #2c3e50; margin-bottom: 10px; font-size: 30px; font-weight: 700;">Review Assigned Content</h2>
+        <p style="color: #7f8c8d; font-size: 1.1em; margin: 0;">Select a category below to lookup active assignments.</p>
+    </div>
+
+    <!-- Determine which tab should be active on page load -->
+    {% set active_tab = 'class' %}
+    {% if request.args.get('clerk_id') %}
+        {% set active_tab = 'student' %}
+    {% elif request.args.get('type') %}
+        {% set active_tab = 'assignment' %}
+    {% endif %}
+
+    <!-- Radial / Pill Toggles -->
+    <div class="toggle-group">
+        <input type="radio" name="search_mode" id="mode_class" value="class" class="toggle-input" {% if active_tab == 'class' %}checked{% endif %} onchange="switchTab()">
+        <label for="mode_class" class="toggle-label">👥 By Class</label>
+
+        <input type="radio" name="search_mode" id="mode_student" value="student" class="toggle-input" {% if active_tab == 'student' %}checked{% endif %} onchange="switchTab()">
+        <label for="mode_student" class="toggle-label">👤 By Student</label>
+
+        <input type="radio" name="search_mode" id="mode_assignment" value="assignment" class="toggle-input" {% if active_tab == 'assignment' %}checked{% endif %} onchange="switchTab()">
+        <label for="mode_assignment" class="toggle-label">📝 By Assignment</label>
+    </div>
+
+    <!-- 1. Review by Class -->
+    <div id="block_class" class="search-block {% if active_tab == 'class' %}active{% endif %}">
+        <h4 style="color: #34495e; margin-top: 0; margin-bottom: 15px; font-size: 18px;">Select a Class</h4>
+        <form action="{{ url_for('faculty.review_assigned') }}" method="GET">
+            <select name="class_id" class="custom-select" required>
+                <option value="" disabled selected>-- Choose Class --</option>
+                {% for c in classes %}
+                    <option value="{{ c['id'] }}" {% if request.args.get('class_id') == c['id']|string %}selected{% endif %}>{{ c['class_name'] }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 14px; border-radius: 8px; font-weight: bold; font-size: 16px;">View Class Assignments</button>
+        </form>
+    </div>
+
+    <!-- 2. Review by Student -->
+    <div id="block_student" class="search-block {% if active_tab == 'student' %}active{% endif %}">
+        <h4 style="color: #34495e; margin-top: 0; margin-bottom: 15px; font-size: 18px;">Select an Individual Student</h4>
+        <form action="{{ url_for('faculty.review_assigned') }}" method="GET">
+            <select name="clerk_id" class="custom-select" required>
+                <option value="" disabled selected>-- Choose Student --</option>
+                {% for s in students %}
+                    <option value="{{ s['clerk_id'] }}" {% if request.args.get('clerk_id') == s['clerk_id']|string %}selected{% endif %}>
+                        {% if s['first_name'] and s['first_name'] != 'None' %}
+                            {{ s['first_name'] }} {{ s['last_name'] }}
+                        {% else %}
+                            {{ s['email'] }}
+                        {% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 14px; border-radius: 8px; font-weight: bold; font-size: 16px;">View Student Assignments</button>
+        </form>
+    </div>
+
+    <!-- 3. Review by Assignment -->
+    <div id="block_assignment" class="search-block {% if active_tab == 'assignment' %}active{% endif %}">
+        <h4 style="color: #34495e; margin-top: 0; margin-bottom: 15px; font-size: 18px;">Select an Assignment</h4>
+        <form action="{{ url_for('faculty.review_assigned') }}" method="GET" id="assignment_form">
+            <select id="assignment_selector" class="custom-select" required onchange="setAssignmentParams()">
+                <option value="" disabled selected>-- Choose Assignment --</option>
+                <optgroup label="Standard Quizzes">
+                    {% for q in assigned_quizzes %}
+                        <option value="quiz|{{ q }}" {% if request.args.get('name') == q %}selected{% endif %}>{{ q }}</option>
+                    {% endfor %}
+                </optgroup>
+                <optgroup label="Remediations">
+                    {% for r in assigned_remediations %}
+                        <option value="remediation|{{ r }}" {% if request.args.get('name') == r %}selected{% endif %}>{{ r }}</option>
+                    {% endfor %}
+                </optgroup>
+            </select>
+            
+            <input type="hidden" name="type" id="assignment_type_input" value="{{ request.args.get('type', '') }}">
+            <input type="hidden" name="name" id="assignment_name_input" value="{{ request.args.get('name', '') }}">
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 14px; border-radius: 8px; font-weight: bold; font-size: 16px;">See Who Was Assigned This</button>
+        </form>
+    </div>
+
+    <!-- Results Section -->
+    {% if view_title %}
+    <div style="border-top: 2px solid #eaeded; padding-top: 35px; margin-top: 10px;">
+        <h3 style="color: #2c3e50; margin-bottom: 20px; border-left: 5px solid #3498db; padding-left: 15px; font-size: 22px;">
+            {{ view_title }}
+        </h3>
+        
+        {% if results %}
+        <div style="overflow-x: auto; border: 1px solid #eaeded; border-radius: 8px;">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>{% if request.args.get('type') %}Assigned To{% else %}Assignment Name{% endif %}</th>
+                        <th>Format</th>
+                        <th>Due Date</th>
+                        <th style="text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in results %}
+                    <tr>
+                        <td style="font-weight: 500; color: #2c3e50;">
+                            {% if r.target_name %}
+                                {{ r.target_name }}
+                            {% else %}
+                                {{ r.name }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.type == 'quiz' %}
+                                <span style="background: #e8f8f5; color: #117a65; padding: 5px 10px; border-radius: 20px; font-size: 0.85em; font-weight: bold;">📝 Standard Quiz</span>
+                            {% else %}
+                                <span style="background: #fef5e7; color: #d35400; padding: 5px 10px; border-radius: 20px; font-size: 0.85em; font-weight: bold;">🎯 Remediation</span>
+                            {% endif %}
+                        </td>
+                        <td style="color: #7f8c8d; font-size: 0.95em;">
+                            {{ r.due_date if r.due_date else 'No Due Date' }}
+                        </td>
+                        <td style="text-align: right;">
+                            <form action="{{ url_for('faculty.delete_assigned_record') }}" method="POST" onsubmit="return confirm('Are you sure you want to completely remove this assignment record?');" style="margin: 0;">
+                                <input type="hidden" name="record_id" value="{{ r.id }}">
+                                <input type="hidden" name="assignment_type" value="{{ r.type }}">
+                                
+                                <!-- State retention for seamless redirect -->
+                                {% if request.args.get('class_id') %}
+                                    <input type="hidden" name="return_class_id" value="{{ request.args.get('class_id') }}">
+                                {% elif request.args.get('clerk_id') %}
+                                    <input type="hidden" name="return_clerk_id" value="{{ request.args.get('clerk_id') }}">
+                                {% elif request.args.get('type') %}
+                                    <input type="hidden" name="return_type" value="{{ request.args.get('type') }}">
+                                    <input type="hidden" name="return_name" value="{{ request.args.get('name') }}">
+                                {% endif %}
+                                
+                                <button type="submit" class="btn btn-danger btn-sm" style="padding: 8px 15px; border-radius: 6px; font-size: 0.85em; font-weight: 600;">Unlink</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="padding: 25px; background: #fdfefe; border: 1px solid #f1c40f; border-left: 5px solid #f1c40f; color: #7f8c8d; border-radius: 6px; font-size: 1.05em;">
+            No active assignments found for this selection.
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 40px; text-align: center;">
+        <a href="{{ url_for('faculty.assign_menu') }}" style="color: #95a5a6; text-decoration: none; font-weight: 500; font-size: 15px; transition: color 0.2s;" onmouseover="this.style.color='#7f8c8d'" onmouseout="this.style.color='#95a5a6'">&larr; Back to Assign Menu</a>
+    </div>
+</div>
+
+<script>
+    // Tab Switching Logic
+    function switchTab() {
+        // Hide all blocks
+        document.querySelectorAll('.search-block').forEach(el => el.classList.remove('active'));
+        
+        // Show selected block
+        const mode = document.querySelector('input[name="search_mode"]:checked').value;
+        document.getElementById('block_' + mode).classList.add('active');
+    }
+
+    // Parses assignment select into hidden inputs
+    function setAssignmentParams() {
+        const selector = document.getElementById('assignment_selector');
+        const typeInput = document.getElementById('assignment_type_input');
+        const nameInput = document.getElementById('assignment_name_input');
+        
+        if (selector.value) {
+            const parts = selector.value.split('|');
+            typeInput.value = parts[0]; // 'quiz' or 'remediation'
+            nameInput.value = parts[1]; // The actual name
+        }
+    }
+</script>
+{% endblock %}

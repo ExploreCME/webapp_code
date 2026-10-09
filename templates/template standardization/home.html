@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz Generator - PANCE Quiz App{% endblock %}
+
+{% block content %}
+    <h2 style="text-align: center; margin-bottom: 10px;">Quiz Generation Menu</h2>
+
+    <p style="text-align: center; color: #666; margin-bottom: 30px;">
+        {% if is_app %}
+            Generate customized quizzes from our database blueprints.
+        {% else %}
+            Upload source materials to generate a custom AI quiz, or build from blueprints.
+        {% endif %}
+    </p>
+
+    <!-- ========================================== -->
+    <!-- HIDDEN IN APP: FILE UPLOADS & GENERATION -->
+    <!-- ========================================== -->
+    {% if not is_app %}
+
+        <!-- Consolidated Upload & Generate Section -->
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; margin-bottom: 25px;">
+            <h3 style="margin-bottom: 10px;">Generate Questions from Document</h3>
+            <p style="color: #555; margin-bottom: 15px; font-size: 14px;">Upload a source document and our algorithm will automatically extract topics and generate a custom quiz for you.</p>
+
+            <form action="{{ url_for('quiz.generate_from_document') }}" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="file">1. Upload Document:</label>
+                    <input type="file" name="file" id="file" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="quiz_name">2. Quiz Name:</label>
+                    <input type="text" name="quiz_name" id="quiz_name" placeholder="e.g. Cardiology Block 1" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="num_per_topic">3. Questions per Topic (Max 5):</label>
+                    <input type="number" name="num_per_topic" id="num_per_topic" min="1" max="5" value="1" required>
+                </div>
+
+                <button type="submit" class="btn btn-success btn-full">Upload & Generate Quiz</button>
+            </form>
+        </div>
+
+    {% endif %}
+    <!-- ========================================== -->
+
+
+    <!-- Back button for easy navigation -->
+    <div style="text-align: center; margin-top: 10px;">
+        <a href="{{ url_for('quiz.menu') }}" class="btn btn-secondary">Back to Menu</a>
+    </div>
+{% endblock %}

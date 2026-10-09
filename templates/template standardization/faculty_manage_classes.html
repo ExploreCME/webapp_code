@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2 style="margin: 0;">My Classes</h2>
+    <a href="{{ url_for('faculty.create_class') }}" class="btn btn-primary btn-sm">+ Create a Class</a>
+</div>
+
+<p>Select a class below to add or remove students.</p>
+
+<div class="table-responsive">
+    <table>
+        <thead>
+            <tr>
+                <th>Class Name</th>
+                <th>Students Enrolled</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in classes %}
+            <tr>
+                <td><strong>{{ c['class_name'] }}</strong></td>
+                <td>{{ c['student_count'] }}</td>
+                <td>
+                    <a href="{{ url_for('faculty.edit_class', class_id=c['id']) }}" class="btn btn-info btn-sm">Edit Roster</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" style="text-align: center;">You have not created any classes yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="text-align: center; margin-top: 20px;">
+    <a href="{{ url_for('faculty.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+{% endblock %}

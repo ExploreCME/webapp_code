@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+{% block title %}Select Quiz - PANCE Quiz App{% endblock %}
+{% block container_class %}container-large{% endblock %}
+
+{% block head %}
+<style>
+    .hidden-element { display: none !important; }
+    
+    /* --- SEARCH BAR --- */
+    .search-flex-container {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 25px;
+        flex-wrap: wrap;
+    }
+    .search-input {
+        flex: 2;
+        min-width: 200px;
+        padding: 12px 15px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 1em;
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .filter-select {
+        flex: 1;
+        min-width: 150px;
+        padding: 12px 15px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 1em;
+        background-color: #fff;
+    }
+    .search-input:focus-visible, .filter-select:focus-visible, button:focus-visible, a:focus-visible {
+        outline: 2px solid #3498db;
+        outline-offset: 2px;
+    }
+
+    /* --- VIEW 1: GRID LAYOUT --- */
+    .quiz-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 20px;
+        align-items: stretch;
+    }
+    .quiz-card {
+        background: #ffffff;
+        border-radius: 10px;
+        border: 2px solid #b3b3b3; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        height: 100%; 
+        box-sizing: border-box; 
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+    }
+    .quiz-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        border-color: #0d6efd;
+    }
+    .card-header-flex {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 15px;
+        gap: 10px;
+    }
+    .quiz-title {
+        margin: 0;
+        font-size: 1.25em;
+        color: #2C3E50;
+        line-height: 1.3;
+    }
+    .badge-container {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        align-items: flex-end;
+    }
+    .faculty-badge {
+        background-color: #e3f2fd;
+        color: #0d47a1;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: bold;
+        border: 1px solid #bbdefb;
+        white-space: nowrap;
+    }
+    .remediation-badge {
+        background-color: #f3e5f5;
+        color: #8e24aa;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: bold;
+        border: 1px solid #e1bee7;
+        white-space: nowrap;
+    }
+    .in-progress-badge {
+        background-color: #fcf3cf;
+        color: #d68910;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        font-weight: bold;
+        border: 1px solid #f7dc6f;
+        white-space: nowrap;
+    }
+
+    /* --- VIEW 2: DETAIL DASHBOARD --- */
+    .detail-view {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+        border: 1px solid #e0e0e0;
+        padding: 30px;
+        margin-top: 10px;
+    }
+    .detail-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #f0f0f0;
+        padding-bottom: 20px;
+        margin-bottom: 25px;
+    }
+    .action-panel {
+        background: #f8f9fa;
+        padding: 25px;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+    .action-panel.incomplete {
+        background-color: #fffbeb;
+        border-color: #ffeeba;
+    }
+    
+    /* Clickable History Rows in Detail View */
+    .history-item {
+        background: #fff;
+        padding: 15px 20px;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        margin-bottom: 12px;
+        transition: all 0.2s ease;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .history-item:hover {
+        background-color: #f4f9ff;
+        border-color: #80bdff;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    
+    <!-- ==========================================
+         VIEW 1: MAIN LIST (GRID OF ALL QUIZZES)
+         ========================================== -->
+    <div id="main-list-view">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 style="margin: 0;">Select an Assignment</h2>
+        </div>
+        <p style="color: #666; font-size: 1.05em; margin-bottom: 25px;">
+            Choose a quiz or remediation module below to view your attempts or start a new session.
+        </p>
+
+        <!-- Search & Filter Bar -->
+        <div class="search-flex-container">
+            <input type="text" id="quizSearch" class="search-input" placeholder="Search your assignments by name..." autocorrect="off" autocapitalize="none" spellcheck="false">
+            <select id="quizFilter" class="filter-select">
+                <option value="all">All Assignments</option>
+                <option value="quiz">Standard Quizzes Only</option>
+                <option value="remediation">Remediations Only</option>
+                <option value="user">Created by Me</option>
+                <option value="faculty">Assigned by Faculty</option>
+            </select>
+        </div>
+
+        <!-- Quiz Grid -->
+        <div class="quiz-grid" id="quizGrid">
+            {% for quiz in quizzes %}
+                <!-- Highlight border if incomplete -->
+                <div class="quiz-card" style="{% if quiz.is_incomplete %}border-color: #f39c12;{% endif %}" data-index="{{ loop.index }}" data-source="{{ quiz.source|default('user') }}" data-type="{% if quiz.is_remediation %}remediation{% else %}quiz{% endif %}" onclick="showQuizDetails({{ loop.index }})">
+                    
+                    <div class="card-header-flex">
+                        <h3 class="quiz-title">{{ quiz.name }}</h3>
+                        <div class="badge-container">
+                            {% if quiz.is_incomplete %}
+                                <span class="in-progress-badge">In Progress</span>
+                            {% endif %}
+                            {% if quiz.is_remediation %}
+                                <span class="remediation-badge">Remediation</span>
+                            {% endif %}
+                            {% if quiz.source == 'faculty' %}
+                                <span class="faculty-badge">Faculty Assigned</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div style="font-size: 0.95em; color: #555; margin-top: auto;">
+                        <div style="margin-bottom: 5px;">
+                            <strong>{% if quiz.is_remediation %}Modules:{% else %}Questions:{% endif %}</strong> {{ quiz.count }}
+                        </div>
+                        {% if quiz.source == 'faculty' %}
+                            <div style="margin-bottom: 5px;">
+                                <strong>Due:</strong> {{ quiz.formatted_due_date if quiz.formatted_due_date else 'No Due Date' }}
+                            </div>
+                        {% endif %}
+                        
+                        <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #eee; text-align: center; font-weight: bold;">
+                            {% if quiz.is_incomplete %}
+                                <span style="color: #d68910;">Resume Attempt &rarr;</span>
+                            {% else %}
+                                <span style="color: #0d6efd;">View Details &rarr;</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; background: #f8f9fa; border-radius: 8px; border: 1px dashed #ccc;">
+                    <h3 style="color: #666; margin-top: 0;">No Assignments Found</h3>
+                    <p style="color: #888; margin-bottom: 25px;">You haven't generated any quizzes yet, and no assignments have been assigned to your classes.</p>
+                    <a href="{{ url_for('quiz.custom_quiz') }}" class="btn btn-primary" style="padding: 10px 20px;">Generate a New Quiz</a>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div id="noResultsBlock" class="hidden-element" style="text-align: center; padding: 60px 20px; background: #f8f9fa; border-radius: 8px; border: 1px dashed #ccc; margin-top: 20px;">
+            <h3 style="color: #666; margin: 0;">No assignments match your search criteria.</h3>
+            <p style="color: #888; margin-top: 10px;">Try adjusting your filters or search terms.</p>
+        </div>
+
+        <div style="margin-top: 35px;">
+            <a href="{{ url_for('quiz.student_dashboard') }}" class="btn btn-secondary">&larr; Return to Dashboard</a>
+        </div>
+    </div>
+
+
+    <!-- ==========================================
+         VIEW 2: DYNAMIC DETAILS DASHBOARD (Per Quiz)
+         ========================================== -->
+    {% for quiz in quizzes %}
+        <div id="detail-view-{{ loop.index }}" class="detail-container hidden-element">
+            
+            <button onclick="showListView()" class="btn btn-outline-secondary mb-3" style="font-weight: bold;">&larr; Back to Assignments</button>
+
+            <div class="detail-view">
+                <!-- Header -->
+                <div class="detail-header">
+                    <div>
+                        <h2 style="margin: 0 0 5px 0; color: #2C3E50;">{{ quiz.name }}</h2>
+                        <span style="color: #666; font-size: 1.05em;">
+                            {% if quiz.is_remediation %}Multi-Module Remediation{% else %}Standard Quiz ({{ quiz.count }} Questions){% endif %}
+                        </span>
+                    </div>
+                    {% if not quiz.is_remediation and quiz.source != 'faculty' %}
+                        <form action="{{ url_for('quiz.delete_quiz') }}" method="POST" onsubmit="return confirm('Permanently delete {{ quiz.name }} and all its attempts?');" style="margin: 0;">
+                            <input type="hidden" name="quiz_name" value="{{ quiz.name }}">
+                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Quiz">&#10006; Delete Quiz</button>
+                        </form>
+                    {% endif %}
+                </div>
+
+                <!-- Primary Action Area: Resume OR Start New Attempt -->
+                <div class="action-panel {% if quiz.is_incomplete %}incomplete{% endif %}">
+                    
+                    {% if quiz.is_incomplete %}
+                        <h3 style="margin-top: 0; color: #856404;">Resume Your Session</h3>
+                        
+                        {% if quiz.incomplete_count > 1 %}
+                            <p style="color: #856404; margin-bottom: 20px;">You have <strong>{{ quiz.incomplete_count }}</strong> attempts in progress. Please scroll down to "Your Attempts" and select the specific session you'd like to resume.</p>
+                        {% else %}
+                            <p style="color: #856404; margin-bottom: 20px;">You have an attempt currently in progress. Pick up where you left off!</p>
+                            <a href="{{ url_for('quiz.resume_quiz', quiz_name=quiz.name) }}" class="btn btn-warning btn-lg" style="padding: 12px 40px; font-weight: bold; margin-bottom: 15px;">Resume Attempt &rarr;</a>
+                        {% endif %}
+                        
+                        <hr style="border-top: 1px dashed #ffeeba; margin: 20px 0;">
+                        <p style="color: #856404; font-size: 0.9em; margin-bottom: 10px;">Or, start a new session from the beginning:</p>
+                    {% else %}
+                        <h3 style="margin-top: 0; color: #333;">Start a New Session</h3>
+                        <p style="color: #666; margin-bottom: 20px;">Launch a fresh attempt from the beginning.</p>
+                    {% endif %}
+                    
+                    {% if quiz.is_remediation %}
+                        <form action="{{ url_for('quiz.start_quiz') }}" method="POST" style="margin: 0; display: inline-block;">
+                            <input type="hidden" name="quiz_name" value="{{ quiz.name }}">
+                            <input type="hidden" name="mode" value="study_exp">
+                            <button type="submit" class="btn {% if quiz.is_incomplete %}btn-outline-secondary{% else %}btn-primary{% endif %} btn-lg" style="padding: 12px 40px; font-weight: bold; {% if not quiz.is_incomplete %}background-color: #8e44ad; border-color: #8e44ad;{% endif %}">Start New Remediation &rarr;</button>
+                        </form>
+                    {% else %}
+                        <a href="{{ url_for('quiz.quiz_mode', quiz_name=quiz.name) }}" class="btn {% if quiz.is_incomplete %}btn-outline-secondary{% else %}btn-success{% endif %} btn-lg" style="padding: 12px 40px; font-weight: bold;">Setup New Session &rarr;</a>
+                    {% endif %}
+                </div>
+
+                <!-- Secondary Action Area: Past Attempts -->
+                <div>
+                    <h3 style="color: #333; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #f0f0f0;">Your Attempts</h3>
+                    
+                    {% if quiz.attempts %}
+                        {% for attempt in quiz.attempts %}
+                            <div class="history-item">
+                                <!-- Left side: Info -->
+                                <div>
+                                    <div style="font-weight: 600; font-size: 1.1em; color: #2c3e50; margin-bottom: 4px;">
+                                        {{ attempt.start_time.split(' ')[0] if attempt.start_time else 'Unknown Date' }}
+                                        <span style="color: #888; font-weight: normal; font-size: 0.9em; margin-left: 8px; text-transform: capitalize;">({{ attempt.mode.replace('_', ' ') }})</span>
+                                    </div>
+                                    <div style="color: #555; font-size: 0.95em;">
+                                        {% if attempt.status == 'incomplete' %}
+                                            Progress: {{ attempt.answered_count }} / {{ attempt.total_questions }} answered
+                                        {% else %}
+                                            Final Score: <span style="font-weight: bold; color: #28a745;">{{ attempt.score_display }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Right side: Action Button -->
+                                <div>
+                                    {% if attempt.status == 'incomplete' %}
+                                        <form action="{{ url_for('quiz.start_quiz') }}" method="POST" style="margin: 0;">
+                                            <input type="hidden" name="quiz_name" value="{{ quiz.name }}">
+                                            <input type="hidden" name="mode" value="{{ attempt.mode }}">
+                                            <input type="hidden" name="resume_attempt_id" value="{{ attempt.attempt_id }}">
+                                            <button type="submit" class="btn btn-warning" style="font-weight: bold; padding: 8px 20px;">Resume &rarr;</button>
+                                        </form>
+                                    {% else %}
+                                        <a href="{{ url_for('quiz.review_attempt', attempt_id=attempt.attempt_id) }}" class="btn btn-info" style="font-weight: bold; padding: 8px 20px; color: #fff;">Review &rarr;</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div style="text-align: center; padding: 30px; background: #fdfdfd; border-radius: 8px; border: 1px dashed #ddd; color: #888;">
+                            No previous attempts recorded. Use the button above to start your first session!
+                        </div>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+    {% endfor %}
+
+    <!-- JavaScript For Single Page Navigation & Filtering -->
+    <script>
+        // SPA View Switching
+        function showQuizDetails(index) {
+            document.getElementById("main-list-view").classList.add("hidden-element");
+            document.querySelectorAll(".detail-container").forEach(el => el.classList.add("hidden-element"));
+            document.getElementById(`detail-view-${index}`).classList.remove("hidden-element");
+            window.scrollTo(0, 0); // Scroll to top of the detail view
+        }
+
+        function showListView() {
+            document.querySelectorAll(".detail-container").forEach(el => el.classList.add("hidden-element"));
+            document.getElementById("main-list-view").classList.remove("hidden-element");
+            window.scrollTo(0, 0);
+        }
+
+        // Search & Filter Logic (Only applies to the Main List View)
+        document.addEventListener("DOMContentLoaded", () => {
+            const searchInput = document.getElementById("quizSearch");
+            const filterSelect = document.getElementById("quizFilter");
+            const quizCards = document.querySelectorAll(".quiz-card");
+            const noResultsBlock = document.getElementById("noResultsBlock");
+            let searchTimeout;
+
+            function filterQuizzes() {
+                const filterText = searchInput.value.toLowerCase().trim();
+                const filterType = filterSelect.value;
+                let visibleCount = 0;
+                
+                quizCards.forEach(card => {
+                    const nameCell = card.querySelector(".quiz-title");
+                    if (!nameCell) return;
+                    
+                    const textValue = nameCell.textContent.toLowerCase();
+                    const quizSource = card.getAttribute("data-source");
+                    const quizCardType = card.getAttribute("data-type");
+                    
+                    const matchesText = textValue.includes(filterText);
+                    let matchesType = false;
+                    
+                    if (filterType === "all") matchesType = true;
+                    else if (filterType === "user" || filterType === "faculty") matchesType = (filterType === quizSource);
+                    else if (filterType === "quiz" || filterType === "remediation") matchesType = (filterType === quizCardType);
+                    
+                    if (matchesText && matchesType) {
+                        card.style.display = "flex"; 
+                        visibleCount++;
+                    } else {
+                        card.style.display = "none";
+                    }
+                });
+
+                if (noResultsBlock) {
+                    noResultsBlock.classList.toggle("hidden-element", visibleCount > 0 || quizCards.length === 0);
+                }
+            }
+
+            searchInput.addEventListener("input", () => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(filterQuizzes, 250); 
+            });
+
+            filterSelect.addEventListener("change", filterQuizzes);
+        });
+    </script>
+{% endblock %}

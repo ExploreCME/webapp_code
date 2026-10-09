@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h3>Found Questions for "{{ quiz_name }}"</h3>
+  <p class="text-muted">Review the questions below and select which ones you'd like to add to your quiz.</p>
+
+  {% if found_questions %}
+  <form action="{{ url_for('faculty.attach_questions_to_quiz', quiz_name=quiz_name) }}" method="POST">
+    
+    <div class="mb-3">
+      <button type="submit" class="btn btn-success">Add Selected Questions to Quiz</button>
+      <a href="{{ url_for('faculty.search_add_questions', quiz_name=quiz_name) }}" class="btn btn-outline-secondary">Search Again</a>
+    </div>
+
+    {% for q in found_questions %}
+      <div class="card mb-3">
+        <div class="card-header d-flex align-items-center">
+          <input type="checkbox" name="selected_questions" value="{{ q.id }}" checked class="form-check-input me-3">
+          <div>
+            <strong>ID: {{ q.id }}</strong> | 
+            <span class="badge bg-info text-dark">{{ q.organ_system }}</span>
+            <span class="badge bg-secondary">{{ q.task_area }}</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <p class="card-text"><strong>Question:</strong> {{ q.question_stem }}</p>
+          <ul class="list-group list-group-flush mb-2">
+            <li class="list-group-item {% if q.correct_answer == 'A' %}list-group-item-success{% endif %}">A. {{ q.answer_choice_A }}</li>
+            <li class="list-group-item {% if q.correct_answer == 'B' %}list-group-item-success{% endif %}">B. {{ q.answer_choice_B }}</li>
+            <li class="list-group-item {% if q.correct_answer == 'C' %}list-group-item-success{% endif %}">C. {{ q.answer_choice_C }}</li>
+            <li class="list-group-item {% if q.correct_answer == 'D' %}list-group-item-success{% endif %}">D. {{ q.answer_choice_D }}</li>
+            {% if q.answer_choice_E %}
+              <li class="list-group-item {% if q.correct_answer == 'E' %}list-group-item-success{% endif %}">E. {{ q.answer_choice_E }}</li>
+            {% endif %}
+          </ul>
+          <p class="small text-muted mb-0"><strong>Explanation:</strong> {{ q.explanation }}</p>
+        </div>
+      </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-success mb-4">Add Selected Questions to Quiz</button>
+  </form>
+  {% else %}
+    <div class="alert alert-warning">
+      No additional unmapped questions were found matching your search criteria.
+    </div>
+    <a href="{{ url_for('faculty.search_add_questions', quiz_name=quiz_name) }}" class="btn btn-primary">Try Another Search</a>
+  {% endif %}
+</div>
+{% endblock %}

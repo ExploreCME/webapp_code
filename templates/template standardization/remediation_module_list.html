@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto; background: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eaeaea;">
+    
+    <div style="text-align: center; margin-bottom: 40px;">
+        <span style="background: #fef5e7; color: #d35400; padding: 6px 12px; border-radius: 20px; font-size: 0.85em; font-weight: bold; text-transform: uppercase;">Remediation Hub</span>
+        <h2 style="color: #2c3e50; margin-top: 15px; margin-bottom: 10px; font-size: 28px;">{{ remediation_name }}</h2>
+        <p style="color: #7f8c8d; font-size: 1.1em; margin: 0;">Select a module below to begin your review.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+        {% for mod in modules %}
+        <div style="border: 1px solid {% if mod.is_complete %}#27ae60{% else %}#bdc3c7{% endif %}; border-radius: 10px; padding: 25px; background: {% if mod.is_complete %}#f9fffb{% else %}#fcfcfc{% endif %}; display: flex; justify-content: space-between; align-items: center;">
+            
+            <div style="flex: 1;">
+                <h3 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 20px;">
+                    {{ mod.topic_area }}
+                    {% if mod.is_complete %} <span style="color: #27ae60; font-size: 16px;">✓ Complete</span> {% endif %}
+                </h3>
+                <p style="margin: 0 0 10px 0; color: #7f8c8d; font-size: 14px;">Task Area: {{ mod.task_area }}</p>
+                <p style="margin: 0; font-weight: bold; color: #34495e; font-size: 14px;">Progress: {{ mod.answered }} / {{ mod.total }} Questions Answered</p>
+            </div>
+            
+            <div style="margin-left: 20px;">
+                <a href="{{ url_for('quiz.view_remediation_flashcard', assignment_id=mod.id, attempt_id=attempt_id) }}" 
+                   class="btn btn-primary" style="padding: 12px 24px; border-radius: 8px; font-weight: bold;">
+                   {% if mod.answered > 0 and not mod.is_complete %}Resume Module{% elif mod.is_complete %}Review Flashcard{% else %}Start Module{% endif %}
+                </a>
+            </div>
+            
+        </div>
+        {% endfor %}
+    </div>
+
+    <div style="margin-top: 40px; text-align: center; border-top: 2px solid #eaeded; padding-top: 30px;">
+        {% if all_complete %}
+            <h4 style="color: #27ae60; margin-bottom: 15px;">All modules are complete!</h4>
+            <a href="{{ url_for('quiz.quiz_results', attempt_id=attempt_id, quiz_name=remediation_name) }}" class="btn btn-success" style="padding: 15px 30px; font-size: 18px; font-weight: bold; border-radius: 8px;">Submit Remediation & View Score</a>
+        {% else %}
+            <p style="color: #7f8c8d; font-size: 1em;">You must answer all questions in all modules to view your final results.</p>
+        {% endif %}
+        
+        <br><br>
+        <a href="{{ url_for('quiz.select_quiz') }}" style="color: #95a5a6; text-decoration: none; font-weight: 500;">&larr; Exit to Assignments</a>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Select Mode - PANCE Quiz App{% endblock %}
+{% block content %}
+<div style="max-width: 550px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #eaeaea;">
+    
+    <div style="text-align: center; margin-bottom: 25px;">
+        <h2 style="margin-bottom: 8px; color: #2c3e50; font-size: 26px;">Quiz Setup</h2>
+        <p style="color: #7f8c8d; font-size: 1.1em; margin: 0;">Prepare to take <strong>"{{ quiz_name }}"</strong></p>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- INCOMPLETE ATTEMPTS ALERT (RESUME LOGIC)   -->
+    <!-- ========================================== -->
+    {% if incomplete_attempts %}
+    <div style="background: #fff9e6; padding: 20px; border-radius: 8px; border: 1px solid #fbeeb8; margin-bottom: 25px; text-align: center;">
+        <h3 style="color: #d35400; margin-top: 0; margin-bottom: 10px; font-size: 20px;">Resume Quiz</h3>
+        <p style="margin-bottom: 15px; color: #7f8c8d;">You have <strong>{{ incomplete_attempts|length }}</strong> unfinished attempt(s) in progress. Select one to resume:</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
+            {% for att in incomplete_attempts %}
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 12px 15px; border-radius: 6px; border: 1px solid #f5e4a2;">
+                    <div>
+                        <strong style="color: #d35400;">{{ att.mode | replace('_', ' ') | title }}</strong><br>
+                        <span style="font-size: 0.85em; color: #7f8c8d;">{{ att.answered }} / {{ att.total }} completed (Started: {{ att.start_time }})</span>
+                    </div>
+                    <form action="{{ url_for('quiz.start_quiz') }}" method="POST" style="margin: 0;">
+                        <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
+                        <input type="hidden" name="mode" value="{{ att.mode }}">
+                        <input type="hidden" name="resume_attempt_id" value="{{ att.attempt_id }}">
+                        <button type="submit" class="btn btn-warning btn-sm" style="font-weight: bold; background-color: #e67e22; border-color: #e67e22; color: white;">Resume &rarr;</button>
+                    </form>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div style="text-align: center; margin-bottom: 20px;">
+        <span style="color: #bdc3c7; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;">&mdash; Or Start a New Attempt &mdash;</span>
+    </div>
+    {% endif %}
+
+    <!-- ========================================== -->
+    <!-- FORCED MODE ALERT (FACULTY ASSIGNMENT)     -->
+    <!-- ========================================== -->
+    {% if forced_mode %}
+        <div style="background-color: #fdedec; color: #c0392b; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #e74c3c; font-size: 0.95em;">
+            <strong>📋 Faculty Requirement:</strong><br> 
+            {% if forced_mode == 'test' %}
+                You must complete this assignment in <strong>Test Mode</strong> before Study Modes unlock.
+            {% else %}
+                Your faculty has restricted this assignment to Study Mode only.
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <form action="{{ url_for('quiz.start_quiz') }}" method="POST">
+        <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
+
+        <!-- Option 1: Test Mode -->
+        <!-- If forced_mode equals anything OTHER than 'test' (e.g. 'study'), disable it -->
+        {% set is_test_disabled = forced_mode and forced_mode != 'test' %}
+        <div style="background: {% if is_test_disabled %}#f4f6f7{% else %}#f9fbfc{% endif %}; opacity: {% if is_test_disabled %}0.6{% else %}1{% endif %}; padding: 18px; border-radius: 8px; border: 1px solid {% if is_test_disabled %}#eaeded{% else %}#d6dbdf{% endif %}; margin-bottom: 15px; transition: all 0.2s;">
+            <label style="display: flex; align-items: flex-start; cursor: {% if is_test_disabled %}not-allowed{% else %}pointer{% endif %}; font-weight: normal; margin: 0;">
+                <input type="radio" name="mode" value="test" required style="width: auto; margin-right: 15px; margin-top: 4px;" 
+                       {% if forced_mode == 'test' %}checked{% endif %} 
+                       {% if is_test_disabled %}disabled{% endif %}>
+                <div>
+                    <b style="display: block; color: {% if is_test_disabled %}#7f8c8d{% else %}#2c3e50{% endif %}; margin-bottom: 5px; font-size: 1.1em;">
+                        Test Mode {% if is_test_disabled %} 🔒{% endif %}
+                    </b>
+                    <span style="color: #7f8c8d; font-size: 0.95em;">Simulates exam conditions. Cycles through questions with no correct/incorrect feedback.</span>
+                </div>
+            </label>
+        </div>
+
+        <!-- Option 2: Standard Study Mode -->
+        <!-- If forced_mode equals 'test', disable all study modes -->
+        {% set is_study_disabled = forced_mode == 'test' %}
+        <div style="background: {% if is_study_disabled %}#f4f6f7{% else %}#f9fbfc{% endif %}; opacity: {% if is_study_disabled %}0.6{% else %}1{% endif %}; padding: 18px; border-radius: 8px; border: 1px solid {% if is_study_disabled %}#eaeded{% else %}#d6dbdf{% endif %}; margin-bottom: 15px; transition: all 0.2s;">
+            <label style="display: flex; align-items: flex-start; cursor: {% if is_study_disabled %}not-allowed{% else %}pointer{% endif %}; font-weight: normal; margin: 0;">
+                <input type="radio" name="mode" value="study_no_exp" required style="width: auto; margin-right: 15px; margin-top: 4px;" 
+                       {% if forced_mode == 'study_no_exp' or forced_mode == 'study' %}checked{% endif %} 
+                       {% if is_study_disabled %}disabled{% endif %}>
+                <div>
+                    <b style="display: block; color: {% if is_study_disabled %}#7f8c8d{% else %}#2c3e50{% endif %}; margin-bottom: 5px; font-size: 1.1em;">
+                        Study Mode - Standard {% if is_study_disabled %} 🔒{% endif %}
+                    </b>
+                    <span style="color: #7f8c8d; font-size: 0.95em;">Shows correct/incorrect feedback immediately after each question.</span>
+                </div>
+            </label>
+        </div>
+
+        <!-- Option 3: Detailed Study Mode -->
+        <div style="background: {% if is_study_disabled %}#f4f6f7{% else %}#f9fbfc{% endif %}; opacity: {% if is_study_disabled %}0.6{% else %}1{% endif %}; padding: 18px; border-radius: 8px; border: 1px solid {% if is_study_disabled %}#eaeded{% else %}#d6dbdf{% endif %}; margin-bottom: 15px; transition: all 0.2s;">
+            <label style="display: flex; align-items: flex-start; cursor: {% if is_study_disabled %}not-allowed{% else %}pointer{% endif %}; font-weight: normal; margin: 0;">
+                <input type="radio" name="mode" value="study_exp" required style="width: auto; margin-right: 15px; margin-top: 4px;" 
+                       {% if forced_mode == 'study_exp' %}checked{% endif %} 
+                       {% if is_study_disabled %}disabled{% endif %}>
+                <div>
+                    <b style="display: block; color: {% if is_study_disabled %}#7f8c8d{% else %}#2c3e50{% endif %}; margin-bottom: 5px; font-size: 1.1em;">
+                        Study Mode - Detailed {% if is_study_disabled %} 🔒{% endif %}
+                    </b>
+                    <span style="color: #7f8c8d; font-size: 0.95em;">Shows correct/incorrect feedback AND detailed explanations.</span>
+                </div>
+            </label>
+        </div>
+
+        <!-- Option 4: Missed Questions Mode -->
+        <div style="background: {% if is_study_disabled %}#f4f6f7{% else %}#f9fbfc{% endif %}; opacity: {% if is_study_disabled %}0.6{% else %}1{% endif %}; padding: 18px; border-radius: 8px; border: 1px solid {% if is_study_disabled %}#eaeded{% else %}#d6dbdf{% endif %}; margin-bottom: 30px; transition: all 0.2s;">
+            <label style="display: flex; align-items: flex-start; cursor: {% if is_study_disabled %}not-allowed{% else %}pointer{% endif %}; font-weight: normal; margin: 0;">
+                <input type="radio" name="mode" value="study_missed" required style="width: auto; margin-right: 15px; margin-top: 4px;" 
+                       {% if forced_mode == 'study_missed' %}checked{% endif %} 
+                       {% if is_study_disabled %}disabled{% endif %}>
+                <div>
+                    <b style="display: block; color: {% if is_study_disabled %}#7f8c8d{% else %}#2c3e50{% endif %}; margin-bottom: 5px; font-size: 1.1em;">
+                        Study Mode - Missed Questions {% if is_study_disabled %} 🔒{% endif %}
+                    </b>
+                    <span style="color: #7f8c8d; font-size: 0.95em;">Only includes questions you have previously answered incorrectly.</span>
+                </div>
+            </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full" style="padding: 16px; font-size: 18px; font-weight: bold; border-radius: 8px;">Start Quiz &rarr;</button>
+    </form>
+
+    <div style="margin-top: 20px; text-align: center;">
+        <a href="{{ url_for('quiz.select_quiz') }}" style="color: #95a5a6; text-decoration: none; font-weight: 500; font-size: 0.95em;">&larr; Cancel and return to Selection</a>
+    </div>
+</div>
+{% endblock %}

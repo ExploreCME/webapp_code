@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /faculty/
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /uploads/
+Allow: /
+
+Sitemap: https://www.explorecme.com/sitemap.xml

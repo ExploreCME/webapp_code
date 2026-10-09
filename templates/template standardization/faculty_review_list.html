@@ -1,0 +1,34 @@
+{% extends "index_for_display.html" %}
+
+{% block content %}
+<h2>Select a Quiz to Review</h2>
+<p>Below are the quizzes you have generated. Select one to review its questions and remove any that do not fit your curriculum.</p>
+
+<div class="table-responsive">
+    <table>
+        <thead>
+            <tr>
+                <th>Quiz Name</th>
+                <th>Total Questions</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for quiz in quizzes %}
+            <tr>
+                <td><strong>{{ quiz['quiz_name'] }}</strong></td>
+                <td>{{ quiz['question_count'] }}</td>
+                <td>
+                    <a href="{{ url_for('faculty.review_single', quiz_name=quiz['quiz_name']) }}" class="btn btn-primary btn-sm">Review Questions</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3">You have not created any quizzes yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<a href="{{ url_for('faculty.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+{% endblock %}

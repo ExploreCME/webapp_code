@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #eaeaea;">
+    
+    <div style="text-align: center; margin-bottom: 30px;">
+        <h2 style="color: #2c3e50; margin-bottom: 10px; font-size: 28px;">Create Assignment</h2>
+        <p style="color: #7f8c8d; font-size: 1.05em; margin: 0;">Distribute quizzes or remediations to your students.</p>
+    </div>
+
+    <form action="{{ url_for('faculty.assign_quiz') }}" method="POST">
+        
+        <!-- Step 1: Assignment Type -->
+        <div style="margin-bottom: 25px;">
+            <label style="font-weight: bold; color: #34495e; display: block; margin-bottom: 8px;">
+                <span style="background: #3498db; color: #fff; border-radius: 50%; padding: 2px 8px; margin-right: 5px; font-size: 0.9em;">1</span> 
+                What are you assigning?
+            </label>
+            <div style="display: flex; gap: 15px;">
+                <label style="flex: 1; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; text-align: center; cursor: pointer; background: #f9fbfc;">
+                    <input type="radio" name="assignment_type" value="quiz" checked onchange="toggleAssignmentType()"> Standard Quiz
+                </label>
+                <label style="flex: 1; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; text-align: center; cursor: pointer; background: #f9fbfc;">
+                    <input type="radio" name="assignment_type" value="remediation" onchange="toggleAssignmentType()"> Remediation
+                </label>
+            </div>
+        </div>
+
+        <!-- Step 2A: Select Quiz -->
+        <div id="quiz_selection_block" style="margin-bottom: 25px;">
+            <label for="quiz_name" style="font-weight: bold; color: #34495e; display: block; margin-bottom: 8px;">
+                <span style="background: #3498db; color: #fff; border-radius: 50%; padding: 2px 8px; margin-right: 5px; font-size: 0.9em;">2</span> 
+                Select a Quiz
+            </label>
+            <select name="quiz_name" id="quiz_name" required style="width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 16px; background: #f9fbfc;">
+                <option value="" disabled selected>-- Choose a Quiz --</option>
+                {% for quiz in quizzes %}
+                    <option value="{{ quiz['quiz_name'] }}">{{ quiz['quiz_name'] }}</option>
+                {% endfor %}
+            </select>
+            {% if not quizzes %}
+                <div style="margin-top: 10px; padding: 12px; background: #fdedec; border-left: 4px solid #e74c3c; color: #c0392b; border-radius: 4px; font-size: 0.95em;">
+                    <strong>Action Required:</strong> You haven't created any standard quizzes yet!
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Step 2B: Select Remediation (Hidden by default) -->
+        <div id="remediation_selection_block" style="margin-bottom: 25px; display: none;">
+            <label for="remediation_name" style="font-weight: bold; color: #34495e; display: block; margin-bottom: 8px;">
+                <span style="background: #3498db; color: #fff; border-radius: 50%; padding: 2px 8px; margin-right: 5px; font-size: 0.9em;">2</span> 
+                Select a Remediation
+            </label>
+            <select name="remediation_name" id="remediation_name" style="width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 16px; background: #f9fbfc;">
+                <option value="" disabled selected>-- Choose a Remediation --</option>
+                {% for r in remediations %}
+                    <option value="{{ r['remediation_name'] }}">{{ r['remediation_name'] }}</option>
+                {% endfor %}
+            </select>
+            {% if not remediations %}
+                <div style="margin-top: 10px; padding: 12px; background: #fdedec; border-left: 4px solid #e74c3c; color: #c0392b; border-radius: 4px; font-size: 0.95em;">
+                    <strong>Action Required:</strong> You haven't created any remediations yet! Generate one from the Faculty Dashboard first.
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Step 3: Target Type (Class vs Student) -->
+        <div style="margin-bottom: 25px;">
+            <label style="font-weight: bold; color: #34495e; display: block; margin-bottom: 8px;">
+                <span style="background: #3498db; color: #fff; border-radius: 50%; padding: 2px 8px; margin-right: 5px; font-size: 0.9em;">3</span> 
+                Who are you assigning to?
+            </label>
+            <div style="display: flex; gap: 15px;">
+                <label style="flex: 1; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; text-align: center; cursor: pointer; background: #f9fbfc;">
+                    <input type="radio" name="target_type" value="class" checked onchange="toggleTargetType()"> Entire Class
+                </label>
+                <label style="flex: 1; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; text-align: center; cursor: pointer; background: #f9fbfc;">
+                    <input type="radio" name="target_type" value="student" onchange="toggleTargetType()"> Individual Student
+                </label>
+            </div>
+        </div>
+
+        <!-- Step 4A: Select Class (Default) -->
+        <div id="class_selection_block" style="margin-bottom: 25px;">
+            <label for="class_id" style="font-weight: bold; color: #34495e; display: block; margin-bottom: 8px;">
+                <span style="background: #3498db; color: #fff; border-radius: 50%; padding: 2px 8px; margin-right: 5px; font-size: 0.9em;">4</span> 
+                Select a Class
+            </label>
+            <select name="class_id" id="class_id" required style="width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 16px; background: #f9fbfc;">
+                <option value="" disabled selected>-- Choose a Class --</option>
+                {% for c in classes %}
+                    <option value="{{ c['id'] }}">{{ c['class_name'] }}</option>
+                {% endfor %}
+            </select>
+            {% if not classes %}
+                <div style="margin-top: 10px; padding: 12px; background: #fdedec; border-left: 4px solid #e74c3c; color: #c0392b; border-radius: 4px; font-size: 0.95em;">
+                    <strong>Action Required:</strong> You haven't created any classes yet! Go to "Manage & Create Classes" on your dashboard first.
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Step 4B: Select Student (Hidden by default) -->
+        <div id="student_selection_block" style="margin-bottom: 25px; display: none;">
+            <label for="clerk_id" style="font-weight: bold; color: #34495e; display: block; margin-bottom: 8px;">
+                <span style="background: #3498db; color: #fff; border-radius: 50%; padding: 2px 8px; margin-right: 5px; font-size: 0.9em;">4</span> 
+                Select a Student
+            </label>
+            <select name="clerk_id" id="clerk_id" style="width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 16px; background: #f9fbfc;">
+                <option value="" disabled selected>-- Choose a Student --</option>
+                {% for s in students %}
+                    <option value="{{ s['clerk_id'] }}">{{ s['display_name'] }}</option>
+                {% endfor %}
+            </select>
+            {% if not students %}
+                <div style="margin-top: 10px; padding: 12px; background: #fdedec; border-left: 4px solid #e74c3c; color: #c0392b; border-radius: 4px; font-size: 0.95em;">
+                    <strong>Notice:</strong> There are no students registered under your program code yet.
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Step 5: Set Restrictions -->
+        <div id="restrictions_block" style="margin-bottom: 25px; padding: 20px; background: #f8f9f9; border-radius: 8px; border: 1px solid #eaeded;">
+            <label for="required_mode" style="font-weight: bold; color: #34495e; display: block; margin-bottom: 5px;">
+                <span style="background: #3498db; color: #fff; border-radius: 50%; padding: 2px 8px; margin-right: 5px; font-size: 0.9em;">5</span> 
+                Mode Restriction
+            </label>
+            <p style="font-size: 0.85em; color: #7f8c8d; margin-top: 0; margin-bottom: 15px;">Control how your students interact with this assignment.</p>
+            
+            <select name="required_mode" id="required_mode" style="width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 16px; background: #fff;">
+                <option value="any">🔓 No Restriction (Student can choose)</option>
+                <option value="test">🔒 Require TEST mode first</option>
+                <option value="study_exp">📚 Force Study Mode (With Explanations)</option>
+                <option value="study_no_exp">📝 Force Study Mode (No Explanations)</option>
+            </select>
+            
+            <small style="color: #95a5a6; display: block; margin-top: 12px; font-size: 0.85em; line-height: 1.4;">
+                <strong style="color: #7f8c8d;">Tip:</strong> If set to <strong>Require TEST</strong>, students must submit the entire assignment under exam conditions before the study and review modes unlock.
+            </small>
+        </div>
+
+        <!-- Step 6: Optional Due Date & Time -->
+        <div style="margin-bottom: 30px; padding: 20px; background: #f8f9f9; border-radius: 8px; border: 1px solid #eaeded;">
+            <label for="due_date" style="font-weight: bold; color: #34495e; display: block; margin-bottom: 5px;">
+                <span style="background: #3498db; color: #fff; border-radius: 50%; padding: 2px 8px; margin-right: 5px; font-size: 0.9em;">6</span> 
+                Due Date & Time (Optional)
+            </label>
+            <p style="font-size: 0.85em; color: #7f8c8d; margin-top: 0; margin-bottom: 15px;">Set a strict deadline for assignment completion.</p>
+            
+            <input type="datetime-local" name="due_date" id="due_date" style="width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 16px; background: #fff;">
+        </div>
+
+        <button type="submit" id="submit_button" class="btn btn-success btn-full" style="padding: 16px; font-size: 18px; font-weight: bold; border-radius: 8px; transition: background 0.2s; width: 100%;">
+            Assign to Class
+        </button>
+    </form>
+
+    <div style="margin-top: 20px; text-align: center;">
+        <a href="{{ url_for('faculty.assign_menu') }}" style="color: #95a5a6; text-decoration: none; font-weight: 500; font-size: 0.95em;">&larr; Cancel and return to Assign Menu</a>
+    </div>
+</div>
+
+<script>
+    // Toggles between Quiz and Remediation selection
+    function toggleAssignmentType() {
+        const type = document.querySelector('input[name="assignment_type"]:checked').value;
+        const quizBlock = document.getElementById('quiz_selection_block');
+        const remBlock = document.getElementById('remediation_selection_block');
+
+        if (type === 'quiz') {
+            quizBlock.style.display = 'block';
+            remBlock.style.display = 'none';
+            
+            document.getElementById('quiz_name').required = true;
+            document.getElementById('remediation_name').required = false;
+        } else {
+            quizBlock.style.display = 'none';
+            remBlock.style.display = 'block';
+            
+            document.getElementById('quiz_name').required = false;
+            document.getElementById('remediation_name').required = true;
+        }
+    }
+
+    // Toggles between Class and Individual Student selection
+    function toggleTargetType() {
+        const target = document.querySelector('input[name="target_type"]:checked').value;
+        const classBlock = document.getElementById('class_selection_block');
+        const studentBlock = document.getElementById('student_selection_block');
+        const submitBtn = document.getElementById('submit_button');
+
+        if (target === 'class') {
+            classBlock.style.display = 'block';
+            studentBlock.style.display = 'none';
+            
+            document.getElementById('class_id').required = true;
+            document.getElementById('clerk_id').required = false;
+            submitBtn.innerText = 'Assign to Class';
+        } else {
+            classBlock.style.display = 'none';
+            studentBlock.style.display = 'block';
+            
+            document.getElementById('class_id').required = false;
+            document.getElementById('clerk_id').required = true;
+            submitBtn.innerText = 'Assign to Student';
+        }
+    }
+</script>
+{% endblock %}

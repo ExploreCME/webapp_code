@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Quiz Results - PANCE Quiz App{% endblock %}
+{% block head %}
+<style>
+    :root {
+        --text-dark: #2c3e50;
+        --text-muted: #718096;
+        --border-color: #edf2f7;
+        --bg-light: #f8fafc;
+        --primary: #3498db;
+        --success: #48C9B0;
+        --danger: #e74c3c;
+    }
+    .results-wrapper {
+        max-width: 600px;
+        margin: 40px auto;
+        padding: 0 15px;
+    }
+    .results-card {
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        border: 1px solid var(--border-color);
+        padding: 40px;
+        text-align: center;
+    }
+    .results-header {
+        margin-bottom: 30px;
+    }
+    .results-header h2 {
+        color: var(--text-dark);
+        font-size: 28px;
+        margin: 0 0 10px 0;
+    }
+    .results-header p {
+        color: var(--text-muted);
+        font-size: 1.1em;
+        margin: 0;
+    }
+    .score-circle {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        background: var(--bg-light);
+        border: 8px solid var(--primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 30px auto;
+        flex-direction: column;
+    }
+    
+    .score-circle.excellent { border-color: var(--success); }
+    .score-circle.needs-work { border-color: var(--danger); }
+    .score-percentage {
+        font-size: 2.5em;
+        font-weight: 800;
+        color: var(--text-dark);
+        line-height: 1;
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 30px;
+        padding-top: 30px;
+        border-top: 2px solid var(--border-color);
+    }
+    .stat-box {
+        padding: 15px;
+        border-radius: 12px;
+        background: var(--bg-light);
+    }
+    .stat-box.correct-box { background: #e6f8f5; color: #22543d; }
+    .stat-box.incorrect-box { background: #fdf2f2; color: #742a2a; }
+    
+    .stat-value {
+        font-size: 1.8em;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+    .stat-label {
+        font-size: 0.9em;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Remediation Module Breakdown Styles */
+    .remediation-section {
+        margin-bottom: 35px;
+        padding-top: 25px;
+        border-top: 2px solid var(--border-color);
+        text-align: left;
+    }
+    .remediation-title {
+        color: var(--text-dark);
+        font-size: 1.2em;
+        margin: 0 0 15px 0;
+        text-align: center;
+    }
+    .module-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .module-card {
+        background: var(--bg-light);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 14px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .module-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .module-name {
+        color: var(--text-dark);
+        font-weight: 600;
+        font-size: 0.95em;
+    }
+    .module-subtext {
+        font-size: 0.85em;
+        color: var(--text-muted);
+    }
+    .module-score {
+        font-size: 1.25em;
+        font-weight: 700;
+    }
+    .score-excellent { color: var(--success); }
+    .score-average { color: var(--primary); }
+    .score-poor { color: var(--danger); }
+
+    .action-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+    }
+    .btn {
+        padding: 14px 28px;
+        border-radius: 30px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        display: inline-block;
+        font-size: 1em;
+    }
+    .btn-primary {
+        background: var(--primary);
+        color: white;
+        border: 2px solid var(--primary);
+    }
+    .btn-primary:hover {
+        background: #2980b9;
+        border-color: #2980b9;
+        transform: translateY(-2px);
+    }
+    .btn-secondary {
+        background: white;
+        color: var(--text-muted);
+        border: 2px solid var(--border-color);
+    }
+    .btn-secondary:hover {
+        background: var(--bg-light);
+        color: var(--text-dark);
+        border-color: #cbd5e0;
+        transform: translateY(-2px);
+    }
+    @media (max-width: 480px) {
+        .action-buttons { flex-direction: column; }
+        .btn { width: 100%; box-sizing: border-box; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="results-wrapper">
+    <div class="results-card">
+        
+        <div class="results-header">
+            <h2>Quiz Complete!</h2>
+            <p>{{ quiz_name }}</p>
+        </div>
+
+        <div class="score-circle 
+            {% if attempt.percentage >= 80 %}excellent
+            {% elif attempt.percentage < 60 %}needs-work{% endif %}">
+            <span class="score-percentage">{{ attempt.percentage }}%</span>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-box correct-box">
+                <div class="stat-value">{{ attempt.correct }}</div>
+                <div class="stat-label">Correct</div>
+            </div>
+            <div class="stat-box incorrect-box">
+                <div class="stat-value">{{ attempt.incorrect }}</div>
+                <div class="stat-label">Incorrect</div>
+            </div>
+        </div>
+
+        <!-- NEW: Module Sub-Scores Breakdown for Remediation Quizzes -->
+        {% if is_remediation and module_breakdown %}
+        <div class="remediation-section">
+            <h3 class="remediation-title">Module Sub-Scores</h3>
+            <div class="module-list">
+                {% for mod in module_breakdown %}
+                <div class="module-card">
+                    <div class="module-info">
+                        <span class="module-name">{{ mod.topic_area }}</span>
+                        <span class="module-subtext">{{ mod.correct }} / {{ mod.answered }} answered correctly</span>
+                    </div>
+                    <div class="module-score 
+                        {% if mod.percentage >= 80 %}score-excellent
+                        {% elif mod.percentage < 60 %}score-poor
+                        {% else %}score-average{% endif %}">
+                        {{ mod.percentage }}%
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="action-buttons">
+            <a href="{{ url_for('quiz.review_attempt', attempt_id=attempt.attempt_id) }}" class="btn btn-secondary">
+                Review Answers
+            </a>
+            <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-primary">
+                Back to Quizzes &rarr;
+            </a>
+        </div>
+        
+    </div>
+</main>
+{% endblock %}

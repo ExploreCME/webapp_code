@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Quiz - PANCE Quiz App{% endblock %}
+
+{% block content %}
+<style>
+    /* Modern Dashboard Styling */
+    .dashboard-header {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+    .dashboard-header h2 {
+        color: #2c3e50;
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+    .dashboard-header p {
+        color: #7f8c8d;
+        font-size: 1.1em;
+    }
+
+    /* Grid Layout for Student Tools */
+    .student-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+        /* Adjusted max-width for 2 cards so they don't stretch too far */
+        max-width: 650px;
+        margin: 0 auto;
+    }
+
+    /* Dashboard Cards */
+    .student-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 30px 20px;
+        text-align: center;
+        text-decoration: none;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+        border: 1px solid #eaeded;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+    .student-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        border-color: #3498db;
+    }
+    .card-icon {
+        font-size: 40px;
+        margin-bottom: 15px;
+    }
+    .card-title {
+        color: #2c3e50;
+        font-size: 1.25em;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+    .card-desc {
+        color: #7f8c8d;
+        font-size: 0.95em;
+        line-height: 1.4;
+        margin: 0;
+    }
+
+    /* Specific Card Accents */
+    .card-blueprint:hover .card-title { color: #3498db; }  /* Blue Accent */
+    .card-document:hover .card-title { color: #8e44ad; }   /* Purple Accent */
+</style>
+
+<div class="dashboard-header">
+    <h2>Quiz Generator</h2>
+    <p>Choose how you would like to build your next quiz.</p>
+</div>
+
+<div class="student-grid">
+    <!-- Option 1: Custom Blueprint -->
+    <a href="{{ url_for('quiz.custom_quiz') }}" class="student-card card-blueprint">
+        <div class="card-icon">🛠️</div>
+        <div class="card-title">Build from Blueprint</div>
+        <p class="card-desc">Design a custom assessment based on specific organs and tasks.</p>
+    </a>
+
+    <!-- Option 2: Document Extraction -->
+    <a href="{{ url_for('quiz.home') }}" class="student-card card-document">
+        <div class="card-icon">📄</div>
+        <div class="card-title">Generate from Document</div>
+        <p class="card-desc">Upload study materials and let AI generate a targeted quiz.</p>
+    </a>
+</div>
+
+<div style="text-align: center; margin-top: 40px;">
+    <!-- Conditional routing based on user origin -->
+    {% if faculty_route %}
+        <a href="{{ url_for('faculty.generate_hub') }}" class="btn btn-secondary">&larr; Back to Dashboard</a>
+    {% else %}
+        <a href="{{ url_for('quiz.student_dashboard') }}" class="btn btn-secondary">&larr; Back to Dashboard</a>
+    {% endif %}
+</div>
+{% endblock %}

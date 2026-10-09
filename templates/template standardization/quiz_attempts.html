@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz History - {{ quiz_name }}{% endblock %}
+
+<!-- Using the wider container for the table -->
+{% block container_class %}container-large{% endblock %}
+
+{% block content %}
+    <!-- Flexbox header to align the Title on the left and Fast-Start Form on the right -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+        <h2 style="margin: 0;">History for "{{ quiz_name }}"</h2>
+
+        <!-- Fast Start Quiz Form (Matches the lookup screen) -->
+        <form action="{{ url_for('quiz.start_quiz') }}" method="POST" style="margin: 0; display: inline-flex; gap: 10px; align-items: center;">
+            <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
+            
+            <!-- UPDATED DROPDOWN -->
+            <select name="mode" required style="padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.95em;">
+                <option value="test">Test Mode</option>
+                <option value="study_exp">Study (w/ Exp)</option>
+                <option value="study_no_exp">Study (No Exp)</option>
+            </select>
+            
+            <button type="submit" class="btn btn-success" style="padding: 8px 20px; font-size: 0.95em;">
+                ▶ Start New
+            </button>
+        </form>
+    </div>
+
+    <!-- The table tags are completely stripped of inline styles since base.html handles them! -->
+    <table>
+        <thead>
+            <tr>
+                <th>Date & Time</th>
+                <th>Mode</th>
+                <th>Score</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for attempt in attempts %}
+            <tr>
+                <td>{{ attempt.start_time }}</td>
+                <!-- Quick fix to display the new modes cleanly without underscores -->
+                <td style="text-transform: capitalize;">{{ attempt.mode.replace('_', ' ') }}</td>
+                <td>
+                    <b>{{ attempt.score_display }}</b>
+                </td>
+                <td>
+                    <!-- Conditional logic for Resume vs Review -->
+                    {% if attempt.status == 'in_progress' or attempt.status == 'incomplete' %}
+                        <form action="{{ url_for('quiz.start_quiz') }}" method="POST" style="margin: 0;">
+                            <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
+                            <input type="hidden" name="mode" value="{{ attempt.mode }}">
+                            <input type="hidden" name="resume_attempt_id" value="{{ attempt.attempt_id }}">
+                            <button type="submit" class="btn btn-warning" style="padding: 6px 12px; font-size: 14px;">Resume Attempt</button>
+                        </form>
+                    {% else %}
+                        <a href="{{ url_for('quiz.review_attempt', attempt_id=attempt.attempt_id) }}" class="btn btn-info" style="padding: 6px 12px; font-size: 14px;">Review Attempt</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" style="text-align: center; padding: 40px 10px;">
+                    <span style="color: #666; font-style: italic;">You haven't taken this quiz yet! Use the button above to begin.</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div style="margin-top: 25px;">
+        <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-secondary">&larr; Back to Quiz List</a>
+    </div>
+{% endblock %}

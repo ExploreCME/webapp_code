@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    /* Modern Radio Toggles */
+    .toggle-group { display: flex; gap: 10px; height: 100%; align-items: stretch; }
+    .toggle-input { display: none; }
+    .toggle-label { 
+        flex: 1; display: flex; align-items: center; justify-content: center; 
+        border-radius: 6px; background: #fff; color: #7f8c8d; font-weight: 600; cursor: pointer; 
+        border: 1px solid #bdc3c7; transition: all 0.2s ease; margin: 0; padding: 10px;
+    }
+    .toggle-label:hover { background: #f4f6f7; }
+    .toggle-input:checked + .toggle-label { 
+        background: #3498db; color: #fff; border-color: #3498db; 
+    }
+</style>
+
+<div style="max-width: 900px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #eaeaea;">
+    
+    <div style="text-align: center; margin-bottom: 30px;">
+        <h2 style="color: #2c3e50; margin-bottom: 10px; font-size: 28px;">Assignment Results</h2>
+        <p style="color: #7f8c8d; font-size: 1.05em; margin: 0;">Review performance, detailed attempts, and generate reports.</p>
+    </div>
+
+    <!-- Selection Form -->
+    <form action="{{ url_for('faculty.class_results') }}" method="POST" style="background: #f8f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eaeded; margin-bottom: 30px;">
+        
+        <!-- 2x2 Grid Layout -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            
+            <!-- 1. Target Toggle -->
+            <div>
+                <label style="font-weight: bold; color: #34495e; display: block; margin-bottom: 5px;">Target:</label>
+                <div class="toggle-group" style="height: 42px;">
+                    <input type="radio" name="target_type" id="target_class" value="class" class="toggle-input" onchange="updateTargetUI()">
+                    <label for="target_class" class="toggle-label">Class</label>
+                    
+                    <input type="radio" name="target_type" id="target_student" value="student" class="toggle-input" onchange="updateTargetUI()">
+                    <label for="target_student" class="toggle-label">Student</label>
+                </div>
+            </div>
+
+            <!-- 2. Assignment Type Toggle -->
+            <div>
+                <label style="font-weight: bold; color: #34495e; display: block; margin-bottom: 5px;">Assignment Type:</label>
+                <div class="toggle-group" style="height: 42px;">
+                    <input type="radio" name="ui_assignment_type" id="type_quiz" value="quiz" class="toggle-input" onchange="updateAssignmentList()">
+                    <label for="type_quiz" class="toggle-label">Quiz</label>
+                    
+                    <input type="radio" name="ui_assignment_type" id="type_remediation" value="remediation" class="toggle-input" onchange="updateAssignmentList()">
+                    <label for="type_remediation" class="toggle-label">Remediation</label>
+                </div>
+            </div>
+
+            <!-- 3. Dynamic Target Select -->
+            <div>
+                <!-- Class Select -->
+                <div id="class_select_block">
+                    <label for="class_id" style="font-weight: bold; color: #34495e; display: block; margin-bottom: 5px;">Select Class:</label>
+                    <select name="class_id" id="class_id" class="custom-select" style="width: 100%; height: 42px; padding: 0 10px; border: 1px solid #bdc3c7; border-radius: 6px; background: #fff;">
+                        <option value="" disabled selected>-- Choose a Class --</option>
+                        {% for c in classes %}
+                            <option value="{{ c['id'] }}" {% if selected_class_id|string == c['id']|string %}selected{% endif %}>{{ c['class_name'] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Student Select -->
+                <div id="student_select_block" style="display: none;">
+                    <label for="student_id" style="font-weight: bold; color: #34495e; display: block; margin-bottom: 5px;">Select Student:</label>
+                    <select name="student_id" id="student_id" class="custom-select" style="width: 100%; height: 42px; padding: 0 10px; border: 1px solid #bdc3c7; border-radius: 6px; background: #fff;">
+                        <option value="" disabled selected>-- Choose a Student --</option>
+                        {% for s in all_students %}
+                            <option value="{{ s['clerk_id'] }}" {% if selected_student_id == s['clerk_id'] %}selected{% endif %}>{{ s['display_name'] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- 4. Dynamic Assignment Select -->
+            <div>
+                <label for="assignment_selector" style="font-weight: bold; color: #34495e; display: block; margin-bottom: 5px;">Select Assignment:</label>
+                <select name="assignment_selector" id="assignment_selector" required style="width: 100%; height: 42px; padding: 0 10px; border: 1px solid #bdc3c7; border-radius: 6px; background: #fff;">
+                    <option value="" disabled selected>-- Choose an Assignment --</option>
+                </select>
+            </div>
+            
+        </div>
+
+        <!-- Filter Attempts Toggle -->
+        <div style="margin-bottom: 20px;">
+            <label style="font-weight: bold; color: #34495e; display: block; margin-bottom: 5px;">Filter Attempts:</label>
+            <div class="toggle-group" style="height: 42px;">
+                <input type="radio" name="attempt_filter" id="filter_all" value="all" class="toggle-input" {% if attempt_filter == 'all' or not attempt_filter %}checked{% endif %}>
+                <label for="filter_all" class="toggle-label">All Attempts</label>
+                
+                <input type="radio" name="attempt_filter" id="filter_highest" value="highest" class="toggle-input" {% if attempt_filter == 'highest' %}checked{% endif %}>
+                <label for="filter_highest" class="toggle-label">Highest Score</label>
+
+                <input type="radio" name="attempt_filter" id="filter_recent" value="recent" class="toggle-input" {% if attempt_filter == 'recent' %}checked{% endif %}>
+                <label for="filter_recent" class="toggle-label">Most Recent</label>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: bold;">View Results</button>
+    </form>
+
+    <!-- Results Display -->
+    {% if results is not none %}
+        <div style="background: #f4f6f7; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #bdc3c7;">
+            <div>
+                <h3 style="margin: 0; color: #2c3e50; font-size: 20px;">
+                    Results for: <span style="color: #3498db;">{{ selected_assignment }}</span> 
+                </h3>
+                <span style="font-size: 0.9em; color: #7f8c8d; font-weight: normal;">({{ selected_target_name }})</span>
+            </div>
+            
+            <div>
+                <span style="background: #34495e; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.85em; font-weight: bold; display: inline-block;">
+                    Filter Applied: {{ attempt_filter | title }}
+                </span>
+            </div>
+        </div>
+
+        {% if results|length == 0 %}
+            <div style="text-align: center; padding: 30px; color: #7f8c8d; background: #fdfefe; border: 1px dashed #bdc3c7; border-radius: 8px;">
+                No matching records found.
+            </div>
+        {% else %}
+            
+            {% for student in results %}
+                <div style="border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
+                    
+                    <!-- Student Header Row -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #f9fbfc; padding: 15px 20px; border-bottom: {% if student.attempts %}1px solid #e0e0e0{% else %}none{% endif %};">
+                        <div>
+                            <strong style="font-size: 1.1em; color: #2c3e50; display: block;">{{ student.display_name }}</strong>
+                            <small style="color: #7f8c8d;">{{ student.email }}</small>
+                            
+                            <!-- INDIVIDUAL PDF REPORT BUTTON -->
+                            <div style="margin-top: 10px;">
+                                <form action="{{ url_for('faculty.generate_report') }}" method="POST" style="margin: 0; display: inline-block;">
+                                    <input type="hidden" name="report_target" value="student">
+                                    <input type="hidden" name="report_type" value="{{ assignment_type }}">
+                                    <input type="hidden" name="target_student_id" value="{{ student.clerk_id }}">
+                                    <input type="hidden" name="attempt_filter" value="{{ attempt_filter }}">
+                                    
+                                    {% if assignment_type == 'quiz' %}
+                                        <input type="hidden" name="quiz_name" value="{{ selected_assignment }}">
+                                    {% else %}
+                                        <input type="hidden" name="remediation_name" value="{{ selected_assignment }}">
+                                    {% endif %}
+
+                                    <button type="submit" class="btn btn-outline-info btn-sm" {% if not student.attempts %}disabled title="No data to export"{% endif %} style="font-weight: bold; font-size: 0.85em; padding: 4px 10px;">
+                                        📄 Download PDF Report
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 25px; text-align: right;">
+                            <div>
+                                <span style="display: block; font-size: 0.8em; color: #95a5a6; text-transform: uppercase;">Most Recent Test</span>
+                                {% if student.most_recent_test_score is not none %}
+                                    <strong style="font-size: 1.2em; color: #34495e;">
+                                        {{ student.most_recent_test_score }}%
+                                    </strong>
+                                {% else %}
+                                    <strong style="font-size: 1.1em; color: #bdc3c7;">N/A</strong>
+                                {% endif %}
+                            </div>
+                            <div style="border-left: 1px solid #bdc3c7; padding-left: 25px;">
+                                <span style="display: block; font-size: 0.8em; color: #95a5a6; text-transform: uppercase;">Highest Test Score</span>
+                                {% if student.highest_test_score is not none %}
+                                    <strong style="font-size: 1.3em; color: {% if student.highest_test_score >= 80 %}#27ae60{% elif student.highest_test_score >= 60 %}#f39c12{% else %}#e74c3c{% endif %};">
+                                        {{ student.highest_test_score }}%
+                                    </strong>
+                                {% else %}
+                                    <strong style="font-size: 1.1em; color: #bdc3c7;">N/A</strong>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Student Attempts List -->
+                    {% if student.attempts %}
+                        <div style="padding: 15px 20px; background: #fff;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #eee; color: #7f8c8d;">Date</th>
+                                        <th style="text-align: center; padding: 8px; border-bottom: 1px solid #eee; color: #7f8c8d;">Mode</th>
+                                        <th style="text-align: center; padding: 8px; border-bottom: 1px solid #eee; color: #7f8c8d;">Score</th>
+                                        <th style="text-align: right; padding: 8px; border-bottom: 1px solid #eee; color: #7f8c8d;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for attempt in student.attempts %}
+                                        <tr>
+                                            <td style="padding: 10px 8px; border-bottom: 1px solid #f9f9f9; font-weight: bold; color: #555;">{{ attempt.start_time.split(' ')[0] }}</td>
+                                            <td style="text-align: center; padding: 10px 8px; border-bottom: 1px solid #f9f9f9;">{{ attempt.mode | replace('_', ' ') | title }}</td>
+                                            <td style="text-align: center; padding: 10px 8px; border-bottom: 1px solid #f9f9f9;">
+                                                <strong>{{ attempt.score_pct }}%</strong> <br>
+                                                <small style="color: #999;">({{ attempt.answered_count }}/{{ attempt.total_questions }} Qs)</small>
+                                            </td>
+                                            <td style="text-align: right; padding: 10px 8px; border-bottom: 1px solid #f9f9f9;">
+                                                <a href="{{ url_for('quiz.review_attempt', attempt_id=attempt.attempt_id, faculty_return_url=request.url) }}" class="btn btn-info btn-sm" style="padding: 6px 12px; font-size: 0.85em;">Detailed Review &rarr;</a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div style="padding: 15px 20px; background: #fff; text-align: center; color: #bdc3c7; font-size: 0.9em; font-style: italic;">
+                            No attempts matching the selected filter.
+                        </div>
+                    {% endif %}
+
+                </div>
+            {% endfor %}
+
+        {% endif %}
+    {% endif %}
+
+    <div style="margin-top: 30px; text-align: center;">
+        <a href="{{ url_for('faculty.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+
+<!-- ==========================================
+     Dynamic UI Logic
+     ========================================== -->
+<script>
+    // Load the raw array data straight from the backend securely via JSON
+    const quizzes = {{ quizzes | tojson | safe }};
+    const remediations = {{ remediations | tojson | safe }};
+    
+    // Remember previous selections so the form doesn't reset when results are loaded
+    const preselectedTarget = "{{ target_type or 'class' }}";
+    const preselectedType = "{{ assignment_type or 'quiz' }}";
+    const preselectedAssignment = {{ selected_assignment | tojson | safe }};
+
+    function updateTargetUI() {
+        const targetRadios = document.getElementsByName('target_type');
+        let selectedTarget = 'class';
+        for (const radio of targetRadios) {
+            if (radio.checked) {
+                selectedTarget = radio.value;
+                break;
+            }
+        }
+
+        const classBlock = document.getElementById('class_select_block');
+        const studentBlock = document.getElementById('student_select_block');
+        const classSelect = document.getElementById('class_id');
+        const studentSelect = document.getElementById('student_id');
+
+        if (selectedTarget === 'class') {
+            classBlock.style.display = 'block';
+            studentBlock.style.display = 'none';
+            classSelect.required = true;
+            studentSelect.required = false;
+        } else {
+            classBlock.style.display = 'none';
+            studentBlock.style.display = 'block';
+            classSelect.required = false;
+            studentSelect.required = true;
+        }
+    }
+
+    function updateAssignmentList() {
+        const typeRadios = document.getElementsByName('ui_assignment_type');
+        let selectedType = 'quiz';
+        for (const radio of typeRadios) {
+            if (radio.checked) {
+                selectedType = radio.value;
+                break;
+            }
+        }
+
+        const selector = document.getElementById('assignment_selector');
+        // Clear previous options
+        selector.innerHTML = '<option value="" disabled selected>-- Choose an Assignment --</option>';
+
+        // Choose which list to pull from based on the toggle
+        const itemsToLoad = selectedType === 'quiz' ? quizzes : remediations;
+        
+        // Populate the dropdown
+        itemsToLoad.forEach(item => {
+            const option = document.createElement('option');
+            // Formats it exactly as the backend expects: "quiz|Cardiology 101"
+            option.value = selectedType + '|' + item;
+            option.textContent = item;
+            
+            // Re-select if it matches the state we just loaded
+            if (selectedType === preselectedType && item === preselectedAssignment) {
+                option.selected = true;
+            }
+            
+            selector.appendChild(option);
+        });
+    }
+
+    // Initialize state on page load
+    document.addEventListener("DOMContentLoaded", () => {
+        // Set Target Toggle State
+        const targetRadios = document.getElementsByName('target_type');
+        for (const radio of targetRadios) {
+            if (radio.value === preselectedTarget) {
+                radio.checked = true;
+            }
+        }
+        updateTargetUI();
+
+        // Set Assignment Type Toggle State
+        const typeRadios = document.getElementsByName('ui_assignment_type');
+        for (const radio of typeRadios) {
+            if (radio.value === preselectedType) {
+                radio.checked = true;
+            }
+        }
+        updateAssignmentList();
+    });
+</script>
+{% endblock %}
