@@ -1,0 +1,80 @@
+services:
+  - type: web
+    name: explorecme-web
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 4 -b 0.0.0.0:$PORT display_database:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: explorecme-redis
+          property: connectionString
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DB
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_ISSUER
+        value: https://clerk.explorecme.com
+      - key: CLERK_JWKS_URL
+        value: https://clerk.explorecme.com/.well-known/jwks.json
+      - key: SESSION_COOKIE_SAMESITE
+        value: None
+      - key: SESSION_COOKIE_SECURE
+        value: true
+      - key: MAINTENANCE_MODE
+        value: false
+      - key: BYPASS_SECRET
+        value: let_me_in_2026
+      - key: CACHE_DEFAULT_TIMEOUT
+        value: 300
+    healthCheckPath: /
+
+  - type: worker
+    name: explorecme-worker
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python quiz_worker.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: explorecme-redis
+          property: connectionString
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DB
+        sync: false
+      - key: CLERK_ISSUER
+        value: https://clerk.explorecme.com
+      - key: CLERK_JWKS_URL
+        value: https://clerk.explorecme.com/.well-known/jwks.json
+
+  - type: redis
+    name: explorecme-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
