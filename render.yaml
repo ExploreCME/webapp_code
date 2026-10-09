@@ -12,11 +12,6 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: explorecme-redis
-          property: connectionString
       - key: MYSQL_HOST
         sync: false
       - key: MYSQL_USER
@@ -45,6 +40,8 @@ services:
         value: let_me_in_2026
       - key: CACHE_DEFAULT_TIMEOUT
         value: 300
+      - key: REDIS_URL
+        value: ""
     healthCheckPath: /
 
   - type: worker
@@ -56,11 +53,6 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: explorecme-redis
-          property: connectionString
       - key: MYSQL_HOST
         sync: false
       - key: MYSQL_USER
@@ -73,11 +65,5 @@ services:
         value: https://clerk.explorecme.com
       - key: CLERK_JWKS_URL
         value: https://clerk.explorecme.com/.well-known/jwks.json
-
-  - type: redis
-    name: explorecme-redis
-    plan: starter
-    maxmemoryPolicy: allkeys-lru
-    ipAllowList:
-      - service: explorecme-web
-      - service: explorecme-worker
+      - key: REDIS_URL
+        value: ""
