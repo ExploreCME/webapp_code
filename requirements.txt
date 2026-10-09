@@ -38,3 +38,16 @@ typing-inspection==0.4.2
 typing_extensions==4.16.0
 urllib3==2.7.0
 Werkzeug==3.1.8
+
+# ==========================================
+# RENDER PRODUCTION DEPENDENCIES
+# ==========================================
+gunicorn==23.0.0
+redis==5.0.1
+flask-redis==0.4.0
+
+# ==========================================
+# OPTIONAL: FUTURE CELERY UPGRADE
+# (Uncomment when ready for Phase 4 optimization)
+# ==========================================
+# celery==5.4.0
