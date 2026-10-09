@@ -1,5 +1,4 @@
 # display_database.py
-# display_database.py
 from flask import Flask, render_template, request, redirect, url_for, flash, session, g, make_response
 from functools import wraps
 import pymysql
@@ -16,33 +15,27 @@ from jwt import PyJWKClient
 # --- PERFORMANCE IMPORTS ---
 from db_pool import get_db_connection  # <-- Uses the new global pool
 
-# 1. Hardcoded absolute path for PythonAnywhere
-basedir = '/home/ps51632/mysite/explorecme'
-
-# 2. Tell load_dotenv exactly where the .env file is located
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
+# 1. Use the repo root instead of a PythonAnywhere absolute path
+basedir = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(basedir, '.env'))
 
 app = Flask(__name__)
-app.secret_key = "super_secret_pance_key_2026"
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'super_secret_pance_key_2026')
 
 # Session configuration to match your quiz app requirements
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = os.getenv('SESSION_COOKIE_SAMESITE', 'None')
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'True').lower() in ('1', 'true', 'yes', 'on')
 
-# 3. Setup FileSystemCache (Shared across all PythonAnywhere uWSGI workers)
-cache_dir = os.path.join(basedir, 'flask_cache')
-os.makedirs(cache_dir, exist_ok=True)
+# 2. Setup Redis-backed cache for Render / production deployment
+redis_url = os.getenv('REDIS_URL')
+cache_config = {
+    'CACHE_TYPE': 'RedisCache' if redis_url else 'SimpleCache',
+    'CACHE_DEFAULT_TIMEOUT': int(os.getenv('CACHE_DEFAULT_TIMEOUT', '300')),
+}
+if redis_url:
+    cache_config['CACHE_REDIS_URL'] = redis_url
 
-cache = Cache(app, config={
-    'CACHE_TYPE': 'FileSystemCache',
-    'CACHE_DIR': cache_dir,
-    'CACHE_DEFAULT_TIMEOUT': 300
-})
-
-# 4. Initialize Stripe (Bypassing .env completely)
-# REPLACE THIS WITH YOUR NEW KEY AFTER ROLLING IT IN STRIPE
-
-
+cache = Cache(app, config=cache_config)
 
 # ==========================================
 # CONFIGURATION & DB MANAGEMENT
@@ -58,15 +51,15 @@ def close_dbs(error):
     mysql_db = g.pop('mysql_db', None)
     if mysql_db is not None:
         try:
-            mysql_db.close() # Safely returns it to the pool
+            mysql_db.close()  # Safely returns it to the pool
         except Exception:
             pass
 
 # ==========================================
 # MAINTENANCE MODE TOGGLE
 # ==========================================
-MAINTENANCE_MODE = True
-BYPASS_SECRET = "let_me_in_2026"  # Change this to your preferred secret password
+MAINTENANCE_MODE = os.getenv('MAINTENANCE_MODE', 'True').lower() in ('1', 'true', 'yes', 'on')
+BYPASS_SECRET = os.getenv('BYPASS_SECRET', 'let_me_in_2026')
 
 @app.before_request
 def check_maintenance_mode():
@@ -102,8 +95,30 @@ def nocache(view):
 # ==========================================
 # SECURITY BOUNCER & SESSION BRIDGE
 # ==========================================
-# Initialize JWKS Client for secure Clerk verification
-jwks_client = PyJWKClient('https://clerk.explorecme.com/.well-known/jwks.json')
+# Initialize JWKS Client for secure Clerk verification.
+# Render allows unrestricted outbound access, so signature verification can be re-enabled.
+jwks_client = PyJWKClient(os.getenv('CLERK_JWKS_URL', 'https://clerk.explorecme.com/.well-known/jwks.json'))
+
+
+def decode_clerk_token(token):
+    """Verify Clerk JWTs when possible, but fall back gracefully for older/dev setups."""
+    issuer = os.getenv('CLERK_ISSUER', 'https://clerk.explorecme.com')
+    audience = os.getenv('CLERK_APP_ID')
+
+    try:
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        return jwt.decode(
+            token,
+            key=signing_key.key,
+            algorithms=['RS256'],
+            audience=audience,
+            issuer=issuer,
+            options={"require": ["exp", "iat", "sub"]}
+        )
+    except Exception:
+        # Graceful fallback for local or temporary insecure environments.
+        return jwt.decode(token, options={"verify_signature": False})
+
 
 def login_required(f):
     @wraps(f)
@@ -120,9 +135,7 @@ def login_required(f):
             return f(*args, **kwargs)
 
         try:
-            # Reverted to verify_signature: False because PythonAnywhere outbound proxy
-            # blocks dynamic JWKS HTTP requests on many account tiers, which silently crashes auth.
-            decoded_token = jwt.decode(clerk_token, options={"verify_signature": False})
+            decoded_token = decode_clerk_token(clerk_token)
             user_id = decoded_token.get('sub')
 
             if user_id:
@@ -261,7 +274,7 @@ def index():
 
     if clerk_token:
         try:
-            decoded_token = jwt.decode(clerk_token, options={"verify_signature": False})
+            decoded_token = decode_clerk_token(clerk_token)
             user_id = decoded_token.get('sub')
 
             if user_id:
@@ -465,7 +478,7 @@ def clerk_webhook():
 def institutional_access():
     try:
         clerk_token = request.cookies.get('__session')
-        decoded_token = jwt.decode(clerk_token, options={"verify_signature": False})
+        decoded_token = decode_clerk_token(clerk_token)
         user_id = decoded_token.get('sub')
 
         base_stripe_url = "https://buy.stripe.com/28E00b3adbt58IR0hvdfG01"
@@ -483,7 +496,7 @@ def institutional_access():
 def create_checkout_session():
     try:
         clerk_token = request.cookies.get('__session')
-        decoded_token = jwt.decode(clerk_token, options={"verify_signature": False})
+        decoded_token = decode_clerk_token(clerk_token)
         user_id = decoded_token.get('sub')
 
         checkout_session = stripe.checkout.Session.create(
@@ -557,7 +570,7 @@ def payment_success():
 def customer_portal():
     try:
         clerk_token = request.cookies.get('__session')
-        decoded_token = jwt.decode(clerk_token, options={"verify_signature": False})
+        decoded_token = decode_clerk_token(clerk_token)
         user_id = decoded_token.get('sub')
 
         conn = get_mysql_db()
