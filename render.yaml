@@ -78,3 +78,6 @@ services:
     name: explorecme-redis
     plan: starter
     maxmemoryPolicy: allkeys-lru
+    ipAllowList:
+      - cidrBlock: 0.0.0.0/0
+        description: Allow all inbound
