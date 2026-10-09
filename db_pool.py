@@ -27,15 +27,17 @@ def _build_pool():
 
     mysql_pool = PooledDB(
         creator=pymysql,
-        maxconnections=3,
-        mincached=1,
+        maxconnections=20,
+        mincached=2,
         blocking=True,
         host=os.getenv('MYSQL_HOST'),
         user=os.getenv('MYSQL_USER'),
         password=os.getenv('MYSQL_PASSWORD'),
         database=os.getenv('MYSQL_DB'),
+        charset='utf8mb4',
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=True,
+        connect_timeout=10,
     )
     return mysql_pool
 
