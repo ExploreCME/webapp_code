@@ -76,13 +76,15 @@ def my_statistics():
     # --- CACHED TOP 14 ORGAN SYSTEMS GLOBALLY ---
     global GLOBAL_TOP_ORGANS, GLOBAL_TOP_ORGANS_TIMESTAMP
 
-    # Cache the global organ query for 1 hour to prevent DB overload
+    # Cache the global organ query for 1 hour to prevent DB overload.
+    # Use normalized lookup columns so MySQL is not repeatedly trimming every row.
     if not GLOBAL_TOP_ORGANS or (time.time() - GLOBAL_TOP_ORGANS_TIMESTAMP > 3600):
         cursor.execute("""
-            SELECT TRIM(organ_system) as organ_system
-            FROM question_bank
-            WHERE organ_system IS NOT NULL AND TRIM(organ_system) != ''
-            GROUP BY TRIM(organ_system)
+            SELECT
+                COALESCE(NULLIF(TRIM(qb.organ_system), ''), qb.organ_system_norm) AS organ_system
+            FROM question_bank qb
+            WHERE qb.organ_system_norm IS NOT NULL AND qb.organ_system_norm != ''
+            GROUP BY qb.organ_system_norm, qb.organ_system
             ORDER BY COUNT(*) DESC
             LIMIT 14
         """)
@@ -98,7 +100,7 @@ def my_statistics():
             SUM(CASE WHEN ar.is_correct = 1 THEN 1 ELSE 0 END) as total_correct
         FROM attempt_responses ar
         JOIN quiz_attempts qa ON ar.attempt_id = qa.attempt_id
-        WHERE qa.username = %s
+        WHERE qa.username_norm = LOWER(TRIM(%s))
     ''', (user_identifier,))
     overall = cursor.fetchone() or {}
     total_attempted = int(overall.get('total_attempted') or 0)
@@ -107,8 +109,8 @@ def my_statistics():
     # --- CROSS-TABULATED STATS (Organ System x Task Area) ---
     cursor.execute('''
         SELECT
-            TRIM(COALESCE(qb.organ_system, ra.organ_system)) as organ_system,
-            TRIM(COALESCE(qb.task_area, ra.task_area)) as task_area,
+            COALESCE(NULLIF(TRIM(qb.organ_system), ''), qb.organ_system_norm) AS organ_system,
+            COALESCE(NULLIF(TRIM(qb.task_area), ''), qb.task_area_norm) AS task_area,
             COUNT(ar.id) as attempted,
             SUM(CASE WHEN ar.is_correct = 1 THEN 1 ELSE 0 END) as correct
         FROM attempt_responses ar
@@ -116,10 +118,12 @@ def my_statistics():
         LEFT JOIN question_bank qb ON ar.question_id = qb.id
         LEFT JOIN remediation_questions rq ON ar.question_id = rq.id
         LEFT JOIN remediation_assignments ra ON rq.assignment_id = ra.id
-        WHERE qa.username = %s
+        WHERE qa.username_norm = LOWER(TRIM(%s))
         GROUP BY
-            TRIM(COALESCE(qb.organ_system, ra.organ_system)),
-            TRIM(COALESCE(qb.task_area, ra.task_area))
+            COALESCE(NULLIF(TRIM(qb.organ_system), ''), qb.organ_system_norm),
+            COALESCE(NULLIF(TRIM(qb.task_area), ''), qb.task_area_norm),
+            COALESCE(NULLIF(TRIM(ra.organ_system), ''), ra.organ_system_norm),
+            COALESCE(NULLIF(TRIM(ra.task_area), ''), ra.task_area_norm)
     ''', (user_identifier,))
     raw_data = cursor.fetchall()
 
