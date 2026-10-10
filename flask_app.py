@@ -1335,14 +1335,20 @@ def quiz_mode():
         else:
             forced_mode = req_mode
 
-    # Fetch ALL incomplete attempts to pass to the template
-    cursor.execute('SELECT attempt_id, mode, start_time FROM quiz_attempts WHERE username = %s AND quiz_name = %s ORDER BY start_time DESC', (username, quiz_name))
+    # Fetch all attempts and response counts together to avoid one query per attempt.
+    cursor.execute('''
+        SELECT qa.attempt_id, qa.mode, qa.start_time, COUNT(ar.id) AS answered_count
+        FROM quiz_attempts qa
+        LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
+        WHERE qa.username = %s AND qa.quiz_name = %s
+        GROUP BY qa.attempt_id, qa.mode, qa.start_time
+        ORDER BY qa.start_time DESC
+    ''', (username, quiz_name))
     all_attempts = cursor.fetchall()
 
     incomplete_attempts = []
     for att in all_attempts:
-        cursor.execute('SELECT COUNT(id) as c FROM attempt_responses WHERE attempt_id = %s', (att['attempt_id'],))
-        answered_count = cursor.fetchone()['c']
+        answered_count = att['answered_count']
 
         if answered_count < total_questions:
             # Safely format the date depending on if it's a datetime object or a string from MySQL
