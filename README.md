@@ -49,6 +49,10 @@ Run the focused regression tests from the repository root:
 python -m unittest discover -s tests -p 'test_flashcards.py' -v
 ```
 
+These use an isolated SQLite fixture with generated columns and an upsert syntax
+adapter; verify save/resume against a safe MySQL test database separately to cover
+MySQL-specific schema and collation behavior.
+
 Hot-path query batching (quiz mode attempt counts, remediation module stats,
 question resume position, and user assignment scope) is covered by query-count
 regression tests:
@@ -56,7 +60,3 @@ regression tests:
 ```bash
 python -m unittest discover -s tests -p 'test_query_batching.py' -v
 ```
-
-These use an isolated SQLite fixture with generated columns and an upsert syntax
-adapter; verify save/resume against a safe MySQL test database separately to cover
-MySQL-specific schema and collation behavior.
