@@ -92,7 +92,12 @@ def process_tasks():
                                        (final_output_json_path, 'output.json')):
                         if not os.path.isfile(path):
                             raise RuntimeError(f"Document generation did not produce {name}")
-                        upload_json_artifact(payload, username, path, name)
+                        try:
+                            upload_json_artifact(payload, username, path, name)
+                        except Exception as artifact_error:
+                            # Questions are already committed; do not regenerate a quiz
+                            # just because its optional audit artifact could not be stored.
+                            print(f"Task #{task_id}: could not store {name}: {artifact_error}")
 
             elif task_type == 'remediation_pdf':
                 # Sourced from faculty_routes.py -> create_remediation()

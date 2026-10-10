@@ -35,7 +35,9 @@ queued. Quiz creation and task insertion commit together.
 
 The worker conditionally claims pending tasks, downloads PDFs into an isolated
 temporary directory, and removes temporary files even when processing fails.
-It saves extracted topics and question JSON alongside the source object;
+It saves extracted topics and question JSON alongside the source object on a
+best-effort basis. Artifact storage failures are logged, but do not fail an
+already-generated quiz or trigger duplicate generation;
 MySQL remains authoritative for quizzes and questions. The document list comes
 from owner-filtered task metadata, not local directory scans. Failed documents
 can be retried from that list while their source objects remain retained.

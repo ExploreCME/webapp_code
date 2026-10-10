@@ -211,6 +211,24 @@ class QuizWorkerTests(unittest.TestCase):
                 self.run_worker([self.connection(task), failed])
         self.assertIn("'failed'", failed.cursor.return_value.execute.call_args.args[0])
 
+    def test_artifact_storage_failure_does_not_fail_committed_quiz(self):
+        task = {**self.task, "task_type": "document", "payload": "{}"}
+        complete = self.connection()
+        with tempfile.TemporaryDirectory() as directory:
+            @contextmanager
+            def download(*args):
+                yield os.path.join(directory, "source.pdf")
+            def extract(filepath, name, output):
+                Path(output).write_text('{"extracted_topics": []}\n')
+            def generate(source, name, output, *args):
+                Path(output).write_text('[]')
+            self.worker.eor_extractor.extract_topics_from_eor_file.side_effect = extract
+            self.worker.question_generator.generate_questions_from_eor.side_effect = generate
+            with patch.object(self.worker, "download_document", side_effect=download), \
+                    patch.object(self.worker, "upload_json_artifact", side_effect=RuntimeError("S3 unavailable")):
+                self.run_worker([self.connection(task), complete])
+        self.assertIn("'completed'", complete.cursor.return_value.execute.call_args.args[0])
+
     def test_remediation_uses_downloaded_pdf(self):
         task = {**self.task, "task_type": "remediation_pdf",
                 "payload": '{"remediation_name": "test-remediation"}'}
