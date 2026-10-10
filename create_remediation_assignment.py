@@ -398,10 +398,11 @@ async def save_to_database(username: str, data_list: list, remediation_name: str
                 assignment_task = data.get("task_area") or "Formulating the Most Likely Diagnosis"
                 assignment_topic = data.get("topic_area") or "General"
                 assignment_tuples.append((
-                    assignment_id, username, remediation_name,
-                    assignment_organ,
-                    assignment_task,
-                    assignment_topic,
+                    assignment_id, username, username.strip().lower(),
+                    remediation_name, remediation_name.strip().lower(),
+                    assignment_organ, str(assignment_organ).strip().lower(),
+                    assignment_task, str(assignment_task).strip().lower(),
+                    assignment_topic, str(assignment_topic).strip().lower(),
                     data.get("summary", ""),
                     data.get("diagram_code", ""),
                     data.get("diagram_explanation", ""),
@@ -425,8 +426,10 @@ async def save_to_database(username: str, data_list: list, remediation_name: str
                 print(f"[{datetime.now()}] Bulk Inserting {len(assignment_tuples)} Remediation Flashcard Modules.")
                 await cursor.executemany('''
                     INSERT INTO remediation_assignments
-                    (id, username, remediation_name, organ_system, task_area, topic_area, summary, diagram_code, diagram_explanation, created_date)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (id, username, username_norm, remediation_name, remediation_name_norm,
+                     organ_system, organ_system_norm, task_area, task_area_norm, topic_area, topic_area_norm,
+                     summary, diagram_code, diagram_explanation, created_date)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', assignment_tuples)
             if question_tuples:
                 print(f"[{datetime.now()}] Bulk Inserting {len(question_tuples)} Remediation Questions.")

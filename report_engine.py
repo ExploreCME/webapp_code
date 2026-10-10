@@ -40,7 +40,8 @@ class ReportEngine:
                    COALESCE(SUM(ar.is_correct), 0) as correct_answers
             FROM quiz_attempts qa
             LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
-            WHERE qa.username = %s AND qa.quiz_name = %s {mode_filter}
+            WHERE qa.username_norm = LOWER(TRIM(%s))
+              AND qa.quiz_name_norm = LOWER(TRIM(%s)) {mode_filter}
             GROUP BY qa.attempt_id, qa.start_time
             ORDER BY qa.start_time DESC
         ''', (clerk_id, target_name))
@@ -92,12 +93,13 @@ class ReportEngine:
             module_breakdown = []
             if target_type == 'remediation':
                 self.m_cursor.execute('''
-                    SELECT ra.topic_area, COUNT(ar.id) as answered, COALESCE(SUM(ar.is_correct), 0) as correct
+                    SELECT MIN(ra.topic_area) AS topic_area, COUNT(ar.id) as answered,
+                           COALESCE(SUM(ar.is_correct), 0) as correct
                     FROM attempt_responses ar
                     JOIN remediation_questions rq ON ar.question_id = rq.id
                     JOIN remediation_assignments ra ON rq.assignment_id = ra.id
                     WHERE ar.attempt_id = %s
-                    GROUP BY ra.id, ra.topic_area
+                    GROUP BY ra.id, ra.topic_area_norm
                 ''', (attempt_id,))
 
                 for row in self.m_cursor.fetchall():
@@ -128,10 +130,10 @@ class ReportEngine:
 
         # 1. Fetch valid organ systems (Top 14) to establish our defined list
         self.m_cursor.execute("""
-            SELECT TRIM(organ_system) as organ_system
+            SELECT organ_system_norm AS organ_system
             FROM question_bank
-            WHERE organ_system IS NOT NULL AND TRIM(organ_system) != ''
-            GROUP BY TRIM(organ_system)
+            WHERE organ_system_norm IS NOT NULL AND organ_system_norm != ''
+            GROUP BY organ_system_norm
             ORDER BY COUNT(*) DESC
             LIMIT 14
         """)
@@ -148,8 +150,8 @@ class ReportEngine:
             LEFT JOIN question_bank qb ON ar.question_id = qb.id
             LEFT JOIN remediation_questions rq ON ar.question_id = rq.id
             LEFT JOIN remediation_assignments ra ON rq.assignment_id = ra.id
-            WHERE qa.username IN ({format_strings}) {mode_filter}
-        ''', tuple(clerk_ids))
+            WHERE qa.username_norm IN ({format_strings}) {mode_filter}
+        ''', tuple(str(clerk_id).strip().lower() for clerk_id in clerk_ids))
 
         responses = self.m_cursor.fetchall()
 
@@ -178,7 +180,7 @@ class ReportEngine:
 
             # Check if organ is in the defined valid list, else force to 'Miscellaneous'
             org = r['organ_system'] or 'Unknown'
-            if org not in valid_organs:
+            if str(org).strip().lower() not in valid_organs:
                 org = "Miscellaneous"
 
             mapped_task = get_standardized_task_area(r['task_area'])
@@ -217,15 +219,16 @@ class ReportEngine:
 
         # 1. Fetch ALL relevant attempts for the class
         self.m_cursor.execute(f'''
-            SELECT qa.username, qa.attempt_id, qa.start_time,
+            SELECT qa.username_norm AS username, qa.attempt_id, qa.start_time,
                    COUNT(ar.id) as answered_count,
                    COALESCE(SUM(ar.is_correct), 0) as correct_answers
             FROM quiz_attempts qa
             LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
-            WHERE qa.quiz_name = %s AND qa.username IN ({format_strings}) {mode_filter}
-            GROUP BY qa.attempt_id, qa.username, qa.start_time
+            WHERE qa.quiz_name_norm = LOWER(TRIM(%s))
+              AND qa.username_norm IN ({format_strings}) {mode_filter}
+            GROUP BY qa.attempt_id, qa.username_norm, qa.start_time
             ORDER BY qa.start_time DESC
-        ''', (target_name, *clerk_ids))
+        ''', (target_name, *(str(clerk_id).strip().lower() for clerk_id in clerk_ids)))
 
         all_class_attempts = self.m_cursor.fetchall()
         if not all_class_attempts:
