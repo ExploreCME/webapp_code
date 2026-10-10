@@ -1,69 +1,114 @@
-# shared_utils.py
+/*
+ * Normalize lookup values so the app can compare canonical values without
+ * TRIM()/LOWER() expressions in the hot paths.
+ *
+ * This script is intentionally additive and safe to run before the app is
+ * switched to the *_norm lookup columns.
+ */
 
-SHARED_VALID_TASK_AREAS = [
-    "Hx & PE",
-    "Labs & Dx",
-    "Most Likely Dx",
-    "Health Maint & Prev",
-    "Clinic Int.",
-    "Pharm Therapeutics",
-    "Basic Science"
-]
+-- question_bank
+ALTER TABLE question_bank
+  ADD COLUMN organ_system_norm VARCHAR(255) NULL AFTER organ_system,
+  ADD COLUMN task_area_norm VARCHAR(255) NULL AFTER task_area,
+  ADD COLUMN topic_area_norm VARCHAR(255) NULL AFTER topic_area;
 
-SHARED_TASK_AREA_MAPPING = {
-    "history taking and performing physical examination": "Hx & PE",
-    "history taking & performing physical examination": "Hx & PE",
-    "using laboratory and diagnostic studies": "Labs & Dx",
-    "using diagnostic and laboratory studies": "Labs & Dx",
-    "formulating most likely diagnosis": "Most Likely Dx",
-    "formulating the most likely diagnosis": "Most Likely Dx",
-    "health maintenance, patient education, and preventative measures": "Health Maint & Prev",
-    "health maintenance, patient education, and preventive measures": "Health Maint & Prev",
-    "health maintenance, patient education, & preventative measures": "Health Maint & Prev",
-    "managing patients - health maintenance, patient education, and preventive measures": "Health Maint & Prev",
-    "clinical intervention": "Clinic Int.",
-    "clinical interventions": "Clinic Int.",
-    "managing patients - clinical interventions": "Clinic Int.",
-    "managing patients - clinical intervention": "Clinic Int.",
-    "managing patients-clinical interventions": "Clinic Int.",
-    "managing patients-clinical intervention": "Clinic Int.",
-    "clin int": "Clinic Int.",
-    "clin int.": "Clinic Int.",
-    "pharmaceutical therapeutics": "Pharm Therapeutics",
-    "managing patients - pharmaceutical therapeutics": "Pharm Therapeutics",
-    "applying basic scientific concepts": "Basic Science",
-    "applying foundational scientific concepts": "Basic Science"
-}
+UPDATE question_bank
+SET organ_system_norm = LOWER(TRIM(organ_system)),
+    task_area_norm = LOWER(TRIM(task_area)),
+    topic_area_norm = LOWER(TRIM(topic_area))
+WHERE organ_system_norm IS NULL
+   OR task_area_norm IS NULL
+   OR topic_area_norm IS NULL;
 
-def get_standardized_task_area(raw_task_area_from_db):
-    if not raw_task_area_from_db:
-        return "Unknown Task Area"
-    
-    clean_task_key = " ".join(raw_task_area_from_db.strip().lower().split())
-    mapped_task = SHARED_TASK_AREA_MAPPING.get(clean_task_key, raw_task_area_from_db.strip().title())
-    return mapped_task
+CREATE INDEX idx_question_bank_organ_norm
+  ON question_bank (organ_system_norm, task_area_norm);
 
-def is_assignment_name_unique(conn, username, target_name, assignment_type='quiz'):
-    """
-    Checks if a quiz or remediation name already exists for a user.
-    Returns True if the name is unique (safe to use), False if it already exists.
-    """
-    if not target_name:
-        return False
-        
-    with conn.cursor() as cursor:
-        if assignment_type == 'quiz':
-            cursor.execute('''
-                SELECT 1 FROM user_quizzes WHERE username = %s AND TRIM(LOWER(quiz_name)) = TRIM(LOWER(%s))
-                UNION
-                SELECT 1 FROM quiz_generation_tasks WHERE username = %s AND TRIM(LOWER(quiz_name)) = TRIM(LOWER(%s)) AND status IN ('pending', 'processing')
-            ''', (username, target_name, username, target_name))
-            
-        elif assignment_type == 'remediation':
-            cursor.execute('''
-                SELECT 1 FROM remediation_assignments 
-                WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s)) AND TRIM(LOWER(remediation_name)) = TRIM(LOWER(%s))
-            ''', (username, target_name))
-            
-        # If fetchone() returns None, the name is unique.
-        return cursor.fetchone() is None
+CREATE INDEX idx_question_bank_task_norm
+  ON question_bank (task_area_norm);
+
+CREATE INDEX idx_question_bank_topic_norm
+  ON question_bank (topic_area_norm);
+
+-- remediation_assignments
+ALTER TABLE remediation_assignments
+  ADD COLUMN organ_system_norm VARCHAR(255) NULL AFTER organ_system,
+  ADD COLUMN task_area_norm VARCHAR(255) NULL AFTER task_area,
+  ADD COLUMN topic_area_norm VARCHAR(255) NULL AFTER topic_area,
+  ADD COLUMN username_norm VARCHAR(255) NULL AFTER username,
+  ADD COLUMN remediation_name_norm VARCHAR(255) NULL AFTER remediation_name;
+
+UPDATE remediation_assignments
+SET organ_system_norm = LOWER(TRIM(organ_system)),
+    task_area_norm = LOWER(TRIM(task_area)),
+    topic_area_norm = LOWER(TRIM(topic_area)),
+    username_norm = LOWER(TRIM(username)),
+    remediation_name_norm = LOWER(TRIM(remediation_name))
+WHERE organ_system_norm IS NULL
+   OR task_area_norm IS NULL
+   OR topic_area_norm IS NULL
+   OR username_norm IS NULL
+   OR remediation_name_norm IS NULL;
+
+CREATE INDEX idx_remediation_assignments_lookup
+  ON remediation_assignments (organ_system_norm, task_area_norm, topic_area_norm);
+
+CREATE INDEX idx_remediation_assignments_user_name
+  ON remediation_assignments (username_norm, remediation_name_norm);
+
+-- users
+ALTER TABLE users
+  ADD COLUMN username_norm VARCHAR(255) NULL AFTER username,
+  ADD COLUMN clerk_id_norm VARCHAR(255) NULL AFTER clerk_id;
+
+UPDATE users
+SET username_norm = LOWER(TRIM(username)),
+    clerk_id_norm = LOWER(TRIM(clerk_id))
+WHERE username_norm IS NULL
+   OR clerk_id_norm IS NULL;
+
+CREATE INDEX idx_users_username_norm
+  ON users (username_norm);
+
+-- quiz_attempts
+ALTER TABLE quiz_attempts
+  ADD COLUMN username_norm VARCHAR(255) NULL AFTER username,
+  ADD COLUMN quiz_name_norm VARCHAR(255) NULL AFTER quiz_name;
+
+UPDATE quiz_attempts
+SET username_norm = LOWER(TRIM(username)),
+    quiz_name_norm = LOWER(TRIM(quiz_name))
+WHERE username_norm IS NULL
+   OR quiz_name_norm IS NULL;
+
+CREATE INDEX idx_quiz_attempts_user_quiz_time
+  ON quiz_attempts (username_norm, quiz_name_norm, start_time);
+
+CREATE INDEX idx_quiz_attempts_quiz_name
+  ON quiz_attempts (quiz_name_norm);
+
+-- flashcards
+ALTER TABLE flashcards
+  ADD COLUMN organ_system_norm VARCHAR(255) NULL AFTER organ_system,
+  ADD COLUMN topic_norm VARCHAR(255) NULL AFTER topic;
+
+UPDATE flashcards
+SET organ_system_norm = LOWER(TRIM(organ_system)),
+    topic_norm = LOWER(TRIM(topic))
+WHERE organ_system_norm IS NULL
+   OR topic_norm IS NULL;
+
+CREATE INDEX idx_flashcards_organ_topic
+  ON flashcards (organ_system_norm, topic_norm);
+
+-- class_members
+ALTER TABLE class_members
+  ADD COLUMN clerk_id_norm VARCHAR(255) NULL AFTER clerk_id;
+
+UPDATE class_members
+SET clerk_id_norm = LOWER(TRIM(clerk_id))
+WHERE clerk_id_norm IS NULL;
+
+CREATE INDEX idx_class_members_clerk_norm
+  ON class_members (class_id, clerk_id_norm);
+
+COMMIT;
