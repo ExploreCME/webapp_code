@@ -22,14 +22,8 @@ import Question_writing_and_verification_optomized as question_generator
 import on_demand_generator
 from create_remediation_assignment import start_remediation_job
 
-def get_db_connection():
-    return pymysql.connect(
-        host=os.getenv('MYSQL_HOST'),
-        user=os.getenv('MYSQL_USER'),
-        password=os.getenv('MYSQL_PASSWORD'),
-        database=os.getenv('MYSQL_DB'),
-        cursorclass=pymysql.cursors.DictCursor
-    )
+# Use the centralized database pool instead of direct pymysql connections
+from db_pool import get_db_connection
 
 def process_tasks():
     while True:
@@ -129,7 +123,7 @@ def process_tasks():
             print(f"[{datetime.now()}] Task FAILED: {e}")
             try:
                 # Reconnect safely to record the failure
-                if not conn or not conn.open:
+                if conn is None:
                     conn = get_db_connection()
                 cursor = conn.cursor()
                 if task:
@@ -139,8 +133,11 @@ def process_tasks():
                 print(f"[{datetime.now()}] Failed to update status to 'failed': {db_e}")
         finally:
             # Ensure the connection is always closed at the end of every loop
-            if conn and conn.open:
-                conn.close()
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
 if __name__ == "__main__":
     print("Starting Background Quiz Worker...")
