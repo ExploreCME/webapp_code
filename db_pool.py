@@ -25,12 +25,25 @@ def _build_pool():
     if not all(required):
         return None
 
+    # DigitalOcean managed MySQL requires TLS and listens on a non-default port (25060).
+    # Set MYSQL_SSL_DISABLED=true only for local/non-TLS databases.
+    ssl_disabled = os.getenv('MYSQL_SSL_DISABLED', 'false').lower() in ('1', 'true', 'yes', 'on')
+    ssl_ca = os.getenv('MYSQL_SSL_CA')  # optional path to a CA cert for full verification
+
+    if ssl_disabled:
+        ssl_config = None
+    elif ssl_ca:
+        ssl_config = {'ca': ssl_ca}
+    else:
+        ssl_config = {'ssl': {}}  # encrypted connection, same as the working manual test
+
     mysql_pool = PooledDB(
         creator=pymysql,
         maxconnections=20,
         mincached=2,
         blocking=True,
         host=os.getenv('MYSQL_HOST'),
+        port=int(os.getenv('MYSQL_PORT', '3306')),
         user=os.getenv('MYSQL_USER'),
         password=os.getenv('MYSQL_PASSWORD'),
         database=os.getenv('MYSQL_DB'),
@@ -38,6 +51,7 @@ def _build_pool():
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=True,
         connect_timeout=10,
+        ssl=ssl_config,
     )
     return mysql_pool
 
