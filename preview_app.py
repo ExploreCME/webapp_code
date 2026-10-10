@@ -1,102 +1,177 @@
-#preview_app.py
-#preview_app.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, g
-import pymysql
+###user_stats.py
+####user_stats.py
+import json
 import os
+import pymysql
+import pymysql.cursors
+import re
+import time
+from flask import Blueprint, render_template, session, redirect, url_for, g
 
 # --- PERFORMANCE IMPORTS ---
-from dbutils.pooled_db import PooledDB
+from db_pool import get_db_connection
 
-preview_bp = Blueprint('preview', __name__)
+# --- IMPORT SHARED CLEANING LOGIC ---
+from shared_utils import SHARED_VALID_TASK_AREAS, get_standardized_task_area
+
+stats_bp = Blueprint('stats', __name__)
 
 # ==========================================
 # MYSQL CONNECTION POOL (SCALABLE)
 # ==========================================
-# Evaluated when Blueprint is registered (after .env is loaded)
-mysql_pool = PooledDB(
-    creator=pymysql,
-    maxconnections=2,
-    mincached=0,
-    blocking=True,
-    host=os.getenv('MYSQL_HOST'),
-    user=os.getenv('MYSQL_USER'),
-    password=os.getenv('MYSQL_PASSWORD'),
-    database=os.getenv('MYSQL_DB'),
-    cursorclass=pymysql.cursors.DictCursor
-)
-
-def get_db():
-    """Pulls a connection directly from the global pool."""
+# Use the shared app pool instead of creating a second pool in this module.
+def get_mysql_db():
+    """Pulls a connection from the shared global pool."""
     if 'db' not in g:
-        g.db = mysql_pool.connection()
+        g.db = get_db_connection()
     return g.db
 
-@preview_bp.teardown_request
+@stats_bp.teardown_request
 def close_db(error):
-    """Safely returns the connection back to the MySQL pool."""
     db = g.pop('db', None)
     if db is not None:
         try:
-            db.close()
+            db.close() # Returns connection to the pool rather than closing TCP socket
         except Exception:
             pass
 
 # ==========================================
-# HARDCODED PREVIEW SETTINGS
+# IN-MEMORY CACHE FOR HEAVY GLOBAL QUERIES
 # ==========================================
-SAMPLE_QUIZ_NAME = "CVA Sample Questions for 2028s"
-SAMPLE_REMEDIATION_NAME = "EOR 1 Remediation"
+GLOBAL_TOP_ORGANS = None
+GLOBAL_TOP_ORGANS_TIMESTAMP = 0
 
-# ==========================================
-# PREVIEW MENU & SETUP
-# ==========================================
-@preview_bp.route('/preview')
-def preview_menu():
-    """Public menu allowing users to pick Quiz or Remediation."""
-    return render_template('preview_menu.html',
-                           quiz_name=SAMPLE_QUIZ_NAME,
-                           remediation_name=SAMPLE_REMEDIATION_NAME)
+@stats_bp.route('/my_statistics')
+def my_statistics():
+    if 'username' not in session:
+        return redirect(url_for('index'))
+    user_identifier = session['username']  # clerk_id / username
 
-@preview_bp.route('/preview/setup/<assignment_type>')
-def preview_setup(assignment_type):
-    """Allows user to select Study or Test mode."""
-    if assignment_type not in ['quiz', 'remediation']:
-        flash("Invalid preview type.", "error")
-        return redirect(url_for('preview.preview_menu'))
+    mysql_conn = get_mysql_db()
+    cursor = mysql_conn.cursor()
 
-    return render_template('preview_setup.html', assignment_type=assignment_type)
+    # ---------------------------------------------------------
+    # 1. FETCH DISPLAY NAME (FAST PATH: SESSION CACHE)
+    # ---------------------------------------------------------
+    display_name = session.get('display_name')
 
-# ==========================================
-# TAKE PREVIEW (STATELESS GATEWAY)
-# ==========================================
-@preview_bp.route('/preview/take/<assignment_type>', methods=['GET'])
-def preview_take(assignment_type):
-    """
-    Routes the user into the main application's quiz engine.
+    if not display_name:
+        try:
+            cursor.execute('SELECT first_name, last_name FROM users WHERE clerk_id = %s', (user_identifier,))
+            user_record = cursor.fetchone()
 
-    By deliberately omitting an 'attempt_id', the main app (flask_app.py)
-    will render the live index.html and actively grade submitted answers,
-    but it will bypass all database INSERT logic!
-    """
-    mode = request.args.get('mode', 'study_no_exp')
+            if user_record and user_record.get('first_name'):
+                display_name = f"{user_record['first_name']} {user_record['last_name']}".strip()
+            else:
+                display_name = session.get('first_name', session.get('name', 'Student'))
 
-    if assignment_type == 'quiz':
-        # Send directly to the main app's question page without an attempt_id
-        return redirect(url_for('quiz.question_page',
-                                quiz_name=SAMPLE_QUIZ_NAME,
-                                mode=mode))
+            # Cache in session to prevent DB hit on next reload
+            session['display_name'] = display_name
+        except Exception as e:
+            print(f"Error fetching display name from MySQL: {e}")
+            display_name = session.get('first_name', session.get('name', 'Student'))
 
-    elif assignment_type == 'remediation':
-        # Remediations route requires the assignment UUID instead of the name
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM remediation_assignments WHERE remediation_name = %s LIMIT 1", (SAMPLE_REMEDIATION_NAME,))
-        row = cursor.fetchone()
+    # ---------------------------------------------------------
+    # 2. MYSQL QUERIES FOR STATS & QUESTION DATA
+    # ---------------------------------------------------------
+    # --- CACHED TOP 14 ORGAN SYSTEMS GLOBALLY ---
+    global GLOBAL_TOP_ORGANS, GLOBAL_TOP_ORGANS_TIMESTAMP
 
-        if not row:
-            flash("Sample remediation not found in the database.", "error")
-            return redirect(url_for('preview.preview_menu'))
+    # Cache the global organ query for 1 hour to prevent DB overload
+    if not GLOBAL_TOP_ORGANS or (time.time() - GLOBAL_TOP_ORGANS_TIMESTAMP > 3600):
+        cursor.execute("""
+            SELECT TRIM(organ_system) as organ_system
+            FROM question_bank
+            WHERE organ_system IS NOT NULL AND TRIM(organ_system) != ''
+            GROUP BY TRIM(organ_system)
+            ORDER BY COUNT(*) DESC
+            LIMIT 14
+        """)
+        GLOBAL_TOP_ORGANS = [row['organ_system'] for row in cursor.fetchall() if row['organ_system']]
+        GLOBAL_TOP_ORGANS_TIMESTAMP = time.time()
 
-        return redirect(url_for('quiz.remediation_question_page',
-                                assignment_id=row['id'],
-                                mode=mode))
+    global_top_14_organs = GLOBAL_TOP_ORGANS
+
+    # --- TOTAL OVERALL USER STATS ---
+    cursor.execute('''
+        SELECT
+            COUNT(ar.id) as total_attempted,
+            SUM(CASE WHEN ar.is_correct = 1 THEN 1 ELSE 0 END) as total_correct
+        FROM attempt_responses ar
+        JOIN quiz_attempts qa ON ar.attempt_id = qa.attempt_id
+        WHERE qa.username = %s
+    ''', (user_identifier,))
+    overall = cursor.fetchone() or {}
+    total_attempted = int(overall.get('total_attempted') or 0)
+    total_correct = int(overall.get('total_correct') or 0)
+
+    # --- CROSS-TABULATED STATS (Organ System x Task Area) ---
+    cursor.execute('''
+        SELECT
+            TRIM(COALESCE(qb.organ_system, ra.organ_system)) as organ_system,
+            TRIM(COALESCE(qb.task_area, ra.task_area)) as task_area,
+            COUNT(ar.id) as attempted,
+            SUM(CASE WHEN ar.is_correct = 1 THEN 1 ELSE 0 END) as correct
+        FROM attempt_responses ar
+        JOIN quiz_attempts qa ON ar.attempt_id = qa.attempt_id
+        LEFT JOIN question_bank qb ON ar.question_id = qb.id
+        LEFT JOIN remediation_questions rq ON ar.question_id = rq.id
+        LEFT JOIN remediation_assignments ra ON rq.assignment_id = ra.id
+        WHERE qa.username = %s
+        GROUP BY
+            TRIM(COALESCE(qb.organ_system, ra.organ_system)),
+            TRIM(COALESCE(qb.task_area, ra.task_area))
+    ''', (user_identifier,))
+    raw_data = cursor.fetchall()
+
+    # ---------------------------------------------------------
+    # 3. BUILD NESTED STATS DICTIONARY
+    # ---------------------------------------------------------
+    stats_data = {
+        "organ_systems": {},
+        "task_areas": {}
+    }
+
+    for row in raw_data:
+        organ = row['organ_system'] if row['organ_system'] else "Unknown Organ System"
+        task = get_standardized_task_area(row['task_area'])
+        attempted = int(row['attempted'] or 0)
+        correct = int(row['correct'] or 0)
+
+        # Force any organ not in the top 14 list into "Miscellaneous"
+        if organ not in global_top_14_organs:
+            organ = "Miscellaneous"
+
+        # Plot Organ Systems
+        if organ not in stats_data["organ_systems"]:
+            stats_data["organ_systems"][organ] = {"attempted": 0, "correct": 0, "breakdown": {}}
+
+        stats_data["organ_systems"][organ]["attempted"] += attempted
+        stats_data["organ_systems"][organ]["correct"] += correct
+
+        # Safely increment breakdown as multiple raw rows might now map to 'Miscellaneous'
+        if task not in stats_data["organ_systems"][organ]["breakdown"]:
+            stats_data["organ_systems"][organ]["breakdown"][task] = {"attempted": 0, "correct": 0}
+        stats_data["organ_systems"][organ]["breakdown"][task]["attempted"] += attempted
+        stats_data["organ_systems"][organ]["breakdown"][task]["correct"] += correct
+
+        # Plot Task Areas if in 7 valid areas
+        if task in SHARED_VALID_TASK_AREAS:
+            if task not in stats_data["task_areas"]:
+                stats_data["task_areas"][task] = {"attempted": 0, "correct": 0, "breakdown": {}}
+
+            stats_data["task_areas"][task]["attempted"] += attempted
+            stats_data["task_areas"][task]["correct"] += correct
+
+            if organ not in stats_data["task_areas"][task]["breakdown"]:
+                stats_data["task_areas"][task]["breakdown"][organ] = {"attempted": 0, "correct": 0}
+            stats_data["task_areas"][task]["breakdown"][organ]["attempted"] += attempted
+            stats_data["task_areas"][task]["breakdown"][organ]["correct"] += correct
+
+    return render_template(
+        'my_statistics.html',
+        username=display_name,
+        total_attempted=total_attempted,
+        total_correct=total_correct,
+        stats_data_json=json.dumps(stats_data)
+    )
