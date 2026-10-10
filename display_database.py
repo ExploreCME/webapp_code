@@ -148,12 +148,13 @@ def refresh_user_status():
             session.pop('accepted_eula', None)
         session['username'] = user_id
 
-        cursor = get_mysql_db().cursor()
+        conn = get_db_connection()
         try:
-            cursor.execute("SELECT has_paid, is_faculty FROM users WHERE clerk_id = %s", (user_id,))
-            result = cursor.fetchone()
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT has_paid, is_faculty FROM users WHERE clerk_id = %s", (user_id,))
+                result = cursor.fetchone()
         finally:
-            cursor.close()
+            conn.close()
 
         g.user_id = user_id
         g.is_premium = bool(result and result.get('has_paid') == 1)

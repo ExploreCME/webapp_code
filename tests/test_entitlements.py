@@ -19,6 +19,7 @@ class EntitlementTests(unittest.TestCase):
         self.client.set_cookie("__session", "test-clerk-token")
         self.user = {"has_paid": 1, "is_faculty": "N", "accepted_eula": 1}
         self.db = MagicMock()
+        self.db.cursor.return_value.__enter__.return_value = self.db.cursor.return_value
         self.db.cursor.return_value.fetchone.side_effect = lambda: self.user
         self.db.cursor.return_value.fetchall.return_value = []
         db_patch = patch.object(flask_app, "get_db", return_value=self.db)
@@ -27,6 +28,7 @@ class EntitlementTests(unittest.TestCase):
         for target, value in (
             ("MAINTENANCE_MODE", False),
             ("get_mysql_db", self.db),
+            ("get_db_connection", self.db),
             ("decode_clerk_token", {"sub": "paid-user"}),
         ):
             if target == "MAINTENANCE_MODE":
@@ -148,6 +150,19 @@ class EntitlementTests(unittest.TestCase):
         self.db.cursor.return_value.execute.side_effect = RuntimeError("Database unavailable")
         self.assertEqual(self.client.get("/db_dashboard").status_code, 302)
         self.assertEqual(self.client.get("/").text, "False:False")
+
+    def test_entitlement_connection_is_released_before_route_database_work(self):
+        self.user["has_paid"] = 0
+        def retrieve(checkout_id):
+            self.db.close.assert_called_once()
+            return SimpleNamespace(payment_status="unpaid")
+        with patch.object(display_database.stripe.checkout.Session, "retrieve", side_effect=retrieve):
+            self.client.get("/payment-success?session_id=test-checkout")
+
+    def test_entitlement_connection_is_released_on_database_error(self):
+        self.db.cursor.return_value.execute.side_effect = RuntimeError("Query failed")
+        self.client.get("/db_dashboard")
+        self.db.close.assert_called_once()
 
     def test_dashboard_stats_cache_does_not_cache_entitlements(self):
         self.stats_patch.stop()
