@@ -263,33 +263,13 @@ def student_dashboard():
 # ==========================================
 @quiz_bp.route('/dashboard')
 def dashboard():
-    clerk_token = request.cookies.get('__session')
-    if not clerk_token:
+    from display_database import refresh_user_status
+
+    username = refresh_user_status()
+    if not username:
         return redirect(url_for('index'))
 
-    username = session.get('username')
-
-    # Fast path: check session
-    if session.get('is_premium'):
-        return render_template('dashboard.html', username=username, is_premium=True)
-
-    try:
-        decoded_token = jwt.decode(clerk_token, options={"verify_signature": False})
-        username = decoded_token.get('sub')
-        if not username:
-            return redirect(url_for('index'))
-
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT has_paid FROM users WHERE clerk_id = %s", (username,))
-        result = cursor.fetchone()
-
-        is_premium = bool(result and result.get('has_paid') == 1)
-        session['is_premium'] = is_premium
-
-    except Exception:
-        return redirect(url_for('index'))
-
+    is_premium = g.is_premium
     if not is_premium:
         return redirect(url_for('db_dashboard'))
 

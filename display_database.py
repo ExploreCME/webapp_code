@@ -4,7 +4,6 @@ from functools import wraps
 import pymysql
 import os
 import secrets
-import time
 from dotenv import load_dotenv
 import stripe
 import jwt
@@ -120,44 +119,70 @@ def decode_clerk_token(token):
     )
 
 
+def refresh_user_status():
+    """Verify identity and load entitlements once per request, never from session."""
+    if getattr(g, 'user_status_loaded', False):
+        return g.user_id
+
+    g.user_status_loaded = True
+    g.user_id = None
+    g.is_premium = False
+    g.is_faculty = False
+    session['is_premium'] = False
+    session['is_faculty'] = False
+    session.pop('last_db_sync', None)
+    clerk_token = request.cookies.get('__session')
+
+    if not clerk_token:
+        if not session.get('username', '').startswith('guest_'):
+            session.pop('username', None)
+            session.pop('accepted_eula', None)
+        return None
+
+    try:
+        decoded_token = decode_clerk_token(clerk_token)
+        user_id = decoded_token.get('sub')
+        if not user_id:
+            raise ValueError("Missing Clerk user ID")
+        if session.get('username') != user_id:
+            session.pop('accepted_eula', None)
+        session['username'] = user_id
+
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT has_paid, is_faculty FROM users WHERE clerk_id = %s", (user_id,))
+                result = cursor.fetchone()
+        finally:
+            conn.close()
+
+        g.user_id = user_id
+        g.is_premium = bool(result and result.get('has_paid') == 1)
+        g.is_faculty = bool(result and str(result.get('is_faculty')).strip().upper() in ['1', 'Y', 'YES', 'TRUE'])
+        session['is_premium'] = g.is_premium
+        session['is_faculty'] = g.is_faculty
+        return user_id
+    except Exception as e:
+        print(f"Error refreshing user status: {e}")
+        session.pop('username', None)
+        session.pop('accepted_eula', None)
+        return None
+
+
+@app.before_request
+def refresh_request_entitlements():
+    if request.endpoint and request.endpoint.startswith('static'):
+        return
+    if request.endpoint in ('webhook', 'clerk_webhook', 'logout'):
+        return
+    refresh_user_status()
+
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        clerk_token = request.cookies.get('__session')
-
-        if not clerk_token:
+        if not refresh_user_status():
             flash("Please sign in to access your dashboard.", "error")
-            return redirect(url_for('index'))
-
-        # Fast path check against the encrypted session
-        # ONLY bypasses DB if the permissions are already loaded
-        if session.get('username') and 'is_premium' in session:
-            return f(*args, **kwargs)
-
-        try:
-            decoded_token = decode_clerk_token(clerk_token)
-            user_id = decoded_token.get('sub')
-
-            if user_id:
-                session['username'] = user_id
-
-                # Fetch premium/faculty status ONCE and store in session (Swapped to MySQL)
-                conn = get_mysql_db()
-                cursor = conn.cursor()
-                cursor.execute("SELECT has_paid, is_faculty FROM users WHERE clerk_id = %s", (user_id,))
-                result = cursor.fetchone()
-
-                if result:
-                    session['is_premium'] = bool(result.get('has_paid') == 1)
-                    session['is_faculty'] = bool(str(result.get('is_faculty')).strip().upper() in ['1', 'Y', 'YES', 'TRUE'])
-                else:
-                    session['is_premium'] = False
-                    session['is_faculty'] = False
-
-        except Exception as e:
-            print(f"Auth error decoding token: {e}")
-            session.clear()
-            flash("Session expired or invalid. Please sign in again.", "error")
             return redirect(url_for('index'))
 
         return f(*args, **kwargs)
@@ -168,12 +193,13 @@ def login_required(f):
 # ==========================================
 @app.context_processor
 def inject_premium_status():
-    """Reads strictly from memory/session to prevent DB locking on renders."""
+    """Use request-scoped database status, independent of dashboard stats caching."""
     user_agent = request.headers.get('User-Agent', '').lower()
     is_app = 'median' in user_agent
 
-    is_premium = session.get('is_premium', False)
-    is_faculty = session.get('is_faculty', False)
+    refresh_user_status()
+    is_premium = g.is_premium
+    is_faculty = g.is_faculty
 
     # Pass Clerk publishable key to all templates
     clerk_publishable_key = os.getenv('CLERK_PUBLISHABLE_KEY', '')
@@ -273,41 +299,10 @@ def db_dashboard():
 @app.route('/')
 @nocache
 def index():
-    clerk_token = request.cookies.get('__session')
     user_agent = request.headers.get('User-Agent', '').lower()
     is_app = 'median' in user_agent
 
-    is_logged_in = False
-
-    if clerk_token:
-        try:
-            decoded_token = decode_clerk_token(clerk_token)
-            user_id = decoded_token.get('sub')
-
-            if user_id:
-                session['username'] = user_id
-                is_logged_in = True
-
-                # OPTIMIZATION: Throttle DB sync on homepage load (once every 10 mins)
-                current_time = time.time()
-                last_sync = session.get('last_db_sync', 0)
-
-                if current_time - last_sync > 600:
-                    conn = get_mysql_db()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT has_paid, is_faculty FROM users WHERE clerk_id = %s", (user_id,))
-                    result = cursor.fetchone()
-
-                    if result:
-                        session['is_premium'] = bool(result.get('has_paid') == 1)
-                        session['is_faculty'] = bool(str(result.get('is_faculty')).strip().upper() in ['1', 'Y', 'YES', 'TRUE'])
-                        session['last_db_sync'] = current_time
-                    else:
-                        session['is_premium'] = False
-                        session['is_faculty'] = False
-
-        except Exception as e:
-            print(f"Error checking user status on index: {e}")
+    is_logged_in = bool(refresh_user_status())
 
     if is_app and not is_logged_in:
         return render_template('app_login.html')
@@ -536,15 +531,11 @@ def payment_success():
             checkout_session = stripe.checkout.Session.retrieve(session_id)
 
             if checkout_session.payment_status == 'paid':
-                # Force the browser session to premium immediately
-                session['is_premium'] = True
-                session['last_db_sync'] = time.time()
-
                 # Update the database instantly to beat the webhook race condition
                 clerk_user_id = checkout_session.client_reference_id
                 stripe_customer_id = checkout_session.customer
 
-                if clerk_user_id and stripe_customer_id:
+                if clerk_user_id == g.user_id and stripe_customer_id:
                     conn = get_mysql_db()
                     cursor = conn.cursor()
 
@@ -563,9 +554,6 @@ def payment_success():
 
         except Exception as e:
             print(f"Error validating stripe session: {e}")
-
-    # Fallback to clear cache just in case
-    session.pop('last_db_sync', None)
 
     flash("Payment successful! Your premium access is now active.", "success")
     return redirect(url_for('db_dashboard'))
