@@ -288,23 +288,18 @@ def index():
                 session['username'] = user_id
                 is_logged_in = True
 
-                # OPTIMIZATION: Throttle DB sync on homepage load (once every 10 mins)
-                current_time = time.time()
-                last_sync = session.get('last_db_sync', 0)
+                # Always refresh premium status on homepage to prevent stale paywall after cache/session resets
+                conn = get_mysql_db()
+                cursor = conn.cursor()
+                cursor.execute("SELECT has_paid, is_faculty FROM users WHERE clerk_id = %s", (user_id,))
+                result = cursor.fetchone()
 
-                if current_time - last_sync > 600:
-                    conn = get_mysql_db()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT has_paid, is_faculty FROM users WHERE clerk_id = %s", (user_id,))
-                    result = cursor.fetchone()
-
-                    if result:
-                        session['is_premium'] = bool(result.get('has_paid') == 1)
-                        session['is_faculty'] = bool(str(result.get('is_faculty')).strip().upper() in ['1', 'Y', 'YES', 'TRUE'])
-                        session['last_db_sync'] = current_time
-                    else:
-                        session['is_premium'] = False
-                        session['is_faculty'] = False
+                if result:
+                    session['is_premium'] = bool(result.get('has_paid') == 1)
+                    session['is_faculty'] = bool(str(result.get('is_faculty')).strip().upper() in ['1', 'Y', 'YES', 'TRUE'])
+                else:
+                    session['is_premium'] = False
+                    session['is_faculty'] = False
 
         except Exception as e:
             print(f"Error checking user status on index: {e}")
