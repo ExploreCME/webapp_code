@@ -1,4 +1,4 @@
-import multiprocessing
+import os
 
 # ==========================================
 # GUNICORN ASYNC CONFIGURATION
@@ -6,8 +6,8 @@ import multiprocessing
 # This configuration uses 'gevent' to allow a small number of worker processes
 # to handle thousands of concurrent connections asynchronously.
 
-# Bind to localhost on port 8000 (adjust if your reverse proxy/deployment requires a different port)
-bind = "127.0.0.1:8000"
+# Bind to all interfaces on $PORT (set by Render), defaulting to 8000
+bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 
 # --- WORKER CONFIGURATION ---
 # Use the gevent async worker class to prevent I/O blocking (DB queries, API calls)
