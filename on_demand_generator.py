@@ -1,12 +1,10 @@
 ###on_demand_generator.py
 import os
 import json
-import aiomysql
 import asyncio
 import uuid
 import random
 from datetime import datetime
-from dotenv import load_dotenv
 
 # 👇 IMPORT THE NEW BATCH ENGINE
 from Question_writing_and_verification_optomized import (
@@ -15,25 +13,14 @@ from Question_writing_and_verification_optomized import (
     standardize_categories
 )
 
-# Load environment variables
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
-
-MYSQL_HOST = os.getenv('MYSQL_HOST')
-MYSQL_USER = os.getenv('MYSQL_USER')
-MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD')
-MYSQL_DB = os.getenv('MYSQL_DB')
+# Shared MySQL configuration (host, port, TLS, retries)
+from db_config import get_async_connection
 
 # ==========================================
 # MYSQL CONNECTION HELPER
 # ==========================================
 async def get_db_connection():
-    return await aiomysql.connect(
-        host=MYSQL_HOST,
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD,
-        db=MYSQL_DB,
-        cursorclass=aiomysql.DictCursor
-    )
+    return await get_async_connection()
 
 # ==========================================
 # DATABASE ROUTING LOGIC (SINGLE QUESTIONS)

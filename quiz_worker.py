@@ -1,20 +1,14 @@
 ##quiz_worker.py
-##quiz_worker.py
 import os
 import sys
 import time
 import json
-import pymysql
-import pymysql.cursors
+import traceback
 from datetime import datetime
-from dotenv import load_dotenv
 
-# 1. Force unbuffered output so logs show up in PythonAnywhere immediately
+# 1. Force unbuffered output so logs show up immediately
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
-
-# 2. Force load environment variables for the background worker
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
 
 # Import your LLM generation scripts
 import EOR_Extraction_optimized as eor_extractor
@@ -22,8 +16,17 @@ import Question_writing_and_verification_optomized as question_generator
 import on_demand_generator
 from create_remediation_assignment import start_remediation_job
 
-# Use the centralized database pool instead of direct pymysql connections
-from db_pool import get_db_connection
+# Shared MySQL configuration (host, port, TLS, retries)
+from db_config import get_sync_connection as get_db_connection
+
+
+def _safe_close(conn):
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 
 def process_tasks():
     while True:
@@ -43,7 +46,8 @@ def process_tasks():
             task = cursor.fetchone()
 
             if not task:
-                conn.close()
+                _safe_close(conn)
+                conn = None
                 print(f"[{datetime.now()}] Queue empty. Sleeping for 5s...")
                 time.sleep(5)
                 continue
@@ -60,8 +64,8 @@ def process_tasks():
             cursor.execute("UPDATE quiz_generation_tasks SET status = 'processing', updated_at = NOW() WHERE id = %s", (task_id,))
             conn.commit()
 
-            # 👇 CRITICAL FIX: Close the database connection before starting the long LLM process!
-            conn.close()
+            # Close the database connection before starting the long LLM process
+            _safe_close(conn)
             conn = None
 
             # ==========================================
@@ -69,15 +73,11 @@ def process_tasks():
             # ==========================================
 
             if task_type == 'blueprint':
-                # Sourced from flask_app.py -> build_quiz_batch()
                 generation_requests = payload.get('generation_requests')
                 quiz_id = payload.get('quiz_id')
-
-                # Make sure your generate_batch function accepts quiz_id so it maps questions correctly!
                 on_demand_generator.generate_batch(username, quiz_name, generation_requests, quiz_id=quiz_id)
 
             elif task_type == 'document':
-                # Sourced from flask_app.py -> generate_from_document()
                 filepath = payload.get('filepath')
                 quiz_id = payload.get('quiz_id')
                 extracted_topics_path = payload.get('extracted_topics_path')
@@ -92,27 +92,22 @@ def process_tasks():
                         username, num_per_topic, use_existing, quiz_id
                     )
                 finally:
-                    # Clean up the PDF to prevent disk quota exhaustion
                     if filepath and os.path.exists(filepath):
                         os.remove(filepath)
 
             elif task_type == 'remediation_pdf':
-                # Sourced from faculty_routes.py -> create_remediation()
                 filepath = payload.get('filepath')
                 remediation_name = payload.get('remediation_name')
 
                 try:
                     start_remediation_job(filepath, username, remediation_name)
                 finally:
-                    # Clean up the PDF to prevent disk quota exhaustion
                     if filepath and os.path.exists(filepath):
                         os.remove(filepath)
 
             # ==========================================
             # 3. COMPLETION
             # ==========================================
-
-            # 👇 CRITICAL FIX: Reconnect to the database to mark the task as complete
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("UPDATE quiz_generation_tasks SET status = 'completed', updated_at = NOW() WHERE id = %s", (task_id,))
@@ -121,23 +116,22 @@ def process_tasks():
 
         except Exception as e:
             print(f"[{datetime.now()}] Task FAILED: {e}")
+            traceback.print_exc()
             try:
-                # Reconnect safely to record the failure
-                if conn is None:
-                    conn = get_db_connection()
-                cursor = conn.cursor()
                 if task:
+                    _safe_close(conn)
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
                     cursor.execute("UPDATE quiz_generation_tasks SET status = 'failed', updated_at = NOW() WHERE id = %s", (task['id'],))
                     conn.commit()
             except Exception as db_e:
                 print(f"[{datetime.now()}] Failed to update status to 'failed': {db_e}")
+            if not task:
+                # Connection/poll failure: back off instead of hammering the DB
+                time.sleep(5)
         finally:
-            # Ensure the connection is always closed at the end of every loop
-            if conn is not None:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+            _safe_close(conn)
+
 
 if __name__ == "__main__":
     print("Starting Background Quiz Worker...")
