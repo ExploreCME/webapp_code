@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from functools import wraps
 import pymysql
 import os
+import secrets
 import time
 from dotenv import load_dotenv
 import stripe
@@ -20,7 +21,10 @@ basedir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
 
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates', 'template standardization'))
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'super_secret_pance_key_2026')
+flask_secret_key = os.getenv('FLASK_SECRET_KEY')
+if os.getenv('FLASK_ENV', '').lower() == 'production' and not flask_secret_key:
+    raise RuntimeError("FLASK_SECRET_KEY must be set in production.")
+app.secret_key = flask_secret_key or secrets.token_hex(32)
 
 # Session configuration to match your quiz app requirements
 app.config['SESSION_COOKIE_SAMESITE'] = os.getenv('SESSION_COOKIE_SAMESITE', 'None')
@@ -59,7 +63,7 @@ def close_dbs(error):
 # MAINTENANCE MODE TOGGLE
 # ==========================================
 MAINTENANCE_MODE = os.getenv('MAINTENANCE_MODE', 'True').lower() in ('1', 'true', 'yes', 'on')
-BYPASS_SECRET = os.getenv('BYPASS_SECRET', 'let_me_in_2026')
+BYPASS_SECRET = os.getenv('BYPASS_SECRET', '')
 
 @app.before_request
 def check_maintenance_mode():
@@ -71,7 +75,7 @@ def check_maintenance_mode():
         return
 
     # 2. Check if the user is using the secret backdoor URL
-    if request.args.get('bypass') == BYPASS_SECRET:
+    if BYPASS_SECRET and request.args.get('bypass') == BYPASS_SECRET:
         session['maintenance_bypass'] = True
         return redirect(request.path)
 
@@ -101,23 +105,19 @@ jwks_client = PyJWKClient(os.getenv('CLERK_JWKS_URL', 'https://clerk.explorecme.
 
 
 def decode_clerk_token(token):
-    """Verify Clerk JWTs when possible, but fall back gracefully for older/dev setups."""
+    """Verify Clerk JWTs using the configured issuer's signing key."""
     issuer = os.getenv('CLERK_ISSUER', 'https://clerk.explorecme.com')
     audience = os.getenv('CLERK_APP_ID')
 
-    try:
-        signing_key = jwks_client.get_signing_key_from_jwt(token)
-        return jwt.decode(
-            token,
-            key=signing_key.key,
-            algorithms=['RS256'],
-            audience=audience,
-            issuer=issuer,
-            options={"require": ["exp", "iat", "sub"]}
-        )
-    except Exception:
-        # Graceful fallback for local or temporary insecure environments.
-        return jwt.decode(token, options={"verify_signature": False})
+    signing_key = jwks_client.get_signing_key_from_jwt(token)
+    return jwt.decode(
+        token,
+        key=signing_key.key,
+        algorithms=['RS256'],
+        audience=audience,
+        issuer=issuer,
+        options={"require": ["exp", "iat", "sub"]}
+    )
 
 
 def login_required(f):
