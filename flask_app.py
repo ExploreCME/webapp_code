@@ -42,6 +42,26 @@ def is_quiz_name_unique(cursor, username, quiz_name):
     ''', (username, quiz_name, username, quiz_name))
     return cursor.fetchone() is None
 
+def _get_user_assignment_scope(cursor, username):
+    """Fetches the user's row fields and class memberships in one round trip.
+
+    Returns (user_row, class_ids): user_row is None when no users row exists,
+    otherwise a dict with has_paid and program_code; class_ids are raw class_id values.
+    """
+    cursor.execute('''
+        SELECT u.clerk_id AS user_clerk_id, u.has_paid, u.program_code, cm.class_id
+        FROM (SELECT 1 AS anchor) AS scope_anchor
+        LEFT JOIN users u ON u.clerk_id = %s
+        LEFT JOIN class_members cm ON cm.clerk_id = %s
+    ''', (username, username))
+    rows = cursor.fetchall()
+    first = rows[0] if rows else None
+    user_row = None
+    if first and first.get('user_clerk_id') is not None:
+        user_row = {'has_paid': first.get('has_paid'), 'program_code': first.get('program_code')}
+    class_ids = list(dict.fromkeys(row['class_id'] for row in rows if row.get('class_id') is not None))
+    return user_row, class_ids
+
 @quiz_bp.teardown_request
 def close_db(error):
     db = g.pop('db', None)
@@ -202,12 +222,9 @@ def student_dashboard():
     cursor = conn.cursor()
 
     # 1. Fetch user assignment criteria
-    cursor.execute("SELECT program_code FROM users WHERE clerk_id = %s", (username,))
-    p_res = cursor.fetchone()
+    p_res, raw_class_ids = _get_user_assignment_scope(cursor, username)
     program_code = p_res.get('program_code') if p_res and p_res.get('program_code') else 'NONE'
-
-    cursor.execute("SELECT class_id FROM class_members WHERE clerk_id = %s", (username,))
-    student_class_ids = [int(row['class_id']) for row in cursor.fetchall() if row.get('class_id') is not None]
+    student_class_ids = [int(class_id) for class_id in raw_class_ids]
 
     upcoming_assignments = []
     now = datetime.now()
@@ -496,18 +513,16 @@ def select_quiz():
     cursor = conn.cursor()
 
     # 1. Fetch User Data & Cast Classes to Integers
-    cursor.execute("SELECT has_paid, program_code FROM users WHERE clerk_id = %s", (username,))
-    user_res = cursor.fetchone()
+    user_res, raw_class_ids = _get_user_assignment_scope(cursor, username)
 
     if not user_res or user_res.get('has_paid') != 1:
         flash("You need premium access to view assignments.", "error")
         return redirect(url_for('quiz.dashboard'))
 
     program_code = (user_res.get('program_code') or 'NONE').strip().upper()
-    cursor.execute("SELECT class_id FROM class_members WHERE clerk_id = %s", (username,))
 
     # Strictly cast to int so MySQL IN() queries use indexes efficiently
-    student_class_ids = [int(row['class_id']) for row in cursor.fetchall() if row.get('class_id') is not None]
+    student_class_ids = [int(class_id) for class_id in raw_class_ids]
 
     quiz_data = []
     now = datetime.now()
@@ -1115,6 +1130,7 @@ def question_page():
     conn = get_db()
     cursor = conn.cursor()
     question_ids = []
+    all_question_ids = []
 
     if selected_quiz_name:
         cursor.execute('''
@@ -1126,6 +1142,7 @@ def question_page():
             ORDER BY qqm.map_id ASC
         ''', (selected_quiz_name,))
         question_ids = [row['id'] for row in cursor.fetchall()]
+        all_question_ids = question_ids
 
         if mode == 'study_missed' and question_ids:
             cursor.execute('''
@@ -1150,19 +1167,17 @@ def question_page():
         except ValueError:
             pass
 
+    # Load this attempt's responses once; they drive both the resume position and the grid.
+    response_rows = []
+    if attempt_id:
+        cursor.execute('SELECT question_id, is_correct, user_choice FROM attempt_responses WHERE attempt_id = %s', (attempt_id,))
+        response_rows = cursor.fetchall()
+
     if not q and selected_quiz_name and question_ids:
         if attempt_id:
-            cursor.execute('''
-                SELECT qb.id
-                FROM question_bank qb
-                JOIN quiz_questions_map qqm ON qb.id = qqm.question_id
-                JOIN user_quizzes uq ON qqm.quiz_id = uq.quiz_id
-                LEFT JOIN attempt_responses ar ON qb.id = ar.question_id AND ar.attempt_id = %s
-                WHERE uq.quiz_name = %s AND ar.id IS NULL
-                ORDER BY qqm.map_id ASC LIMIT 1
-            ''', (attempt_id, selected_quiz_name))
-            result = cursor.fetchone()
-            q = result['id'] if result else question_ids[0]
+            # Resume at the first quiz question (in map order) without a response for this attempt.
+            answered_ids = {str(row['question_id']) for row in response_rows}
+            q = next((q_id for q_id in all_question_ids if str(q_id) not in answered_ids), question_ids[0])
         else:
             q = question_ids[0]
 
@@ -1185,8 +1200,7 @@ def question_page():
     previous_choice = None
 
     if attempt_id:
-        cursor.execute('SELECT question_id, is_correct, user_choice FROM attempt_responses WHERE attempt_id = %s', (attempt_id,))
-        for row in cursor.fetchall():
+        for row in response_rows:
             responses_dict[str(row['question_id'])] = row['is_correct']
             if str(row['question_id']) == str(q):
                 previous_choice = row['user_choice']
@@ -1267,12 +1281,9 @@ def quiz_mode():
     if cursor.fetchone():
         is_remediation = True
 
-    cursor.execute("SELECT program_code FROM users WHERE clerk_id = %s", (username,))
-    p_res = cursor.fetchone()
+    p_res, raw_class_ids = _get_user_assignment_scope(cursor, username)
     program_code = p_res.get('program_code') if p_res and p_res.get('program_code') else 'NONE'
-
-    cursor.execute("SELECT class_id FROM class_members WHERE clerk_id = %s", (username,))
-    student_class_ids = [str(row['class_id']) for row in cursor.fetchall() if row.get('class_id') is not None]
+    student_class_ids = [str(class_id) for class_id in raw_class_ids]
 
     table_name = "assigned_remediations" if is_remediation else "assigned_quizzes"
     name_col = "remediation_name" if is_remediation else "quiz_name"
@@ -1335,14 +1346,20 @@ def quiz_mode():
         else:
             forced_mode = req_mode
 
-    # Fetch ALL incomplete attempts to pass to the template
-    cursor.execute('SELECT attempt_id, mode, start_time FROM quiz_attempts WHERE username = %s AND quiz_name = %s ORDER BY start_time DESC', (username, quiz_name))
+    # Fetch all attempts and response counts together to avoid one query per attempt.
+    cursor.execute('''
+        SELECT qa.attempt_id, qa.mode, qa.start_time, COUNT(ar.id) AS answered_count
+        FROM quiz_attempts qa
+        LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
+        WHERE qa.username = %s AND qa.quiz_name = %s
+        GROUP BY qa.attempt_id, qa.mode, qa.start_time
+        ORDER BY qa.start_time DESC
+    ''', (username, quiz_name))
     all_attempts = cursor.fetchall()
 
     incomplete_attempts = []
     for att in all_attempts:
-        cursor.execute('SELECT COUNT(id) as c FROM attempt_responses WHERE attempt_id = %s', (att['attempt_id'],))
-        answered_count = cursor.fetchone()['c']
+        answered_count = att['answered_count']
 
         if answered_count < total_questions:
             # Safely format the date depending on if it's a datetime object or a string from MySQL
@@ -1412,12 +1429,9 @@ def start_quiz():
     if cursor.fetchone():
         is_remediation = True
 
-    cursor.execute("SELECT program_code FROM users WHERE clerk_id = %s", (username,))
-    p_res = cursor.fetchone()
+    p_res, raw_class_ids = _get_user_assignment_scope(cursor, username)
     program_code = p_res.get('program_code') if p_res and p_res.get('program_code') else 'NONE'
-
-    cursor.execute("SELECT class_id FROM class_members WHERE clerk_id = %s", (username,))
-    student_class_ids = [str(row['class_id']) for row in cursor.fetchall() if row.get('class_id') is not None]
+    student_class_ids = [str(class_id) for class_id in raw_class_ids]
 
     table_name = "assigned_remediations" if is_remediation else "assigned_quizzes"
     name_col = "remediation_name" if is_remediation else "quiz_name"
@@ -1828,12 +1842,19 @@ def remediation_modules(remediation_name):
 
     conn = get_db()
     cursor = conn.cursor()
+    # Fetch modules with question and response counts together to avoid two queries per module.
     cursor.execute('''
-        SELECT id, topic_area, task_area
-        FROM remediation_assignments
-        WHERE TRIM(LOWER(remediation_name)) = TRIM(LOWER(%s))
-        ORDER BY created_date ASC, id ASC
-    ''', (remediation_name,))
+        SELECT ra.id, ra.topic_area, ra.task_area,
+               COUNT(DISTINCT rq.id) AS q_count,
+               COUNT(ar.id) AS answered_count,
+               SUM(ar.is_correct) AS correct_count
+        FROM remediation_assignments ra
+        LEFT JOIN remediation_questions rq ON rq.assignment_id = ra.id
+        LEFT JOIN attempt_responses ar ON ar.question_id = rq.id AND ar.attempt_id = %s
+        WHERE TRIM(LOWER(ra.remediation_name)) = TRIM(LOWER(%s))
+        GROUP BY ra.id, ra.topic_area, ra.task_area, ra.created_date
+        ORDER BY ra.created_date ASC, ra.id ASC
+    ''', (attempt_id, remediation_name))
     modules = cursor.fetchall()
 
     module_stats = []
@@ -1841,19 +1862,9 @@ def remediation_modules(remediation_name):
     total_answered = 0
 
     for mod in modules:
-        cursor.execute("SELECT COUNT(id) as c FROM remediation_questions WHERE assignment_id = %s", (mod['id'],))
-        q_count = cursor.fetchone()['c'] or 0
-
-        cursor.execute('''
-            SELECT COUNT(ar.id) as a, SUM(ar.is_correct) as cor
-            FROM attempt_responses ar
-            JOIN remediation_questions rq ON ar.question_id = rq.id
-            WHERE ar.attempt_id = %s AND rq.assignment_id = %s
-        ''', (attempt_id, mod['id']))
-        ans_data = cursor.fetchone()
-
-        answered = int(ans_data['a'] or 0)
-        correct = int(ans_data['cor'] or 0)
+        q_count = int(mod['q_count'] or 0)
+        answered = int(mod['answered_count'] or 0)
+        correct = int(mod['correct_count'] or 0)
 
         total_questions += q_count
         total_answered += answered
@@ -1944,15 +1955,16 @@ def remediation_question_page(assignment_id):
             flash("Great job! You have no missed questions to review for this module.", "success")
             return redirect(url_for('quiz.remediation_modules', remediation_name=rem_name, attempt_id=attempt_id))
 
+    # Load this attempt's responses once; they drive both the resume position and the grid.
+    response_rows = []
+    if attempt_id:
+        cursor.execute('SELECT question_id, is_correct, user_choice FROM attempt_responses WHERE attempt_id = %s', (attempt_id,))
+        response_rows = cursor.fetchall()
+
     if not current_q_id and attempt_id:
-        cursor.execute('''
-            SELECT q.id FROM remediation_questions q
-            LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = %s
-            WHERE q.assignment_id = %s AND ar.id IS NULL
-            ORDER BY q.id ASC LIMIT 1
-        ''', (attempt_id, assignment_id))
-        unanswered = cursor.fetchone()
-        current_q_id = unanswered['id'] if unanswered else question_ids[0]
+        # Resume at the first module question (by id) without a response for this attempt.
+        answered_ids = {str(row['question_id']) for row in response_rows}
+        current_q_id = next((q['id'] for q in questions if str(q['id']) not in answered_ids), question_ids[0])
     elif not current_q_id:
         current_q_id = question_ids[0]
 
@@ -1967,8 +1979,7 @@ def remediation_question_page(assignment_id):
     responses_dict = {}
 
     if attempt_id:
-        cursor.execute('SELECT question_id, is_correct, user_choice FROM attempt_responses WHERE attempt_id = %s', (attempt_id,))
-        for row in cursor.fetchall():
+        for row in response_rows:
             responses_dict[str(row['question_id'])] = row['is_correct']
             if str(row['question_id']) == str(current_q_id):
                 previous_choice = row['user_choice']
