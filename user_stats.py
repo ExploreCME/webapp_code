@@ -1,112 +1,176 @@
--- 20261010_normalize_lookup_columns.sql
--- Add canonicalized lookup columns for fast lowercase/trim comparisons
--- and keep the app code from doing repeated TRIM()/LOWER() work in hot queries.
+# user_stats.py
+import json
+import os
+import pymysql
+import pymysql.cursors
+import re
+import time
+from flask import Blueprint, render_template, session, redirect, url_for, g
 
-START TRANSACTION;
+# --- PERFORMANCE IMPORTS ---
+from db_pool import get_db_connection
 
--- question_bank
-ALTER TABLE question_bank
-  ADD COLUMN organ_system_norm VARCHAR(255) NULL AFTER organ_system,
-  ADD COLUMN task_area_norm VARCHAR(255) NULL AFTER task_area,
-  ADD COLUMN topic_area_norm VARCHAR(255) NULL AFTER topic_area;
+# --- IMPORT SHARED CLEANING LOGIC ---
+from shared_utils import SHARED_VALID_TASK_AREAS, get_standardized_task_area
 
-UPDATE question_bank
-SET organ_system_norm = LOWER(TRIM(organ_system)),
-    task_area_norm = LOWER(TRIM(task_area)),
-    topic_area_norm = LOWER(TRIM(topic_area))
-WHERE organ_system_norm IS NULL
-   OR task_area_norm IS NULL
-   OR topic_area_norm IS NULL;
+stats_bp = Blueprint('stats', __name__)
 
-CREATE INDEX idx_question_bank_organ_norm
-  ON question_bank (organ_system_norm, task_area_norm);
+# ==========================================
+# MYSQL CONNECTION POOL (SCALABLE)
+# ==========================================
+# Use the shared app pool instead of creating a second pool in this module.
+def get_mysql_db():
+    """Pulls a connection from the shared global pool."""
+    if 'db' not in g:
+        g.db = get_db_connection()
+    return g.db
 
-CREATE INDEX idx_question_bank_task_norm
-  ON question_bank (task_area_norm);
+@stats_bp.teardown_request
+def close_db(error):
+    db = g.pop('db', None)
+    if db is not None:
+        try:
+            db.close() # Returns connection to the pool rather than closing TCP socket
+        except Exception:
+            pass
 
-CREATE INDEX idx_question_bank_topic_norm
-  ON question_bank (topic_area_norm);
+# ==========================================
+# IN-MEMORY CACHE FOR HEAVY GLOBAL QUERIES
+# ==========================================
+GLOBAL_TOP_ORGANS = None
+GLOBAL_TOP_ORGANS_TIMESTAMP = 0
 
--- remediation_assignments
-ALTER TABLE remediation_assignments
-  ADD COLUMN organ_system_norm VARCHAR(255) NULL AFTER organ_system,
-  ADD COLUMN task_area_norm VARCHAR(255) NULL AFTER task_area,
-  ADD COLUMN topic_area_norm VARCHAR(255) NULL AFTER topic_area,
-  ADD COLUMN username_norm VARCHAR(255) NULL AFTER username,
-  ADD COLUMN remediation_name_norm VARCHAR(255) NULL AFTER remediation_name;
+@stats_bp.route('/my_statistics')
+def my_statistics():
+    if 'username' not in session:
+        return redirect(url_for('index'))
+    user_identifier = session['username']  # clerk_id / username
 
-UPDATE remediation_assignments
-SET organ_system_norm = LOWER(TRIM(organ_system)),
-    task_area_norm = LOWER(TRIM(task_area)),
-    topic_area_norm = LOWER(TRIM(topic_area)),
-    username_norm = LOWER(TRIM(username)),
-    remediation_name_norm = LOWER(TRIM(remediation_name))
-WHERE organ_system_norm IS NULL
-   OR task_area_norm IS NULL
-   OR topic_area_norm IS NULL
-   OR username_norm IS NULL
-   OR remediation_name_norm IS NULL;
+    mysql_conn = get_mysql_db()
+    cursor = mysql_conn.cursor()
 
-CREATE INDEX idx_remediation_assignments_lookup
-  ON remediation_assignments (organ_system_norm, task_area_norm, topic_area_norm);
+    # ---------------------------------------------------------
+    # 1. FETCH DISPLAY NAME (FAST PATH: SESSION CACHE)
+    # ---------------------------------------------------------
+    display_name = session.get('display_name')
 
-CREATE INDEX idx_remediation_assignments_user_name
-  ON remediation_assignments (username_norm, remediation_name_norm);
+    if not display_name:
+        try:
+            cursor.execute('SELECT first_name, last_name FROM users WHERE clerk_id = %s', (user_identifier,))
+            user_record = cursor.fetchone()
 
--- users
-ALTER TABLE users
-  ADD COLUMN username_norm VARCHAR(255) NULL AFTER username,
-  ADD COLUMN clerk_id_norm VARCHAR(255) NULL AFTER clerk_id;
+            if user_record and user_record.get('first_name'):
+                display_name = f"{user_record['first_name']} {user_record['last_name']}".strip()
+            else:
+                display_name = session.get('first_name', session.get('name', 'Student'))
 
-UPDATE users
-SET username_norm = LOWER(TRIM(username)),
-    clerk_id_norm = LOWER(TRIM(clerk_id))
-WHERE username_norm IS NULL
-   OR clerk_id_norm IS NULL;
+            # Cache in session to prevent DB hit on next reload
+            session['display_name'] = display_name
+        except Exception as e:
+            print(f"Error fetching display name from MySQL: {e}")
+            display_name = session.get('first_name', session.get('name', 'Student'))
 
-CREATE INDEX idx_users_username_norm
-  ON users (username_norm);
+    # ---------------------------------------------------------
+    # 2. MYSQL QUERIES FOR STATS & QUESTION DATA
+    # ---------------------------------------------------------
+    # --- CACHED TOP 14 ORGAN SYSTEMS GLOBALLY ---
+    global GLOBAL_TOP_ORGANS, GLOBAL_TOP_ORGANS_TIMESTAMP
 
--- quiz_attempts
-ALTER TABLE quiz_attempts
-  ADD COLUMN username_norm VARCHAR(255) NULL AFTER username,
-  ADD COLUMN quiz_name_norm VARCHAR(255) NULL AFTER quiz_name;
+    # Cache the global organ query for 1 hour to prevent DB overload
+    if not GLOBAL_TOP_ORGANS or (time.time() - GLOBAL_TOP_ORGANS_TIMESTAMP > 3600):
+        cursor.execute("""
+            SELECT TRIM(organ_system) as organ_system
+            FROM question_bank
+            WHERE organ_system IS NOT NULL AND TRIM(organ_system) != ''
+            GROUP BY TRIM(organ_system)
+            ORDER BY COUNT(*) DESC
+            LIMIT 14
+        """)
+        GLOBAL_TOP_ORGANS = [row['organ_system'] for row in cursor.fetchall() if row['organ_system']]
+        GLOBAL_TOP_ORGANS_TIMESTAMP = time.time()
 
-UPDATE quiz_attempts
-SET username_norm = LOWER(TRIM(username)),
-    quiz_name_norm = LOWER(TRIM(quiz_name))
-WHERE username_norm IS NULL
-   OR quiz_name_norm IS NULL;
+    global_top_14_organs = GLOBAL_TOP_ORGANS
 
-CREATE INDEX idx_quiz_attempts_user_quiz_time
-  ON quiz_attempts (username_norm, quiz_name_norm, start_time);
+    # --- TOTAL OVERALL USER STATS ---
+    cursor.execute('''
+        SELECT
+            COUNT(ar.id) as total_attempted,
+            SUM(CASE WHEN ar.is_correct = 1 THEN 1 ELSE 0 END) as total_correct
+        FROM attempt_responses ar
+        JOIN quiz_attempts qa ON ar.attempt_id = qa.attempt_id
+        WHERE qa.username = %s
+    ''', (user_identifier,))
+    overall = cursor.fetchone() or {}
+    total_attempted = int(overall.get('total_attempted') or 0)
+    total_correct = int(overall.get('total_correct') or 0)
 
-CREATE INDEX idx_quiz_attempts_quiz_name
-  ON quiz_attempts (quiz_name_norm);
+    # --- CROSS-TABULATED STATS (Organ System x Task Area) ---
+    cursor.execute('''
+        SELECT
+            TRIM(COALESCE(qb.organ_system, ra.organ_system)) as organ_system,
+            TRIM(COALESCE(qb.task_area, ra.task_area)) as task_area,
+            COUNT(ar.id) as attempted,
+            SUM(CASE WHEN ar.is_correct = 1 THEN 1 ELSE 0 END) as correct
+        FROM attempt_responses ar
+        JOIN quiz_attempts qa ON ar.attempt_id = qa.attempt_id
+        LEFT JOIN question_bank qb ON ar.question_id = qb.id
+        LEFT JOIN remediation_questions rq ON ar.question_id = rq.id
+        LEFT JOIN remediation_assignments ra ON rq.assignment_id = ra.id
+        WHERE qa.username = %s
+        GROUP BY
+            TRIM(COALESCE(qb.organ_system, ra.organ_system)),
+            TRIM(COALESCE(qb.task_area, ra.task_area))
+    ''', (user_identifier,))
+    raw_data = cursor.fetchall()
 
--- flashcards
-ALTER TABLE flashcards
-  ADD COLUMN organ_system_norm VARCHAR(255) NULL AFTER organ_system,
-  ADD COLUMN topic_norm VARCHAR(255) NULL AFTER topic;
+    # ---------------------------------------------------------
+    # 3. BUILD NESTED STATS DICTIONARY
+    # ---------------------------------------------------------
+    stats_data = {
+        "organ_systems": {},
+        "task_areas": {}
+    }
 
-UPDATE flashcards
-SET organ_system_norm = LOWER(TRIM(organ_system)),
-    topic_norm = LOWER(TRIM(topic))
-WHERE organ_system_norm IS NULL
-   OR topic_norm IS NULL;
+    for row in raw_data:
+        organ = row['organ_system'] if row['organ_system'] else "Unknown Organ System"
+        task = get_standardized_task_area(row['task_area'])
+        attempted = int(row['attempted'] or 0)
+        correct = int(row['correct'] or 0)
 
-CREATE INDEX idx_flashcards_organ_topic
-  ON flashcards (organ_system_norm, topic_norm);
+        # Force any organ not in the top 14 list into "Miscellaneous"
+        if organ not in global_top_14_organs:
+            organ = "Miscellaneous"
 
--- class_members
-ALTER TABLE class_members
-  ADD COLUMN clerk_id_norm VARCHAR(255) NULL AFTER clerk_id;
+        # Plot Organ Systems
+        if organ not in stats_data["organ_systems"]:
+            stats_data["organ_systems"][organ] = {"attempted": 0, "correct": 0, "breakdown": {}}
 
-UPDATE class_members
-SET clerk_id_norm = LOWER(TRIM(clerk_id))
-WHERE clerk_id_norm IS NULL;
+        stats_data["organ_systems"][organ]["attempted"] += attempted
+        stats_data["organ_systems"][organ]["correct"] += correct
 
-CREATE INDEX idx_class_members_clerk_norm
-  ON class_members (class_id, clerk_id_norm);
+        # Safely increment breakdown as multiple raw rows might now map to 'Miscellaneous'
+        if task not in stats_data["organ_systems"][organ]["breakdown"]:
+            stats_data["organ_systems"][organ]["breakdown"][task] = {"attempted": 0, "correct": 0}
+        stats_data["organ_systems"][organ]["breakdown"][task]["attempted"] += attempted
+        stats_data["organ_systems"][organ]["breakdown"][task]["correct"] += correct
 
-COMMIT;
+        # Plot Task Areas if in 7 valid areas
+        if task in SHARED_VALID_TASK_AREAS:
+            if task not in stats_data["task_areas"]:
+                stats_data["task_areas"][task] = {"attempted": 0, "correct": 0, "breakdown": {}}
+
+            stats_data["task_areas"][task]["attempted"] += attempted
+            stats_data["task_areas"][task]["correct"] += correct
+
+            if organ not in stats_data["task_areas"][task]["breakdown"]:
+                stats_data["task_areas"][task]["breakdown"][organ] = {"attempted": 0, "correct": 0}
+            stats_data["task_areas"][task]["breakdown"][organ]["attempted"] += attempted
+            stats_data["task_areas"][task]["breakdown"][organ]["correct"] += correct
+
+    return render_template(
+        'my_statistics.html',
+        username=display_name,
+        total_attempted=total_attempted,
+        total_correct=total_correct,
+        stats_data_json=json.dumps(stats_data)
+    )

@@ -1,71 +1,71 @@
-# db_pool.py
-import os
-import pymysql
-from dbutils.pooled_db import PooledDB
-from dotenv import load_dotenv
+-- 20261010_normalize_lookup_columns.sql
+-- RECORD of the normalization columns applied manually to the production MySQL DB on 2026-10-10.
+-- The application code does NOT currently read these columns.
+-- NOTE: MySQL commits ALTER TABLE / CREATE INDEX implicitly, so a transaction wrapper gives no rollback protection.
+-- NOTE: The `users` table has no `username` column, so it is intentionally not included here.
+-- Do not re-run against a database where these columns already exist.
 
-# Load .env from the project root when present.
-base_dir = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(base_dir, '.env'))
+-- question_bank
+ALTER TABLE question_bank
+  ADD COLUMN organ_system_norm VARCHAR(255) NULL AFTER organ_system,
+  ADD COLUMN task_area_norm VARCHAR(255) NULL AFTER task_area,
+  ADD COLUMN topic_area_norm VARCHAR(255) NULL AFTER topic_area;
 
-mysql_pool = None
+UPDATE question_bank
+SET organ_system_norm = LOWER(TRIM(organ_system)),
+    task_area_norm = LOWER(TRIM(task_area)),
+    topic_area_norm = LOWER(TRIM(topic_area));
 
+CREATE INDEX idx_question_bank_organ_norm ON question_bank (organ_system_norm, task_area_norm);
+CREATE INDEX idx_question_bank_task_norm ON question_bank (task_area_norm);
+CREATE INDEX idx_question_bank_topic_norm ON question_bank (topic_area_norm);
 
-def _build_pool():
-    """Create the MySQL pool only when the environment is complete."""
-    global mysql_pool
+-- remediation_assignments
+ALTER TABLE remediation_assignments
+  ADD COLUMN organ_system_norm VARCHAR(255) NULL AFTER organ_system,
+  ADD COLUMN task_area_norm VARCHAR(255) NULL AFTER task_area,
+  ADD COLUMN topic_area_norm VARCHAR(255) NULL AFTER topic_area,
+  ADD COLUMN username_norm VARCHAR(255) NULL AFTER username,
+  ADD COLUMN remediation_name_norm VARCHAR(255) NULL AFTER remediation_name;
 
-    required = [
-        os.getenv('MYSQL_HOST'),
-        os.getenv('MYSQL_USER'),
-        os.getenv('MYSQL_PASSWORD'),
-        os.getenv('MYSQL_DB'),
-    ]
+UPDATE remediation_assignments
+SET organ_system_norm = LOWER(TRIM(organ_system)),
+    task_area_norm = LOWER(TRIM(task_area)),
+    topic_area_norm = LOWER(TRIM(topic_area)),
+    username_norm = LOWER(TRIM(username)),
+    remediation_name_norm = LOWER(TRIM(remediation_name));
 
-    if not all(required):
-        return None
+CREATE INDEX idx_remediation_assignments_lookup ON remediation_assignments (organ_system_norm, task_area_norm, topic_area_norm);
+CREATE INDEX idx_remediation_assignments_user_name ON remediation_assignments (username_norm, remediation_name_norm);
 
-    ssl_disabled = os.getenv('MYSQL_SSL_DISABLED', 'false').lower() in ('1', 'true', 'yes', 'on')
-    ssl_ca = os.getenv('MYSQL_SSL_CA')
+-- quiz_attempts
+ALTER TABLE quiz_attempts
+  ADD COLUMN username_norm VARCHAR(255) NULL AFTER username,
+  ADD COLUMN quiz_name_norm VARCHAR(255) NULL AFTER quiz_name;
 
-    if ssl_disabled:
-        ssl_config = None
-    elif ssl_ca:
-        ssl_config = {'ca': ssl_ca}
-    else:
-        ssl_config = {'ssl': {}}
+UPDATE quiz_attempts
+SET username_norm = LOWER(TRIM(username)),
+    quiz_name_norm = LOWER(TRIM(quiz_name));
 
-    mysql_pool = PooledDB(
-        creator=pymysql,
-        maxconnections=12,
-        mincached=2,
-        blocking=True,
-        host=os.getenv('MYSQL_HOST'),
-        port=int(os.getenv('MYSQL_PORT', '3306')),
-        user=os.getenv('MYSQL_USER'),
-        password=os.getenv('MYSQL_PASSWORD'),
-        database=os.getenv('MYSQL_DB'),
-        charset='utf8mb4',
-        cursorclass=pymysql.cursors.DictCursor,
-        autocommit=True,
-        connect_timeout=10,
-        ping=1,
-        ssl=ssl_config,
-    )
-    return mysql_pool
+CREATE INDEX idx_quiz_attempts_user_quiz_time ON quiz_attempts (username_norm, quiz_name_norm, start_time);
+CREATE INDEX idx_quiz_attempts_quiz_name ON quiz_attempts (quiz_name_norm);
 
+-- flashcards
+ALTER TABLE flashcards
+  ADD COLUMN organ_system_norm VARCHAR(255) NULL AFTER organ_system,
+  ADD COLUMN topic_norm VARCHAR(255) NULL AFTER topic;
 
-def get_db_connection():
-    """Returns a connection from the global pool or raises a clear config error."""
-    global mysql_pool
+UPDATE flashcards
+SET organ_system_norm = LOWER(TRIM(organ_system)),
+    topic_norm = LOWER(TRIM(topic));
 
-    if mysql_pool is None:
-        mysql_pool = _build_pool()
+CREATE INDEX idx_flashcards_organ_topic ON flashcards (organ_system_norm, topic_norm);
 
-    if mysql_pool is None:
-        raise RuntimeError(
-            "MySQL environment values are not set. Set MYSQL_HOST, MYSQL_USER, "
-            "MYSQL_PASSWORD, and MYSQL_DB before starting the app."
-        )
+-- class_members
+ALTER TABLE class_members
+  ADD COLUMN clerk_id_norm VARCHAR(255) NULL AFTER clerk_id;
 
-    return mysql_pool.connection()
+UPDATE class_members
+SET clerk_id_norm = LOWER(TRIM(clerk_id));
+
+CREATE INDEX idx_class_members_clerk_norm ON class_members (class_id, clerk_id_norm);
