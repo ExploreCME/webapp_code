@@ -20,7 +20,7 @@ from Question_writing_and_verification_optomized import (
     ConversationManager as CoreConversationManager
 )
 
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 DEFAULT_OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') or os.getenv('MY_API_KEY')
 
 DEFAULT_MODEL = "gpt-6.1-sol"
@@ -233,7 +233,7 @@ class ConversationManager:
         extracted_topics = response.choices[0].message.parsed.extracted_topics
 
         # Load canonical topics JSON for matching (identical to EOR_Extraction_optimized)
-        json_path = "/home/ps51632/mysite/explorecme/topics_by_organ_system.json"
+        json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "topics_by_organ_system.json")
         try:
             with open(json_path, 'r') as f:
                 canonical_topics_data = json.load(f)

@@ -3,8 +3,10 @@
 <div class="container mt-5">
     <h2>Create Remediation Assignment</h2>
     <p>Upload an EOR PDF report to generate a customized remediation assignment.</p>
+    <p>PDFs only (up to {{ max_document_mb }} MiB). Documents are stored privately and sent to OpenAI for processing. Do not upload patient-identifying or confidential information without authorization. Originals and generated files are subject to the configured storage retention policy.</p>
 
     <form action="{{ url_for('faculty.create_remediation') }}" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ document_csrf_token }}">
 
         <!-- Remediation Name Input -->
         <div class="form-group mb-3">

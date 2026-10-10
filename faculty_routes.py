@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 import io
 import csv
 import asyncio
+import secrets
 import random
 import urllib.parse
 from reportlab.lib.pagesizes import letter, landscape
@@ -22,6 +23,7 @@ from reportlab.lib import colors
 
 # --- PERFORMANCE IMPORTS ---
 from db_pool import get_db_connection  # <-- Uses the new global pool
+from document_storage import upload_document
 
 # Import the new statistical report engine (Fail gracefully if not created yet)
 try:
@@ -32,7 +34,7 @@ except ImportError:
 # --- IMPORT SHARED CLEANING LOGIC & UNIQUE CHECK ---
 from shared_utils import SHARED_VALID_TASK_AREAS, is_assignment_name_unique
 
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 
 faculty_bp = Blueprint('faculty', __name__)
 
@@ -145,6 +147,10 @@ def create_remediation():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
+        request.max_content_length = int(os.getenv('MAX_DOCUMENT_BYTES', '20971520')) + 1048576
+        token = session.get('document_csrf_token', '')
+        if not token or not secrets.compare_digest(token, request.form.get('csrf_token', '')):
+            return current_app.response_class(status=400)
         if 'eor_pdf' not in request.files:
             flash('No file uploaded.', 'error')
             return redirect(request.url)
@@ -164,19 +170,12 @@ def create_remediation():
                     flash(f'A remediation named "{remediation_name}" already exists. Please choose a unique name.', 'error')
                     return redirect(request.url)
 
-                if file and file.filename.endswith('.pdf'):
-                    # Secure the filename and append identifiers to prevent overwriting
-                    filename = secure_filename(f"{username}_{remediation_name}_{file.filename}")
-                    upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
-                    os.makedirs(upload_folder, exist_ok=True)
-                    filepath = os.path.join(upload_folder, filename)
-
-                    # Save the file to disk for the background daemon to pick up
-                    file.save(filepath)
+                if file and file.filename.lower().endswith('.pdf'):
+                    document = upload_document(file, username)
 
                     # --- QUEUE TASK IN BACKGROUND (Non-Blocking) ---
                     task_payload = json.dumps({
-                        "filepath": filepath,
+                        **document,
                         "remediation_name": remediation_name
                     })
 
@@ -192,13 +191,21 @@ def create_remediation():
                     flash('Invalid file type. Please upload a PDF.', 'error')
                     return redirect(request.url)
 
-        except Exception as e:
-            flash(f'Error queuing task: {str(e)}', 'error')
+        except ValueError as e:
+            conn.rollback()
+            flash(str(e), 'error')
+            return redirect(url_for('faculty.remediation_menu'))
+        except Exception:
+            conn.rollback()
+            current_app.logger.exception("Remediation document upload or queue failed")
+            flash('Unable to store or queue your document. Please try again later.', 'error')
             return redirect(url_for('faculty.remediation_menu'))
         finally:
             conn.close()
 
-    return render_template('faculty_create_remediation.html')
+    token = session.setdefault('document_csrf_token', secrets.token_urlsafe(32))
+    return render_template('faculty_create_remediation.html', document_csrf_token=token,
+                           max_document_mb=int(os.getenv('MAX_DOCUMENT_BYTES', '20971520')) / 1048576)
 
 @faculty_bp.route('/faculty/review_remediation')
 @login_required

@@ -5,6 +5,7 @@ import sys
 import time
 import json
 from db_pool import get_db_connection
+from document_storage import download_document, upload_json_artifact
 from datetime import datetime
 
 # 1. Force unbuffered output so logs show up in PythonAnywhere immediately
@@ -50,8 +51,12 @@ def process_tasks():
             print(f"[{datetime.now()}] Processing Task #{task_id}: {quiz_name} ({task_type})")
 
             # Mark as processing
-            cursor.execute("UPDATE quiz_generation_tasks SET status = 'processing', updated_at = NOW() WHERE id = %s", (task_id,))
+            cursor.execute("UPDATE quiz_generation_tasks SET status = 'processing', updated_at = NOW() WHERE id = %s AND status = 'pending'", (task_id,))
+            claimed = cursor.rowcount
             conn.commit()
+            if claimed == 0:
+                task = None
+                continue
 
             # 👇 CRITICAL FIX: Close the database connection before starting the long LLM process!
             conn.close()
@@ -71,35 +76,32 @@ def process_tasks():
 
             elif task_type == 'document':
                 # Sourced from flask_app.py -> generate_from_document()
-                filepath = payload.get('filepath')
                 quiz_id = payload.get('quiz_id')
-                extracted_topics_path = payload.get('extracted_topics_path')
-                final_output_json_path = payload.get('final_output_json_path')
                 num_per_topic = payload.get('num_per_topic')
                 use_existing = payload.get('use_existing')
 
-                try:
+                with download_document(payload, username) as filepath:
+                    extracted_topics_path = os.path.join(os.path.dirname(filepath), 'extracted_topics.json')
+                    final_output_json_path = os.path.join(os.path.dirname(filepath), 'output.json')
                     eor_extractor.extract_topics_from_eor_file(filepath, quiz_name, extracted_topics_path)
                     question_generator.generate_questions_from_eor(
                         extracted_topics_path, quiz_name, final_output_json_path,
                         username, num_per_topic, use_existing, quiz_id
                     )
-                finally:
-                    # Clean up the PDF to prevent disk quota exhaustion
-                    if filepath and os.path.exists(filepath):
-                        os.remove(filepath)
+                    for path, name in ((extracted_topics_path, 'extracted_topics.json'),
+                                       (final_output_json_path, 'output.json')):
+                        if not os.path.isfile(path):
+                            raise RuntimeError(f"Document generation did not produce {name}")
+                        upload_json_artifact(payload, username, path, name)
 
             elif task_type == 'remediation_pdf':
                 # Sourced from faculty_routes.py -> create_remediation()
-                filepath = payload.get('filepath')
                 remediation_name = payload.get('remediation_name')
 
-                try:
-                    start_remediation_job(filepath, username, remediation_name)
-                finally:
-                    # Clean up the PDF to prevent disk quota exhaustion
-                    if filepath and os.path.exists(filepath):
-                        os.remove(filepath)
+                with download_document(payload, username) as filepath:
+                    results = start_remediation_job(filepath, username, remediation_name)
+                    if not results:
+                        raise RuntimeError("Document generation produced no remediation modules")
 
             # ==========================================
             # 3. COMPLETION

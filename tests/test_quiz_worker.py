@@ -1,5 +1,8 @@
 import importlib.util
 import os
+import json
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 import sys
 import unittest
@@ -42,6 +45,7 @@ class QuizWorkerTests(unittest.TestCase):
     def connection(self, task=None):
         conn = MagicMock(spec=["cursor", "commit", "close"])
         conn.cursor.return_value.fetchone.return_value = task
+        conn.cursor.return_value.rowcount = 1
         return conn
 
     def run_worker(self, connections):
@@ -146,6 +150,85 @@ class QuizWorkerTests(unittest.TestCase):
         complete_conn.close.side_effect = RuntimeError("close failed")
         self.run_worker([fetch_conn, complete_conn])
         complete_conn.close.assert_called_once()
+
+    def test_document_download_and_artifacts_use_temporary_paths(self):
+        task = {**self.task, "task_type": "document", "payload": json.dumps({
+            "object_key": "test-key", "owner": "test-user", "quiz_id": 2,
+            "num_per_topic": 1, "use_existing": True,
+        })}
+        paths = []
+
+        @contextmanager
+        def download(payload, username):
+            self.assertEqual(payload["owner"], username)
+            with tempfile.TemporaryDirectory() as directory:
+                paths.append(directory)
+                yield os.path.join(directory, "source.pdf")
+
+        def extract(filepath, name, output):
+            Path(output).write_text('{"extracted_topics": []}\n')
+
+        def generate(source, name, output, *args):
+            Path(output).write_text('[]')
+
+        self.worker.eor_extractor.extract_topics_from_eor_file.side_effect = extract
+        self.worker.question_generator.generate_questions_from_eor.side_effect = generate
+        with patch.object(self.worker, "download_document", side_effect=download), \
+                patch.object(self.worker, "upload_json_artifact") as upload:
+            self.run_worker([self.connection(task), self.connection()])
+        self.assertEqual(upload.call_count, 2)
+        self.assertEqual([call.args[3] for call in upload.call_args_list],
+                         ["extracted_topics.json", "output.json"])
+        self.assertFalse(os.path.exists(paths[0]))
+
+    def test_failed_document_keeps_original_and_cleans_temporary_copy(self):
+        task = {**self.task, "task_type": "document", "payload": "{}"}
+        paths = []
+
+        @contextmanager
+        def download(*args):
+            with tempfile.TemporaryDirectory() as directory:
+                paths.append(directory)
+                yield os.path.join(directory, "source.pdf")
+
+        self.worker.eor_extractor.extract_topics_from_eor_file.side_effect = RuntimeError("failed")
+        failed = self.connection()
+        with patch.object(self.worker, "download_document", side_effect=download), \
+                patch.object(self.worker, "upload_json_artifact") as upload:
+            self.run_worker([self.connection(task), failed])
+        self.assertFalse(os.path.exists(paths[0]))
+        upload.assert_not_called()
+        self.assertIn("'failed'", failed.cursor.return_value.execute.call_args.args[0])
+
+    def test_missing_generated_json_is_not_marked_completed(self):
+        task = {**self.task, "task_type": "document", "payload": "{}"}
+        failed = self.connection()
+        with tempfile.TemporaryDirectory() as directory:
+            @contextmanager
+            def download(*args):
+                yield os.path.join(directory, "source.pdf")
+            with patch.object(self.worker, "download_document", side_effect=download):
+                self.run_worker([self.connection(task), failed])
+        self.assertIn("'failed'", failed.cursor.return_value.execute.call_args.args[0])
+
+    def test_remediation_uses_downloaded_pdf(self):
+        task = {**self.task, "task_type": "remediation_pdf",
+                "payload": '{"remediation_name": "test-remediation"}'}
+        @contextmanager
+        def download(*args):
+            yield "/tmp/test-source.pdf"
+        self.worker.start_remediation_job.return_value = ["module-id"]
+        with patch.object(self.worker, "download_document", side_effect=download):
+            self.run_worker([self.connection(task), self.connection()])
+        self.worker.start_remediation_job.assert_called_once_with(
+            "/tmp/test-source.pdf", "test-user", "test-remediation")
+
+    def test_lost_claim_does_not_generate(self):
+        conn = self.connection(self.task)
+        conn.cursor.return_value.rowcount = 0
+        self.run_worker([conn])
+        self.worker.on_demand_generator.generate_batch.assert_not_called()
+        conn.close.assert_called_once()
 
 
 if __name__ == "__main__":

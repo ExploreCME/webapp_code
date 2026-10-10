@@ -6,6 +6,18 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn -c gunicorn.conf.py display_database:app
     envVars:
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT_URL
+        value: ""
+      - key: AWS_DEFAULT_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: MAX_DOCUMENT_BYTES
+        value: "20971520"
       - key: PYTHON_VERSION
         value: 3.11
       - key: FLASK_ENV
@@ -53,6 +65,20 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python quiz_worker.py
     envVars:
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT_URL
+        value: ""
+      - key: AWS_DEFAULT_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: MAX_DOCUMENT_BYTES
+        value: "20971520"
+      - key: OPENAI_API_KEY
+        sync: false
       - key: PYTHON_VERSION
         value: 3.11
       - key: MYSQL_HOST

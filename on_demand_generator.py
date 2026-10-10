@@ -16,7 +16,7 @@ from Question_writing_and_verification_optomized import (
 )
 
 # Load environment variables
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 
 MYSQL_HOST = os.getenv('MYSQL_HOST')
 MYSQL_USER = os.getenv('MYSQL_USER')

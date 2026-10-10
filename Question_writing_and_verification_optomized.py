@@ -13,7 +13,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # Point exactly to where your .env file lives
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 DEFAULT_OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') or os.getenv('MY_API_KEY')
 
 # Fetch keys & DB credentials
