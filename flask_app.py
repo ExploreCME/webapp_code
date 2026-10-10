@@ -1726,9 +1726,9 @@ def flashcards_select_topic(organ_system):
     cursor.execute('''
         SELECT DISTINCT topic
         FROM flashcards
-        WHERE TRIM(organ_system) = TRIM(%s)
-          AND topic IS NOT NULL
-          AND TRIM(topic) != ''
+        WHERE organ_system_norm = LOWER(TRIM(%s))
+          AND topic_norm IS NOT NULL
+          AND topic_norm != ''
         ORDER BY topic ASC
     ''', (organ_system,))
     topics = [row['topic'] for row in cursor.fetchall()]
@@ -1751,14 +1751,14 @@ def flashcards_viewer(organ_system, topic):
         cursor.execute('''
             SELECT id, organ_system, topic, task_area, prompt, answer
             FROM flashcards
-            WHERE TRIM(organ_system) = TRIM(%s)
+            WHERE organ_system_norm = LOWER(TRIM(%s))
             ORDER BY id ASC
         ''', (organ_system,))
     else:
         cursor.execute('''
             SELECT id, organ_system, topic, task_area, prompt, answer
             FROM flashcards
-            WHERE TRIM(organ_system) = TRIM(%s) AND TRIM(topic) = TRIM(%s)
+            WHERE organ_system_norm = LOWER(TRIM(%s)) AND topic_norm = LOWER(TRIM(%s))
             ORDER BY id ASC
         ''', (organ_system, topic))
     cards = cursor.fetchall()
@@ -1775,7 +1775,7 @@ def flashcards_viewer(organ_system, topic):
 
     cursor.execute('''
         SELECT current_index FROM flashcard_progress
-        WHERE username = %s AND organ_system = %s AND topic = %s
+        WHERE username = %s AND organ_system_norm = LOWER(TRIM(%s)) AND topic_norm = LOWER(TRIM(%s))
     ''', (username, organ_system, topic))
     saved_progress = cursor.fetchone()
     saved_index = saved_progress['current_index'] if saved_progress else 0
@@ -1794,19 +1794,23 @@ def save_flashcard_progress():
     if 'username' not in session:
         return current_app.response_class(response=json.dumps({"status": "error"}), status=401, mimetype='application/json')
     username = session['username']
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return current_app.response_class(response=json.dumps({"status": "error"}), status=400, mimetype='application/json')
     organ_system = data.get('organ_system')
     topic = data.get('topic', 'All')
     current_index = data.get('current_index')
 
-    if organ_system and current_index is not None:
+    if (isinstance(organ_system, str) and organ_system.strip()
+            and isinstance(topic, str)
+            and type(current_index) is int and current_index >= 0):
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO flashcard_progress (username, organ_system, topic, current_index)
             VALUES (%s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE current_index = VALUES(current_index)
-        ''', (username, organ_system, topic, int(current_index)))
+        ''', (username, organ_system, topic, current_index))
         conn.commit()
         return current_app.response_class(response=json.dumps({"status": "success"}), mimetype='application/json')
     return current_app.response_class(response=json.dumps({"status": "error"}), status=400, mimetype='application/json')
