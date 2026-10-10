@@ -1,71 +1,69 @@
-# db_pool.py
-import os
-import pymysql
-from dbutils.pooled_db import PooledDB
-from dotenv import load_dotenv
+# shared_utils.py
 
-# Load .env from the project root when present.
-base_dir = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(base_dir, '.env'))
+SHARED_VALID_TASK_AREAS = [
+    "Hx & PE",
+    "Labs & Dx",
+    "Most Likely Dx",
+    "Health Maint & Prev",
+    "Clinic Int.",
+    "Pharm Therapeutics",
+    "Basic Science"
+]
 
-mysql_pool = None
+SHARED_TASK_AREA_MAPPING = {
+    "history taking and performing physical examination": "Hx & PE",
+    "history taking & performing physical examination": "Hx & PE",
+    "using laboratory and diagnostic studies": "Labs & Dx",
+    "using diagnostic and laboratory studies": "Labs & Dx",
+    "formulating most likely diagnosis": "Most Likely Dx",
+    "formulating the most likely diagnosis": "Most Likely Dx",
+    "health maintenance, patient education, and preventative measures": "Health Maint & Prev",
+    "health maintenance, patient education, and preventive measures": "Health Maint & Prev",
+    "health maintenance, patient education, & preventative measures": "Health Maint & Prev",
+    "managing patients - health maintenance, patient education, and preventive measures": "Health Maint & Prev",
+    "clinical intervention": "Clinic Int.",
+    "clinical interventions": "Clinic Int.",
+    "managing patients - clinical interventions": "Clinic Int.",
+    "managing patients - clinical intervention": "Clinic Int.",
+    "managing patients-clinical interventions": "Clinic Int.",
+    "managing patients-clinical intervention": "Clinic Int.",
+    "clin int": "Clinic Int.",
+    "clin int.": "Clinic Int.",
+    "pharmaceutical therapeutics": "Pharm Therapeutics",
+    "managing patients - pharmaceutical therapeutics": "Pharm Therapeutics",
+    "applying basic scientific concepts": "Basic Science",
+    "applying foundational scientific concepts": "Basic Science"
+}
 
+def get_standardized_task_area(raw_task_area_from_db):
+    if not raw_task_area_from_db:
+        return "Unknown Task Area"
+    
+    clean_task_key = " ".join(raw_task_area_from_db.strip().lower().split())
+    mapped_task = SHARED_TASK_AREA_MAPPING.get(clean_task_key, raw_task_area_from_db.strip().title())
+    return mapped_task
 
-def _build_pool():
-    """Create the MySQL pool only when the environment is complete."""
-    global mysql_pool
-
-    required = [
-        os.getenv('MYSQL_HOST'),
-        os.getenv('MYSQL_USER'),
-        os.getenv('MYSQL_PASSWORD'),
-        os.getenv('MYSQL_DB'),
-    ]
-
-    if not all(required):
-        return None
-
-    ssl_disabled = os.getenv('MYSQL_SSL_DISABLED', 'false').lower() in ('1', 'true', 'yes', 'on')
-    ssl_ca = os.getenv('MYSQL_SSL_CA')
-
-    if ssl_disabled:
-        ssl_config = None
-    elif ssl_ca:
-        ssl_config = {'ca': ssl_ca}
-    else:
-        ssl_config = {'ssl': {}}
-
-    mysql_pool = PooledDB(
-        creator=pymysql,
-        maxconnections=12,
-        mincached=2,
-        blocking=True,
-        host=os.getenv('MYSQL_HOST'),
-        port=int(os.getenv('MYSQL_PORT', '3306')),
-        user=os.getenv('MYSQL_USER'),
-        password=os.getenv('MYSQL_PASSWORD'),
-        database=os.getenv('MYSQL_DB'),
-        charset='utf8mb4',
-        cursorclass=pymysql.cursors.DictCursor,
-        autocommit=True,
-        connect_timeout=10,
-        ping=1,
-        ssl=ssl_config,
-    )
-    return mysql_pool
-
-
-def get_db_connection():
-    """Returns a connection from the global pool or raises a clear config error."""
-    global mysql_pool
-
-    if mysql_pool is None:
-        mysql_pool = _build_pool()
-
-    if mysql_pool is None:
-        raise RuntimeError(
-            "MySQL environment values are not set. Set MYSQL_HOST, MYSQL_USER, "
-            "MYSQL_PASSWORD, and MYSQL_DB before starting the app."
-        )
-
-    return mysql_pool.connection()
+def is_assignment_name_unique(conn, username, target_name, assignment_type='quiz'):
+    """
+    Checks if a quiz or remediation name already exists for a user.
+    Returns True if the name is unique (safe to use), False if it already exists.
+    """
+    if not target_name:
+        return False
+        
+    with conn.cursor() as cursor:
+        if assignment_type == 'quiz':
+            cursor.execute('''
+                SELECT 1 FROM user_quizzes WHERE username = %s AND TRIM(LOWER(quiz_name)) = TRIM(LOWER(%s))
+                UNION
+                SELECT 1 FROM quiz_generation_tasks WHERE username = %s AND TRIM(LOWER(quiz_name)) = TRIM(LOWER(%s)) AND status IN ('pending', 'processing')
+            ''', (username, target_name, username, target_name))
+            
+        elif assignment_type == 'remediation':
+            cursor.execute('''
+                SELECT 1 FROM remediation_assignments 
+                WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s)) AND TRIM(LOWER(remediation_name)) = TRIM(LOWER(%s))
+            ''', (username, target_name))
+            
+        # If fetchone() returns None, the name is unique.
+        return cursor.fetchone() is None
