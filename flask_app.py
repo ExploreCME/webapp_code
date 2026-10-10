@@ -9,9 +9,11 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from werkzeug.utils import secure_filename
 import jwt
 import uuid
+import secrets
 
 # --- PERFORMANCE IMPORTS ---
 from db_pool import get_db_connection
+from document_storage import upload_document, list_documents
 
 # --- IMPORT SHARED UNIQUE CHECK ---
 from shared_utils import is_assignment_name_unique
@@ -19,7 +21,7 @@ from shared_utils import is_assignment_name_unique
 # ==========================================
 # BLUEPRINT INITIALIZATION
 # ==========================================
-quiz_bp = Blueprint('quiz', __name__, template_folder='/home/ps51632/mysite/explorecme/templates/template standardization')
+quiz_bp = Blueprint('quiz', __name__, template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates', 'template standardization'))
 
 # ==========================================
 # MYSQL CONNECTION POOL (SCALABLE)
@@ -146,9 +148,6 @@ def guest_exit():
     session.pop('username', None)
     return redirect(url_for('index'))
 
-
-UPLOAD_FOLDER = '/home/ps51632/mysite/explorecme/uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # ==========================================
 # ROUTE: EULA ACCEPTANCE
@@ -318,7 +317,10 @@ def generate_from_document():
     if 'username' not in session:
         return redirect(url_for('index'))
     username = session.get('username')
-    secured_username = secure_filename(username)
+    request.max_content_length = int(os.getenv('MAX_DOCUMENT_BYTES', '20971520')) + 1048576
+    token = session.get('document_csrf_token', '')
+    if not token or not secrets.compare_digest(token, request.form.get('csrf_token', '')):
+        return current_app.response_class(status=400)
 
     if 'file' not in request.files:
         flash('No file was uploaded.', 'error')
@@ -348,32 +350,38 @@ def generate_from_document():
         return redirect(url_for('quiz.menu'))
     # -------------------------
 
+    try:
+        document = upload_document(file, username)
+    except ValueError as e:
+        flash(str(e), 'error')
+        return redirect(url_for('quiz.home'))
+    except Exception:
+        current_app.logger.exception("Document storage upload failed")
+        flash('OpenAI document upload is unavailable. Please try again later.', 'error')
+        return redirect(url_for('quiz.home'))
+
     quiz_id = uuid.uuid4().hex
-    cursor.execute('INSERT IGNORE INTO user_quizzes (quiz_id, username, quiz_name, created_date) VALUES (%s, %s, %s, %s)',
-                   (quiz_id, username, quiz_name, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-    conn.commit()
-
-    filename = f"{secured_username}_{secure_filename(file.filename)}"
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(filepath)
-
-    extracted_topics_filename = f"{secured_username}_{secure_filename(quiz_name)}_extracted_topics.json"
-    output_base_name = f"{secured_username}_{secure_filename(quiz_name)}"
-
     task_payload = json.dumps({
-        "filepath": filepath,
+        **document,
         "quiz_id": quiz_id,
-        "extracted_topics_path": os.path.join(UPLOAD_FOLDER, extracted_topics_filename),
-        "final_output_json_path": os.path.join(UPLOAD_FOLDER, f"{output_base_name}_output.json"),
         "num_per_topic": num_per_topic,
         "use_existing": use_existing
     })
 
-    cursor.execute('''
-        INSERT INTO quiz_generation_tasks (username, quiz_name, task_type, payload, status, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, 'pending', NOW(), NOW())
-    ''', (username, quiz_name, 'document', task_payload))
-    conn.commit()
+    try:
+        conn.begin()
+        cursor.execute('INSERT INTO user_quizzes (quiz_id, username, quiz_name, created_date) VALUES (%s, %s, %s, %s)',
+                       (quiz_id, username, quiz_name, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+        cursor.execute('''
+            INSERT INTO quiz_generation_tasks (username, quiz_name, task_type, payload, status, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, 'pending', NOW(), NOW())
+        ''', (username, quiz_name, 'document', task_payload))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        current_app.logger.exception("Document task queue failed")
+        flash('Unable to queue your document. Please upload again.', 'error')
+        return redirect(url_for('quiz.home'))
 
     flash(f'Document uploaded! Your quiz "{quiz_name}" is now queued for background generation.', 'success')
     return redirect(url_for('quiz.home'))
@@ -415,17 +423,13 @@ def home():
     if 'username' not in session:
         return redirect(url_for('index'))
     username = session.get('username')
-    json_files, user_raw_files, generating_quizzes = [], [], []
+    documents, generating_quizzes = [], []
 
     if username:
-        secured_username = secure_filename(username)
-        if os.path.exists(UPLOAD_FOLDER):
-            all_files = os.listdir(UPLOAD_FOLDER)
-            json_files = sorted([f for f in all_files if f.startswith(secured_username + '_') and f.endswith('_output.json')])
-            user_raw_files = sorted([f for f in all_files if f.startswith(secured_username + '_') and not f.endswith('_output.json') and not f.endswith('_extracted_topics.json')])
         try:
             conn = get_db()
             cursor = conn.cursor()
+            documents = list_documents(cursor, username)
             cursor.execute('''
                 SELECT quiz_name FROM quiz_generation_tasks
                 WHERE username = %s AND status IN ('pending', 'processing')
@@ -434,7 +438,9 @@ def home():
         except Exception:
             pass
 
-    return render_template('home.html', json_files=json_files, username=username, user_raw_files=user_raw_files, generating_quizzes=generating_quizzes)
+    token = session.setdefault('document_csrf_token', secrets.token_urlsafe(32))
+    return render_template('home.html', documents=documents, username=username, generating_quizzes=generating_quizzes,
+                           document_csrf_token=token, max_document_mb=int(os.getenv('MAX_DOCUMENT_BYTES', '20971520')) / 1048576)
 
 # ==========================================
 # ROUTE: API QUEUE POLLING (STATUS UI)

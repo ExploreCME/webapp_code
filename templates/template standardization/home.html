@@ -24,9 +24,11 @@
             <p style="color: #555; margin-bottom: 15px; font-size: 14px;">Upload a source document and our algorithm will automatically extract topics and generate a custom quiz for you.</p>
 
             <form action="{{ url_for('quiz.generate_from_document') }}" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ document_csrf_token }}">
                 <div class="form-group">
                     <label for="file">1. Upload Document:</label>
-                    <input type="file" name="file" id="file" required>
+                    <input type="file" name="file" id="file" accept=".pdf,application/pdf" required>
+                    <p>PDFs only (up to {{ max_document_mb }} MiB). Documents are sent to OpenAI for temporary processing and deleted after success or failure, with automatic expiration under the configured retention policy as a backstop. Generated questions are saved only in MySQL; generated JSON files are not stored. Do not upload patient-identifying or confidential information without authorization. Deletion or expiration does not imply zero provider retention.</p>
                 </div>
 
                 <div class="form-group">
@@ -42,6 +44,19 @@
                 <button type="submit" class="btn btn-success btn-full">Upload & Generate Quiz</button>
             </form>
         </div>
+
+        {% if documents %}
+        <h3>Your uploaded documents</h3>
+        <ul>
+            {% for document in documents %}
+            <li>{{ document.original_filename }} — {{ document.quiz_name }} ({{ document.status }})
+                {% if document.status == 'failed' %}
+                <p>This task failed. Re-upload the PDF with a new quiz name until conflicting existing names are resolved. Source documents are not retained for retries.</p>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
 
     {% endif %}
     <!-- ========================================== -->

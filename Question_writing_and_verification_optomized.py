@@ -13,7 +13,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # Point exactly to where your .env file lives
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 DEFAULT_OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') or os.getenv('MY_API_KEY')
 
 # Fetch keys & DB credentials
@@ -445,13 +445,11 @@ async def sem_process_topic_batch(sem, item_dict, num_needed, conv_manager, conv
             return []
 
 async def generate_questions_from_eor_async(input_file_path, quiz_name, output_json_path, username, total_quiz_questions, use_existing, quiz_id=None):
-    conv_manager = ConversationManager(model="gpt-6.1-sol")
-    conv_manager_verify = ConversationManager(model="gpt-6.1-sol")
     tasks_to_process = []
 
     if not os.path.exists(input_file_path):
         print(f"🚨 CRITICAL ERROR: The extracted topics JSON was not found at {input_file_path}")
-        return
+        raise FileNotFoundError(f"Extracted topics JSON not found: {input_file_path}")
 
     try:
         with open(input_file_path, 'r') as extraction_file:
@@ -470,11 +468,11 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
                         print(f"🚨 ERROR parsing JSON on this line: {e} | Line: {line}")
     except Exception as e:
         print(f"🚨 ERROR opening file: {e}")
-        return
+        raise
 
     if not tasks_to_process:
         print("🚨 CRITICAL ERROR: File was found, but 0 topics were extracted from it!")
-        return
+        raise RuntimeError("No topics were extracted from the document.")
 
     print(f"[{datetime.now()}] Found {len(tasks_to_process)} items to process.")
 
@@ -487,6 +485,8 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
     generation_tasks = []
     conn = None
 
+    conv_manager = ConversationManager(model="gpt-6.1-sol")
+    conv_manager_verify = ConversationManager(model="gpt-6.1-sol")
     try:
         conn = await aiomysql.connect(
             host=MYSQL_HOST,
@@ -617,6 +617,8 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
                     print(f"DEBUG: Task error: {e}")
 
         all_quiz_questions = existing_quiz_questions + successful_questions
+        if not all_quiz_questions:
+            raise RuntimeError("Document generation produced no questions.")
 
         if all_quiz_questions:
             conn = await aiomysql.connect(
@@ -691,6 +693,7 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
 
     except Exception as e:
         print(f"DEBUG: Error processing generation or database: {e}")
+        raise
     finally:
         if conn:
             conn.close()

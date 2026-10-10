@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from typing import List, Literal
 
 # Point exactly to where your .env file lives
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 # Fetch the key
 DEFAULT_API_KEY = os.getenv('MY_API_KEY') or os.getenv('OPENAI_API_KEY')
 
@@ -181,7 +181,7 @@ PANCE_Verification_CONSTRAINTS = """Follow these rules:
 def eor_extract_information(conv_manager, uploaded_file_id, output_file_path=None):
     prompt = conv_manager.build_eor_extraction_prompt()
 
-    json_path = "/home/ps51632/mysite/explorecme/topics_by_organ_system.json"
+    json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "topics_by_organ_system.json")
     try:
         with open(json_path, 'r') as f:
             canonical_topics_data = json.load(f)
@@ -230,15 +230,19 @@ def eor_extract_information(conv_manager, uploaded_file_id, output_file_path=Non
                 f.write(json.dumps(creation_extracted_data) + '\n')
             print(f"Data successfully extracted, matched, and saved to {output_file_path}.")
         else:
-            folder_path = '/home/ps51632'
-            os.makedirs(folder_path, exist_ok=True)
-            file_path = os.path.join(folder_path, 'eor_question_extraction.txt')
-            with open(file_path, 'a') as f:
-                f.write(json.dumps(creation_extracted_data) + '\n')
-            print("Data successfully extracted, matched, and saved to default location.")
+            raise ValueError("An explicit extraction output path is required.")
 
     except Exception as e:
         print(f"Failed to process extraction. Error was: {e}")
+        raise
+
+def extract_topics_from_openai_file(file_id, quiz_name, output_file_path):
+    conv_manager = ConversationManager(api_key=os.getenv('OPENAI_API_KEY') or os.getenv('MY_API_KEY'))
+    try:
+        eor_extract_information(conv_manager, file_id, output_file_path=output_file_path)
+    finally:
+        conv_manager.client.close()
+
 
 def extract_topics_from_eor_file(filepath, quiz_name, output_file_path):
     conv_manager = ConversationManager()
@@ -259,8 +263,13 @@ def extract_topics_from_eor_file(filepath, quiz_name, output_file_path):
 
 if __name__ == "__main__":
     conv_manager = ConversationManager()
-    eor_pdf = "/home/ps51632/EOR_report.pdf"
-    sample_output_path = "/home/ps51632/my_custom_output.json"
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("pdf")
+    parser.add_argument("output")
+    args = parser.parse_args()
+    eor_pdf = args.pdf
+    sample_output_path = args.output
 
     try:
         with open(eor_pdf, "rb") as file_data:

@@ -3,8 +3,11 @@
 <div class="container mt-5">
     <h2>Create Remediation Assignment</h2>
     <p>Upload an EOR PDF report to generate a customized remediation assignment.</p>
+    <p>PDFs only (up to {{ max_document_mb }} MiB). Documents are sent to OpenAI for temporary processing and deleted after success or failure, with automatic expiration under the configured retention policy as a backstop. Generated questions are saved only in MySQL; generated JSON files are not stored. Do not upload patient-identifying or confidential information without authorization. Deletion or expiration does not imply zero provider retention.</p>
+    <p>If a task fails, re-upload the PDF with a new remediation assignment name until conflicting existing names are resolved. Source documents are not retained for retries.</p>
 
     <form action="{{ url_for('faculty.create_remediation') }}" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ document_csrf_token }}">
 
         <!-- Remediation Name Input -->
         <div class="form-group mb-3">

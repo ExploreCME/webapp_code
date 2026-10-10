@@ -5,6 +5,8 @@ import sys
 import time
 import json
 from db_pool import get_db_connection
+from document_storage import validated_file_id, delete_document
+from tempfile import TemporaryDirectory
 from datetime import datetime
 
 # 1. Force unbuffered output so logs show up in PythonAnywhere immediately
@@ -21,6 +23,7 @@ def process_tasks():
     while True:
         conn = None
         task = None
+        document_claimed = False
         try:
             # 1. Connect to fetch one pending task
             conn = get_db_connection()
@@ -50,8 +53,13 @@ def process_tasks():
             print(f"[{datetime.now()}] Processing Task #{task_id}: {quiz_name} ({task_type})")
 
             # Mark as processing
-            cursor.execute("UPDATE quiz_generation_tasks SET status = 'processing', updated_at = NOW() WHERE id = %s", (task_id,))
+            cursor.execute("UPDATE quiz_generation_tasks SET status = 'processing', updated_at = NOW() WHERE id = %s AND status = 'pending'", (task_id,))
+            claimed = cursor.rowcount
             conn.commit()
+            if claimed == 0:
+                task = None
+                continue
+            document_claimed = task_type in ('document', 'remediation_pdf')
 
             # 👇 CRITICAL FIX: Close the database connection before starting the long LLM process!
             conn.close()
@@ -71,35 +79,27 @@ def process_tasks():
 
             elif task_type == 'document':
                 # Sourced from flask_app.py -> generate_from_document()
-                filepath = payload.get('filepath')
                 quiz_id = payload.get('quiz_id')
-                extracted_topics_path = payload.get('extracted_topics_path')
-                final_output_json_path = payload.get('final_output_json_path')
                 num_per_topic = payload.get('num_per_topic')
                 use_existing = payload.get('use_existing')
 
-                try:
-                    eor_extractor.extract_topics_from_eor_file(filepath, quiz_name, extracted_topics_path)
+                file_id = validated_file_id(payload, username)
+                with TemporaryDirectory(prefix='quiz-topics-') as directory:
+                    extracted_topics_path = os.path.join(directory, 'extracted_topics.json')
+                    eor_extractor.extract_topics_from_openai_file(file_id, quiz_name, extracted_topics_path)
                     question_generator.generate_questions_from_eor(
-                        extracted_topics_path, quiz_name, final_output_json_path,
+                        extracted_topics_path, quiz_name, None,
                         username, num_per_topic, use_existing, quiz_id
                     )
-                finally:
-                    # Clean up the PDF to prevent disk quota exhaustion
-                    if filepath and os.path.exists(filepath):
-                        os.remove(filepath)
 
             elif task_type == 'remediation_pdf':
                 # Sourced from faculty_routes.py -> create_remediation()
-                filepath = payload.get('filepath')
                 remediation_name = payload.get('remediation_name')
 
-                try:
-                    start_remediation_job(filepath, username, remediation_name)
-                finally:
-                    # Clean up the PDF to prevent disk quota exhaustion
-                    if filepath and os.path.exists(filepath):
-                        os.remove(filepath)
+                file_id = validated_file_id(payload, username)
+                results = start_remediation_job(None, username, remediation_name, uploaded_file_id=file_id)
+                if not results:
+                    raise RuntimeError("Document generation produced no remediation modules")
 
             # ==========================================
             # 3. COMPLETION
@@ -131,6 +131,11 @@ def process_tasks():
                 print(f"[{datetime.now()}] Failed to update status to 'failed': {db_e}")
             time.sleep(5)
         finally:
+            if document_claimed:
+                try:
+                    delete_document(payload, username)
+                except Exception as cleanup_error:
+                    print(f"Task #{task_id}: OpenAI file cleanup failed; expiration remains the fallback: {cleanup_error}")
             # Ensure the connection is always closed at the end of every loop
             if conn is not None:
                 try:
