@@ -2,6 +2,88 @@
 
 This repository contains the web application and supporting services for the ExploreCME platform.
 
+## Fill a quiz from selected topics (Bash)
+
+`fill_database_topics.py` is a standalone CLI; it does not replace
+`fill_database_pa.py`. Run with Python from the repository directory:
+
+```bash
+python fill_database_topics.py --help
+python fill_database_topics.py --list-systems
+python fill_database_topics.py --organ-system "Pulmonary System" --topic "Asthma" --dry-run
+python fill_database_topics.py --organ-system "Pulmonary System"
+python fill_database_topics.py --all
+python fill_database_topics.py --topics-file /absolute/path/topics.json --organ-system "Pulmonary System"
+python fill_database_topics.py --organ-system "Pulmonary System" --env-file /absolute/path/quiz.env --model ACCOUNT_MODEL
+```
+
+The default topics file is repository-root `topics_by_organ_system.json`.
+Custom files must be nonempty JSON mappings using exact canonical organ labels
+(see `--help`) and nonempty arrays of trimmed topic names. For example:
+
+```json
+{
+  "Pulmonary System": ["Asthma", "Chronic obstructive pulmonary disease"]
+}
+```
+
+Repeated topics within a system are deduplicated in file order. Repeat `--topic`
+to select exact names within the chosen system(s); unknown names are errors.
+Without `--organ-system` or `--all`, an interactive terminal displays a numbered
+menu; noninteractive input fails instead of waiting for input.
+
+Defaults are username `explorecme`, quiz name `organ_system_batch_quiz`, one
+question per each of the seven task labels retained from `fill_database_pa.py`,
+and concurrency five. Override with `--username`, `--quiz-name`,
+`--questions-per-task`, and `--concurrency`. The sample two-topic file targets
+14 questions, **not a guaranteed output**.
+
+Help, listing, and dry runs need no credentials or optional runtime dependencies.
+Regular runs reuse installed repository dependencies from `requirements.txt`.
+Set `OPENAI_API_KEY` (or `MY_API_KEY`), `MYSQL_HOST`, `MYSQL_USER`,
+`MYSQL_PASSWORD`, and `MYSQL_DB` in the environment or the selected env file
+(default repository-root `.env`). Existing environment variables take precedence.
+The shared DB helper retains `MYSQL_PORT`, `MYSQL_SSL_CA`, and
+`MYSQL_SSL_DISABLED` settings; use TLS for managed databases. Never commit
+credentials. The shared modules also load root `.env` as a fallback; use a complete
+environment/selected file to avoid unintentionally mixing configurations.
+
+`--model` overrides `OPENAI_MODEL`, otherwise the shared engine's `DEFAULT_MODEL`
+is used. Its current repository value, `gpt-6.1-sol`, is configuration, **not a
+claim of public provider availability**. Select a model available to your account
+and compatible with the shared engine's JSON response/chat-completion parameters.
+`--verify-model` optionally selects another account-accessible verification model.
+The shared engine's three answer/confidence checks and difficulty rating are
+unchanged. Model verification does **not** assure clinical correctness; review
+questions before educational or clinical use.
+
+**Regular generation incurs API costs and modifies the configured database.**
+Connectivity, required columns, transactional InnoDB tables, and quiz/mapping
+unique keys are checked before paid generation. This is not a guarantee of
+write permissions or continued connectivity. Accepted topic/task batches are
+saved incrementally in short explicit transactions; a failed batch rolls back,
+while previously committed batches remain saved. Questions use strict inserts.
+An exact-stem lookup using the database's collation can reuse an existing question
+with matching organ/task/topic metadata and always maps its actual ID. There is
+no assumed unique stem index or cross-process stem deduplication guarantee.
+
+Repeated runs generate additional questions, not resumable/idempotent generation.
+There is no local checkpoint: uncommitted results can be lost on failure.
+Inspect the summary and existing quiz before retrying; a retry can incur new
+charges and add more questions. The summary distinguishes requested/generated,
+rejected, newly inserted/reused, newly mapped, persisted, failed batches, and
+generation shortfalls. Persisted counts include reused/already-mapped results;
+newly mapped counts do not. Exit status is 0 only when the target is accepted and
+persisted with no reported failures/rejections, 1 for runtime/partial failures,
+2 for invalid arguments/selections, and 130 for an interrupted run.
+
+Isolated tests mock generation, clients, and DB operations; no real OpenAI
+generation or database writes are performed:
+
+```bash
+python -m unittest discover -s tests -p 'test_fill_database_topics.py' -v
+```
+
 ## Uploaded documents on Render
 
 Uploads use temporary OpenAI Files with `purpose="user_data"`, not an S3 bucket,
