@@ -1,5 +1,4 @@
 aiomysql==0.3.2
-boto3==1.43.111
 pypdf==6.20.0
 annotated-types==0.8.0
 anyio==4.14.2

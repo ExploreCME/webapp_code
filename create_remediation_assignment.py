@@ -454,7 +454,7 @@ async def notify_user(username: str, remediation_name: str, status: str, payload
     else:
         print(f"NOTIFICATION: {username}, remediation '{remediation_name}' failed. Error: {payload}")
 
-async def background_process_document(filepath: str, username: str, remediation_name: str):
+async def background_process_document(filepath: str, username: str, remediation_name: str, uploaded_file_id=None):
     manager = ConversationManager()
     manager_verify = ConversationManager()
     uploaded_file = None
@@ -468,9 +468,11 @@ async def background_process_document(filepath: str, username: str, remediation_
             charset='utf8mb4',
             cursorclass=aiomysql.DictCursor
         )
-        with open(filepath, "rb") as file_data:
-            uploaded_file = await manager.client.files.create(file=file_data, purpose="user_data")
-        extracted_topics = await manager.extract_from_file(uploaded_file.id)
+        if uploaded_file_id is None:
+            with open(filepath, "rb") as file_data:
+                uploaded_file = await manager.client.files.create(file=file_data, purpose="user_data")
+            uploaded_file_id = uploaded_file.id
+        extracted_topics = await manager.extract_from_file(uploaded_file_id)
         final_ids = []
         generation_tasks = []
         sem = asyncio.Semaphore(3)
@@ -519,8 +521,8 @@ async def background_process_document(filepath: str, username: str, remediation_
         await manager.client.close()
         await manager_verify.client.close()
 
-def start_remediation_job(filepath: str, username: str, remediation_name: str):
+def start_remediation_job(filepath: str, username: str, remediation_name: str, uploaded_file_id=None):
     """
     Synchronous wrapper that blocks until the async generation is complete.
     """
-    return asyncio.run(background_process_document(filepath, username, remediation_name))
+    return asyncio.run(background_process_document(filepath, username, remediation_name, uploaded_file_id))

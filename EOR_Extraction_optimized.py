@@ -236,6 +236,14 @@ def eor_extract_information(conv_manager, uploaded_file_id, output_file_path=Non
         print(f"Failed to process extraction. Error was: {e}")
         raise
 
+def extract_topics_from_openai_file(file_id, quiz_name, output_file_path):
+    conv_manager = ConversationManager(api_key=os.getenv('OPENAI_API_KEY') or os.getenv('MY_API_KEY'))
+    try:
+        eor_extract_information(conv_manager, file_id, output_file_path=output_file_path)
+    finally:
+        conv_manager.client.close()
+
+
 def extract_topics_from_eor_file(filepath, quiz_name, output_file_path):
     conv_manager = ConversationManager()
     uploaded_file = None

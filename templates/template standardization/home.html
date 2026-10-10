@@ -28,7 +28,7 @@
                 <div class="form-group">
                     <label for="file">1. Upload Document:</label>
                     <input type="file" name="file" id="file" accept=".pdf,application/pdf" required>
-                    <p>PDFs only (up to {{ max_document_mb }} MiB). Documents are stored privately and sent to OpenAI for processing. Do not upload patient-identifying or confidential information without authorization. Originals and generated files are subject to the configured storage retention policy.</p>
+                    <p>PDFs only (up to {{ max_document_mb }} MiB). Documents are sent to OpenAI for temporary processing and deleted after success or failure, with automatic expiration under the configured retention policy as a backstop. Generated questions are saved only in MySQL; generated JSON files are not stored. Do not upload patient-identifying or confidential information without authorization. Deletion or expiration does not imply zero provider retention.</p>
                 </div>
 
                 <div class="form-group">
@@ -51,10 +51,7 @@
             {% for document in documents %}
             <li>{{ document.original_filename }} — {{ document.quiz_name }} ({{ document.status }})
                 {% if document.status == 'failed' %}
-                <form action="{{ url_for('quiz.retry_document', task_id=document.id) }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ document_csrf_token }}">
-                    <button type="submit">Retry retained document</button>
-                </form>
+                <p>This task failed. Re-upload the PDF with a new quiz name until conflicting existing names are resolved. Source documents are not retained for retries.</p>
                 {% endif %}
             </li>
             {% endfor %}

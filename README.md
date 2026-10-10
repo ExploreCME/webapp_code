@@ -4,85 +4,82 @@ This repository contains the web application and supporting services for the Exp
 
 ## Uploaded documents on Render
 
-Uploads use a private Amazon S3 or S3-compatible bucket (including Cloudflare R2),
-not GitHub or a Render service's local disk. Configure both web and worker:
+Uploads use temporary OpenAI Files with `purpose="user_data"`, not an S3 bucket,
+GitHub, or persistent Render storage. Configure both web and worker:
 
 | Variable | Value |
 | --- | --- |
-| `S3_BUCKET` | The same private bucket on both services |
-| `S3_ENDPOINT_URL` | Empty for AWS S3; for R2, `https://<account-id>.r2.cloudflarestorage.com` |
-| `AWS_DEFAULT_REGION` | Your AWS bucket region; `auto` for R2 |
-| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Separate least-privilege service credentials, configured as Render secrets |
+| `OPENAI_API_KEY` | Required on both services as a Render secret; both keys must belong to the same OpenAI project so the worker can access uploaded file IDs |
 | `MAX_DOCUMENT_BYTES` | Maximum PDF bytes; default `20971520` (20 MiB), identical on both services |
-| `OPENAI_API_KEY` | Required on the worker for PDF processing |
+| `DOCUMENT_TTL_SECONDS` | OpenAI file lifetime; default `86400` (24 hours), valid range `3600`..`2592000` seconds, identical on both services |
 
-For S3, enable Block Public Access, bucket-owner-enforced ownership, and default
-server-side encryption. For R2, disable public bucket access and public custom
-domains. The application never sets public ACLs or exposes object URLs.
-Use HTTPS endpoints only. Restrict the web credential to `PutObject` under
-`uploads/*`; the worker needs `GetObject` there and `PutObject` for generated
-JSON. Neither service needs bucket listing, lifecycle administration, or deletion.
-Scope R2 tokens to the selected bucket using the provider's available permissions.
-Do not put credentials or user documents in GitHub.
+Use HTTPS and project-scoped credentials with the file create/read/delete and
+model permissions each service needs. Do not put credentials or user documents
+in GitHub. Remove all former S3/AWS environment configuration from both services,
+including manually configured Render secrets; no bucket is required.
 
 Both upload forms accept only readable, nonempty, unencrypted PDFs. Files are
-size-limited and parsed before storage. Objects receive unique UUID identifiers;
-user identifiers are hashed in object keys. The existing
+size-limited and validated in memory before upload. Each OpenAI
+file is created with `purpose="user_data"` and
+`expires_after={"anchor": "created_at", "seconds": DOCUMENT_TTL_SECONDS}`.
+Expiration is attached at creation, not after queueing. The existing
 `quiz_generation_tasks.payload` JSON records the owner, original sanitized
-filename, object key, size, and upload time. The row's `id` is the associated task
-ID, so no schema migration is required. Only successfully stored objects are
-queued. Quiz creation and task insertion commit together.
+filename, OpenAI file ID, size, and upload time, not a local path or S3 object key.
+The row's `id` is the associated task ID, so no schema migration is required.
+Only successfully uploaded file IDs are queued. Quiz creation and task insertion
+commit together. Uploads that cannot be queued expire automatically under the same TTL.
 
-The worker conditionally claims pending tasks, downloads PDFs into an isolated
-temporary directory, and removes temporary files even when processing fails.
-It saves extracted topics and question JSON alongside the source object on a
-best-effort basis. Artifact storage failures are logged, but do not fail an
-already-generated quiz or trigger duplicate generation;
-MySQL remains authoritative for quizzes and questions. The document list comes
-from owner-filtered task metadata, not local directory scans. Failed documents
-can be retried from that list while their source objects remain retained.
+The worker conditionally claims pending tasks and uses the queued OpenAI file ID
+for extraction and question generation. Generated questions are saved in MySQL
+only; no extracted-topic or generated-question JSON files are retained remotely.
+Temporary local files are removed, and the remote OpenAI file is deleted after
+processing succeeds **or fails**. The document list comes from owner-filtered
+task metadata, not retained source files or local directory scans.
 
 ### Retention and privacy (required before enabling uploads)
 
-Configure a bucket lifecycle rule to expire **all objects under `uploads/` after
-7 days**, including generated JSON and unqueued uploads left by a database
-failure. This is an operator-managed policy, not an application timer or an
-HTTP `Expires` header. Select a different documented period if your institution
-requires it, and keep the published policy consistent. If versioning is enabled,
-also expire noncurrent versions and delete markers; configure incomplete
-multipart upload cleanup where supported. Services deliberately cannot delete
-originals, so failures do not destroy retry inputs. Metadata and database
-questions are not removed by this bucket rule.
+Set `DOCUMENT_TTL_SECONDS` to the institution-approved period within the valid
+range and keep the published policy consistent. OpenAI's automatic file
+expiration catches crash/orphan files, including uploads left by a process crash
+before queueing or a failed cleanup request. It is a backstop for immediate
+deletion after success or failure, not a retained retry window. File expiration
+does not delete task metadata or questions stored in MySQL.
 
-Lifecycle expiration is asynchronous: allow for provider deletion delays and
-keep queue/retry deadlines shorter than the chosen retention period. After
-expiration, users must upload again. Monitor backlog and failed tasks. After a
-worker restart, inspect interrupted `processing` tasks and reset them to
-`pending` only after confirming the original worker is no longer running and
-the source is retained; pending tasks already survive service redeployments.
+Allow for provider deletion delays and keep queue/processing deadlines shorter
+than the configured TTL. Monitor backlog, failed tasks, and cleanup failures.
+Pending task rows survive redeployments, but their files can expire. After a
+worker restart, inspect interrupted `processing` tasks; do not blindly reset
+them or regenerate questions already saved. There is no retained-document retry
+button. After failure or expiration, users must re-upload with a **new quiz or
+remediation assignment name** until conflicting existing names are resolved.
 
-Uploaded PDFs are sent to OpenAI, and remote files are deleted in the existing
-processing functions' cleanup paths. Local validation is not a malware scan or
-de-identification tool. Upload notices prohibit unauthorized confidential or
-patient-identifying data. Before rollout, update the published privacy policy
-and obtain institution approval for storage region, retention, and OpenAI's
-current processing/retention terms; do not assume remote deletion means zero
-provider retention. Existing static privacy PDFs are not rewritten by this change.
+Uploaded PDFs are sent to OpenAI for temporary processing. Local validation is
+not a malware scan or de-identification tool. Upload notices prohibit
+unauthorized confidential or patient-identifying data. Before rollout, update
+the published privacy policy and obtain institution approval for storage region,
+the configured TTL, and OpenAI's current processing/retention terms; do not assume
+remote deletion or expiration means zero provider retention. Existing static
+privacy PDFs are not rewritten by this change.
 
 ### Migrating existing tasks
 
-Old payloads containing only `filepath` are explicitly rejected with a re-upload
-message; there is no fallback to a PythonAnywhere path. Have users re-upload
-pending or failed legacy documents, resolving conflicting old quiz/assignment
-names first. If preserving a legacy task, an administrator must securely move
-its PDF into the private bucket and replace its payload with validated owner,
-object-key and upload metadata while retaining task-specific generation fields.
-Do not reset tasks to pending until the source object is available.
+Legacy S3/object-key and `filepath` payloads are explicitly rejected with a
+re-upload message; there is no bucket or PythonAnywhere path fallback and no
+automatic migration. Have users re-upload pending or failed legacy documents
+with new quiz/assignment names until conflicting old names are resolved.
+Operators must clean up the old bucket and its retained PDFs/generated JSON
+using the old bucket's lifecycle policy or explicit deletion. Include noncurrent
+versions, delete markers, and incomplete multipart uploads where applicable;
+removing application credentials does not delete old objects.
 
 Before production rollout, exercise both upload forms with a safe PDF on the
-web service, confirm processing on the separate worker, then test duplicate
-filenames, failed-task retries, a worker redeployment, and lifecycle expiration.
-Automated storage tests mock S3; they do not provision or verify a real bucket:
+web service, confirm file-ID access from the separate worker in the same OpenAI
+project, and verify extraction and MySQL question persistence. Check remote
+deletion after success and failure, re-upload with a new name, duplicate
+filenames, rejected legacy payloads, and file expiration after a worker crash or
+unqueued upload. Confirm `expires_after` is set on creation and monitor queue
+age against the TTL. Automated storage tests mock OpenAI; they do not verify
+real provider expiration or deletion:
 
 ```bash
 python -m unittest discover -s tests -p 'test_document*.py' -v

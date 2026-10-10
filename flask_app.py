@@ -357,7 +357,7 @@ def generate_from_document():
         return redirect(url_for('quiz.home'))
     except Exception:
         current_app.logger.exception("Document storage upload failed")
-        flash('Document storage is unavailable. Please try again later.', 'error')
+        flash('OpenAI document upload is unavailable. Please try again later.', 'error')
         return redirect(url_for('quiz.home'))
 
     quiz_id = uuid.uuid4().hex
@@ -441,34 +441,6 @@ def home():
     token = session.setdefault('document_csrf_token', secrets.token_urlsafe(32))
     return render_template('home.html', documents=documents, username=username, generating_quizzes=generating_quizzes,
                            document_csrf_token=token, max_document_mb=int(os.getenv('MAX_DOCUMENT_BYTES', '20971520')) / 1048576)
-
-@quiz_bp.route('/documents/<int:task_id>/retry', methods=['POST'])
-def retry_document(task_id):
-    username = session.get('username')
-    if not username:
-        return redirect(url_for('index'))
-    token = session.get('document_csrf_token', '')
-    if not token or not secrets.compare_digest(token, request.form.get('csrf_token', '')):
-        return current_app.response_class(status=400)
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT payload FROM quiz_generation_tasks WHERE id = %s AND username = %s AND status = %s AND task_type IN (%s, %s)',
-                   (task_id, username, 'failed', 'document', 'remediation_pdf'))
-    task = cursor.fetchone()
-    if not task:
-        return current_app.response_class(status=404)
-    try:
-        payload = json.loads(task['payload'])
-    except (ValueError, TypeError):
-        payload = {}
-    if not isinstance(payload, dict) or not payload.get('object_key') or payload.get('owner') != username:
-        flash('This legacy upload must be uploaded again before it can be processed.', 'error')
-        return redirect(url_for('quiz.home'))
-    cursor.execute("UPDATE quiz_generation_tasks SET status = 'pending', updated_at = NOW() WHERE id = %s AND username = %s AND status = 'failed'",
-                   (task_id, username))
-    conn.commit()
-    flash('Document queued for retry. Expired documents must be uploaded again.', 'success')
-    return redirect(url_for('quiz.home'))
 
 # ==========================================
 # ROUTE: API QUEUE POLLING (STATUS UI)

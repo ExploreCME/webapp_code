@@ -5,7 +5,8 @@ import sys
 import time
 import json
 from db_pool import get_db_connection
-from document_storage import download_document, upload_json_artifact
+from document_storage import validated_file_id, delete_document
+from tempfile import TemporaryDirectory
 from datetime import datetime
 
 # 1. Force unbuffered output so logs show up in PythonAnywhere immediately
@@ -22,6 +23,7 @@ def process_tasks():
     while True:
         conn = None
         task = None
+        document_claimed = False
         try:
             # 1. Connect to fetch one pending task
             conn = get_db_connection()
@@ -57,6 +59,7 @@ def process_tasks():
             if claimed == 0:
                 task = None
                 continue
+            document_claimed = task_type in ('document', 'remediation_pdf')
 
             # 👇 CRITICAL FIX: Close the database connection before starting the long LLM process!
             conn.close()
@@ -80,33 +83,23 @@ def process_tasks():
                 num_per_topic = payload.get('num_per_topic')
                 use_existing = payload.get('use_existing')
 
-                with download_document(payload, username) as filepath:
-                    extracted_topics_path = os.path.join(os.path.dirname(filepath), 'extracted_topics.json')
-                    final_output_json_path = os.path.join(os.path.dirname(filepath), 'output.json')
-                    eor_extractor.extract_topics_from_eor_file(filepath, quiz_name, extracted_topics_path)
+                file_id = validated_file_id(payload, username)
+                with TemporaryDirectory(prefix='quiz-topics-') as directory:
+                    extracted_topics_path = os.path.join(directory, 'extracted_topics.json')
+                    eor_extractor.extract_topics_from_openai_file(file_id, quiz_name, extracted_topics_path)
                     question_generator.generate_questions_from_eor(
-                        extracted_topics_path, quiz_name, final_output_json_path,
+                        extracted_topics_path, quiz_name, None,
                         username, num_per_topic, use_existing, quiz_id
                     )
-                    for path, name in ((extracted_topics_path, 'extracted_topics.json'),
-                                       (final_output_json_path, 'output.json')):
-                        if not os.path.isfile(path):
-                            raise RuntimeError(f"Document generation did not produce {name}")
-                        try:
-                            upload_json_artifact(payload, username, path, name)
-                        except Exception as artifact_error:
-                            # Questions are already committed; do not regenerate a quiz
-                            # just because its optional audit artifact could not be stored.
-                            print(f"Task #{task_id}: could not store {name}: {artifact_error}")
 
             elif task_type == 'remediation_pdf':
                 # Sourced from faculty_routes.py -> create_remediation()
                 remediation_name = payload.get('remediation_name')
 
-                with download_document(payload, username) as filepath:
-                    results = start_remediation_job(filepath, username, remediation_name)
-                    if not results:
-                        raise RuntimeError("Document generation produced no remediation modules")
+                file_id = validated_file_id(payload, username)
+                results = start_remediation_job(None, username, remediation_name, uploaded_file_id=file_id)
+                if not results:
+                    raise RuntimeError("Document generation produced no remediation modules")
 
             # ==========================================
             # 3. COMPLETION
@@ -138,6 +131,11 @@ def process_tasks():
                 print(f"[{datetime.now()}] Failed to update status to 'failed': {db_e}")
             time.sleep(5)
         finally:
+            if document_claimed:
+                try:
+                    delete_document(payload, username)
+                except Exception as cleanup_error:
+                    print(f"Task #{task_id}: OpenAI file cleanup failed; expiration remains the fallback: {cleanup_error}")
             # Ensure the connection is always closed at the end of every loop
             if conn is not None:
                 try:
