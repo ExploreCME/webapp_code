@@ -33,7 +33,6 @@ class HomepagePremiumRefreshTests(unittest.TestCase):
         with patch.dict(sys.modules, modules), patch.dict(os.environ, env):
             cls.module = load_module("display_database")
         cls.module.app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)
-        cls.module.fetch_data_for_dashboard = MagicMock(return_value=(0, [], []))
 
     def setUp(self):
         self.client = self.module.app.test_client()
@@ -44,8 +43,10 @@ class HomepagePremiumRefreshTests(unittest.TestCase):
         with patch.object(self.module, "decode_clerk_token",
                           return_value={"sub": "user_123"}), \
                 patch.object(self.module, "get_db_connection", return_value=conn), \
+                patch.object(self.module, "fetch_data_for_dashboard",
+                             return_value=(0, [], [])), \
                 patch.object(self.module, "render_template", return_value="ok"):
-            self.client.set_cookie("__session", "token")
+            self.client.set_cookie(key="__session", value="token")
             self.client.get("/")
         return conn
 
@@ -57,6 +58,7 @@ class HomepagePremiumRefreshTests(unittest.TestCase):
         conn = self.get_index({"has_paid": 1, "is_faculty": "N"})
 
         conn.cursor.return_value.execute.assert_called_once()
+        self.assertEqual(conn.cursor.return_value.execute.call_args.args[1], ("user_123",))
         with self.client.session_transaction() as sess:
             self.assertTrue(sess["is_premium"])
             self.assertFalse(sess["is_faculty"])
