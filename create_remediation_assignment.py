@@ -21,6 +21,7 @@ from Question_writing_and_verification_optomized import (
 )
 
 load_dotenv('/home/ps51632/mysite/explorecme/.env')
+DEFAULT_OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') or os.getenv('MY_API_KEY')
 
 DEFAULT_MODEL = "gpt-6.1-sol"
 SYSTEM_MESSAGE = "You are an experienced professor in a Physician Assistant program."
@@ -193,7 +194,9 @@ def clean_json_response(response_text):
 class ConversationManager:
     """Local manager used specifically for the Pydantic Extraction and Summaries"""
     def __init__(self, model=DEFAULT_MODEL):
-        self.client = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY') or os.getenv('MY_API_KEY'))
+        if not DEFAULT_OPENAI_API_KEY:
+            raise RuntimeError("Set OPENAI_API_KEY or MY_API_KEY in the environment or .env file.")
+        self.client = AsyncOpenAI(api_key=DEFAULT_OPENAI_API_KEY)
         self.model = model
         self.system_message = SYSTEM_MESSAGE
 

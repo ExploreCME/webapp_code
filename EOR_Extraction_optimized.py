@@ -10,7 +10,7 @@ from typing import List, Literal
 # Point exactly to where your .env file lives
 load_dotenv('/home/ps51632/mysite/explorecme/.env')
 # Fetch the key
-api_key = os.getenv('MY_API_KEY')
+DEFAULT_API_KEY = os.getenv('MY_API_KEY') or os.getenv('OPENAI_API_KEY')
 
 
 DEFAULT_MODEL = "gpt-4o-mini"
@@ -117,7 +117,10 @@ def standardize_extracted_organ(raw_organ):
 
 class ConversationManager:
     def __init__(self, api_key=None, model=None, temperature=None, max_tokens=None):
-        self.client = OpenAI(api_key=api_key or DEFAULT_API_KEY)
+        api_key = api_key or DEFAULT_API_KEY
+        if not api_key:
+            raise RuntimeError("Set MY_API_KEY or OPENAI_API_KEY in the environment or .env file.")
+        self.client = OpenAI(api_key=api_key)
         self.temperature = temperature if temperature is not None else DEFAULT_TEMPERATURE
         self.model = model if model is not None else DEFAULT_MODEL
         self.max_tokens = max_tokens
