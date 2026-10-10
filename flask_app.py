@@ -1504,8 +1504,8 @@ def start_quiz():
             return redirect(url)
         else:
             attempt_id = uuid.uuid4().hex
-            cursor.execute('INSERT INTO quiz_attempts (attempt_id, username, quiz_name, mode, start_time) VALUES (%s, %s, %s, %s, %s)',
-                           (attempt_id, username, quiz_name, requested_mode, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            cursor.execute('INSERT INTO quiz_attempts (attempt_id, username, username_norm, quiz_name, quiz_name_norm, mode, start_time) VALUES (%s, %s, %s, %s, %s, %s, %s)',
+                           (attempt_id, username, username.strip().lower(), quiz_name, quiz_name.strip().lower(), requested_mode, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             conn.commit()
             return redirect(url_for('quiz.remediation_modules', remediation_name=quiz_name, attempt_id=attempt_id))
     else:
@@ -1513,8 +1513,8 @@ def start_quiz():
             return redirect(url_for('quiz.question_page', quiz_name=quiz_name, mode=requested_mode, attempt_id=resume_attempt_id))
 
         attempt_id = uuid.uuid4().hex
-        cursor.execute('INSERT INTO quiz_attempts (attempt_id, username, quiz_name, mode, start_time) VALUES (%s, %s, %s, %s, %s)',
-                       (attempt_id, username, quiz_name, requested_mode, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        cursor.execute('INSERT INTO quiz_attempts (attempt_id, username, username_norm, quiz_name, quiz_name_norm, mode, start_time) VALUES (%s, %s, %s, %s, %s, %s, %s)',
+                       (attempt_id, username, username.strip().lower(), quiz_name, quiz_name.strip().lower(), requested_mode, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
         return redirect(url_for('quiz.question_page', quiz_name=quiz_name, mode=requested_mode, attempt_id=attempt_id))
 

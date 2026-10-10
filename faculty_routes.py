@@ -215,7 +215,7 @@ def review_remediation():
             sql = """
                 SELECT id, remediation_name, organ_system, task_area, topic_area, created_date
                 FROM remediation_assignments
-                WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s))
+                WHERE username_norm = LOWER(TRIM(%s))
                 ORDER BY remediation_name ASC
             """
             cursor.execute(sql, (username,))
@@ -260,7 +260,7 @@ def review_remediation_details(remediation_name):
             sql = """
                 SELECT id, remediation_name, organ_system, task_area, topic_area, created_date
                 FROM remediation_assignments
-                WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s))
+                WHERE username_norm = LOWER(TRIM(%s))
                 ORDER BY remediation_name ASC
             """
             cursor.execute(sql, (username,))
@@ -300,7 +300,7 @@ def delete_remediation_module():
     conn = get_mysql_connection()
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT id, topic_area, remediation_name FROM remediation_assignments WHERE id = %s AND TRIM(LOWER(username)) = TRIM(LOWER(%s))", (module_id, username))
+            cursor.execute("SELECT id, topic_area, remediation_name FROM remediation_assignments WHERE id = %s AND username_norm = LOWER(TRIM(%s))", (module_id, username))
             module = cursor.fetchone()
 
             if module:
@@ -341,21 +341,25 @@ def delete_entire_remediation():
                 cursor.execute("""
                     DELETE q FROM remediation_questions q
                     INNER JOIN remediation_assignments a ON q.assignment_id = a.id
-                    WHERE TRIM(LOWER(a.username)) = TRIM(LOWER(%s)) AND (a.remediation_name IS NULL OR TRIM(a.remediation_name) = '')
+                    WHERE a.username_norm = LOWER(TRIM(%s))
+                      AND (a.remediation_name_norm IS NULL OR a.remediation_name_norm = '')
                 """, (username,))
                 cursor.execute("""
                     DELETE FROM remediation_assignments
-                    WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s)) AND (remediation_name IS NULL OR TRIM(remediation_name) = '')
+                    WHERE username_norm = LOWER(TRIM(%s))
+                      AND (remediation_name_norm IS NULL OR remediation_name_norm = '')
                 """, (username,))
             else:
                 cursor.execute("""
                     DELETE q FROM remediation_questions q
                     INNER JOIN remediation_assignments a ON q.assignment_id = a.id
-                    WHERE TRIM(LOWER(a.username)) = TRIM(LOWER(%s)) AND TRIM(LOWER(a.remediation_name)) = TRIM(LOWER(%s))
+                    WHERE a.username_norm = LOWER(TRIM(%s))
+                      AND a.remediation_name_norm = LOWER(TRIM(%s))
                 """, (username, remediation_name))
                 cursor.execute("""
                     DELETE FROM remediation_assignments
-                    WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s)) AND TRIM(LOWER(remediation_name)) = TRIM(LOWER(%s))
+                    WHERE username_norm = LOWER(TRIM(%s))
+                      AND remediation_name_norm = LOWER(TRIM(%s))
                 """, (username, remediation_name))
 
             conn.commit()
@@ -383,7 +387,7 @@ def review_remediation_questions(module_id):
             cursor.execute("""
                 SELECT id, remediation_name, organ_system, task_area, topic_area
                 FROM remediation_assignments
-                WHERE id = %s AND TRIM(LOWER(username)) = TRIM(LOWER(%s))
+                WHERE id = %s AND username_norm = LOWER(TRIM(%s))
             """, (module_id, username))
             module_info = cursor.fetchone()
 
@@ -420,7 +424,7 @@ def remove_remediation_question():
         with conn.cursor() as cursor:
             cursor.execute("""
                 SELECT id FROM remediation_assignments
-                WHERE id = %s AND TRIM(LOWER(username)) = TRIM(LOWER(%s))
+                WHERE id = %s AND username_norm = LOWER(TRIM(%s))
             """, (module_id, username))
 
             if cursor.fetchone():
@@ -580,13 +584,13 @@ def search_add_questions(quiz_name):
                 def fetch_qs(o, ta, to):
                     conds, params = [], []
                     if o and o.lower() != 'any':
-                        conds.append("TRIM(organ_system) = TRIM(%s)")
+                        conds.append("organ_system_norm = LOWER(TRIM(%s))")
                         params.append(o)
                     if ta and ta.lower() != 'any':
-                        conds.append("TRIM(task_area) = TRIM(%s)")
+                        conds.append("task_area_norm = LOWER(TRIM(%s))")
                         params.append(ta)
                     if to and to.lower() != 'any':
-                        conds.append("TRIM(topic_area) = TRIM(%s)")
+                        conds.append("topic_area_norm = LOWER(TRIM(%s))")
                         params.append(to)
 
                     query = "SELECT * FROM question_bank" + ((" WHERE " + " AND ".join(conds)) if conds else "")
@@ -792,7 +796,7 @@ def assign_quiz():
             cursor.execute('''
                 SELECT id, remediation_name, organ_system, task_area, topic_area, created_date
                 FROM remediation_assignments
-                WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s))
+                WHERE username_norm = LOWER(TRIM(%s))
             ''', (username,))
             all_rems = cursor.fetchall()
 
@@ -1033,7 +1037,7 @@ def class_results():
             cursor.execute('SELECT quiz_name FROM user_quizzes WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s)) ORDER BY quiz_name ASC', (username,))
             quizzes = [r['quiz_name'] for r in cursor.fetchall() if r['quiz_name']]
 
-            cursor.execute("SELECT DISTINCT remediation_name FROM remediation_assignments WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s)) ORDER BY remediation_name ASC", (username,))
+            cursor.execute("SELECT DISTINCT remediation_name FROM remediation_assignments WHERE username_norm = LOWER(TRIM(%s)) ORDER BY remediation_name ASC", (username,))
             remediations = [r['remediation_name'] for r in cursor.fetchall() if r['remediation_name'] and str(r['remediation_name']).strip() not in ['', 'None']]
 
             target_type = request.form.get('target_type') or request.args.get('target_type') or 'class'
@@ -1088,7 +1092,8 @@ def class_results():
                         SELECT COUNT(rq.id) as count
                         FROM remediation_questions rq
                         JOIN remediation_assignments ra ON rq.assignment_id = ra.id
-                        WHERE TRIM(LOWER(ra.remediation_name)) = TRIM(LOWER(%s)) AND TRIM(LOWER(ra.username)) = TRIM(LOWER(%s))
+                        WHERE ra.remediation_name_norm = LOWER(TRIM(%s))
+                          AND ra.username_norm = LOWER(TRIM(%s))
                     ''', (selected_assignment, username))
                     q_count_res = cursor.fetchone()
                     total_q = q_count_res['count'] if q_count_res else 0
@@ -1117,21 +1122,22 @@ def class_results():
                     format_strings = ','.join(['%s'] * len(student_ids))
 
                     bulk_query = f'''
-                        SELECT qa.username, qa.attempt_id, qa.mode, qa.start_time,
+                        SELECT qa.username_norm AS username, qa.attempt_id, qa.mode, qa.start_time,
                                COUNT(ar.id) as answered_count,
                                COALESCE(SUM(ar.is_correct), 0) as correct_answers
                         FROM quiz_attempts qa
                         LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
-                        WHERE qa.quiz_name = %s AND qa.username IN ({format_strings})
-                        GROUP BY qa.attempt_id, qa.username, qa.mode, qa.start_time
+                        WHERE qa.quiz_name_norm = LOWER(TRIM(%s))
+                          AND qa.username_norm IN ({format_strings})
+                        GROUP BY qa.attempt_id, qa.username_norm, qa.quiz_name_norm, qa.mode, qa.start_time
                         ORDER BY qa.start_time DESC
                     '''
-                    params = [selected_assignment] + student_ids
+                    params = [selected_assignment] + [str(student_id).strip().lower() for student_id in student_ids]
                     cursor.execute(bulk_query, params)
                     all_raw_attempts = cursor.fetchall()
 
                     for att in all_raw_attempts:
-                        uname = att['username']
+                        uname = str(att['username']).strip().lower()
                         if uname not in attempts_by_user:
                             attempts_by_user[uname] = []
                         attempts_by_user[uname].append(att)
@@ -1140,7 +1146,7 @@ def class_results():
                     student_id = student['clerk_id']
                     display_name = get_display_name(student['first_name'], student['last_name'], student['email'])
 
-                    raw_attempts = attempts_by_user.get(student_id, [])
+                    raw_attempts = attempts_by_user.get(str(student_id).strip().lower(), [])
 
                     highest_test_score = None
                     most_recent_test_score = None
@@ -1261,7 +1267,7 @@ def generate_report():
                     cursor.execute("SELECT quiz_name FROM user_quizzes WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s)) ORDER BY quiz_name ASC", (username,))
                     quizzes = [r['quiz_name'] for r in cursor.fetchall()]
 
-                    cursor.execute("SELECT DISTINCT remediation_name FROM remediation_assignments WHERE TRIM(LOWER(username)) = TRIM(LOWER(%s)) ORDER BY remediation_name ASC", (username,))
+                    cursor.execute("SELECT DISTINCT remediation_name FROM remediation_assignments WHERE username_norm = LOWER(TRIM(%s)) ORDER BY remediation_name ASC", (username,))
                     remediations = [r['remediation_name'] for r in cursor.fetchall() if r['remediation_name'] and str(r['remediation_name']).strip() not in ['', 'None']]
 
                     return render_template('faculty_report.html', classes=classes, students=students, quizzes=quizzes, remediations=remediations)
@@ -1313,7 +1319,8 @@ def generate_report():
                                COALESCE(SUM(ar.is_correct), 0) as correct_answers
                         FROM quiz_attempts qa
                         LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
-                        WHERE qa.username = %s AND qa.quiz_name = %s {mode_filter}
+                        WHERE qa.username_norm = LOWER(TRIM(%s))
+                          AND qa.quiz_name_norm = LOWER(TRIM(%s)) {mode_filter}
                         GROUP BY qa.attempt_id, qa.start_time
                         ORDER BY qa.start_time DESC
                     ''', (clerk_id, assignment_name))
@@ -1356,21 +1363,22 @@ def generate_report():
 
                     format_strings = ','.join(['%s'] * len(student_ids))
                     cursor.execute(f'''
-                        SELECT qa.username, qa.attempt_id, qa.start_time,
+                        SELECT qa.username_norm AS username, qa.attempt_id, qa.start_time,
                                COUNT(ar.id) as answered_count,
                                COALESCE(SUM(ar.is_correct), 0) as correct_answers
                         FROM quiz_attempts qa
                         LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
-                        WHERE qa.quiz_name = %s AND qa.username IN ({format_strings})
-                        GROUP BY qa.attempt_id, qa.username, qa.start_time
+                        WHERE qa.quiz_name_norm = LOWER(TRIM(%s))
+                          AND qa.username_norm IN ({format_strings})
+                        GROUP BY qa.attempt_id, qa.username_norm, qa.quiz_name_norm, qa.start_time
                         ORDER BY qa.start_time DESC
-                    ''', [assignment_name] + student_ids)
+                    ''', [assignment_name] + [str(student_id).strip().lower() for student_id in student_ids])
 
                     all_attempts = cursor.fetchall()
 
                     attempts_by_user = {}
                     for att in all_attempts:
-                        uname = att['username']
+                        uname = str(att['username']).strip().lower()
                         if uname not in attempts_by_user:
                             attempts_by_user[uname] = []
                         attempts_by_user[uname].append(att)
@@ -1412,7 +1420,7 @@ def generate_report():
                         responses_by_attempt[aid].append(r)
 
                     for att in selected_attempts_flat:
-                        uname = att['username']
+                        uname = str(att['username']).strip().lower()
                         ans = att['answered_count'] or 0
                         corr = att['correct_answers'] or 0
                         pct = round((corr / ans * 100), 1) if ans > 0 else 0
@@ -1455,7 +1463,7 @@ def generate_report():
                     max_q = 0
                     for student in students:
                         s_name = get_display_name(student['first_name'], student['last_name'], student['email'])
-                        attempts_data = bulk_class_data.get(student['clerk_id'], [])
+                        attempts_data = bulk_class_data.get(str(student['clerk_id']).strip().lower(), [])
 
                         if not attempts_data:
                             all_data.append((s_name, "N/A", "No Attempts", []))
