@@ -4,32 +4,18 @@ import os
 import sys
 import time
 import json
-import pymysql
-import pymysql.cursors
+from db_pool import get_db_connection
 from datetime import datetime
-from dotenv import load_dotenv
 
 # 1. Force unbuffered output so logs show up in PythonAnywhere immediately
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
-
-# 2. Force load environment variables for the background worker
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
 
 # Import your LLM generation scripts
 import EOR_Extraction_optimized as eor_extractor
 import Question_writing_and_verification_optomized as question_generator
 import on_demand_generator
 from create_remediation_assignment import start_remediation_job
-
-def get_db_connection():
-    return pymysql.connect(
-        host=os.getenv('MYSQL_HOST'),
-        user=os.getenv('MYSQL_USER'),
-        password=os.getenv('MYSQL_PASSWORD'),
-        database=os.getenv('MYSQL_DB'),
-        cursorclass=pymysql.cursors.DictCursor
-    )
 
 def process_tasks():
     while True:
@@ -50,6 +36,7 @@ def process_tasks():
 
             if not task:
                 conn.close()
+                conn = None
                 print(f"[{datetime.now()}] Queue empty. Sleeping for 5s...")
                 time.sleep(5)
                 continue
@@ -129,18 +116,27 @@ def process_tasks():
             print(f"[{datetime.now()}] Task FAILED: {e}")
             try:
                 # Reconnect safely to record the failure
-                if not conn or not conn.open:
-                    conn = get_db_connection()
-                cursor = conn.cursor()
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception as db_e:
+                        print(f"[{datetime.now()}] Failed to close database connection: {db_e}")
+                    conn = None
                 if task:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
                     cursor.execute("UPDATE quiz_generation_tasks SET status = 'failed', updated_at = NOW() WHERE id = %s", (task['id'],))
                     conn.commit()
             except Exception as db_e:
                 print(f"[{datetime.now()}] Failed to update status to 'failed': {db_e}")
+            time.sleep(5)
         finally:
             # Ensure the connection is always closed at the end of every loop
-            if conn and conn.open:
-                conn.close()
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception as db_e:
+                    print(f"[{datetime.now()}] Failed to close database connection: {db_e}")
 
 if __name__ == "__main__":
     print("Starting Background Quiz Worker...")
