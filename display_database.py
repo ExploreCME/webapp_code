@@ -175,8 +175,16 @@ def inject_premium_status():
 
     is_premium = session.get('is_premium', False)
     is_faculty = session.get('is_faculty', False)
+    
+    # 👇 NEW: Pass Clerk publishable key to all templates
+    clerk_publishable_key = os.getenv('CLERK_PUBLISHABLE_KEY', '')
 
-    return dict(is_premium=is_premium, is_app=is_app, is_faculty=is_faculty)
+    return dict(
+        is_premium=is_premium, 
+        is_app=is_app, 
+        is_faculty=is_faculty,
+        clerk_publishable_key=clerk_publishable_key
+    )
 
 # ==========================================
 # DATABASE HELPER FUNCTIONS
