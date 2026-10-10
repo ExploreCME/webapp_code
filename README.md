@@ -2,6 +2,22 @@
 
 This repository contains the web application and supporting services for the ExploreCME platform.
 
+## Quiz worker database configuration
+
+The web app and quiz worker use the shared pool in `db_pool.py`.
+Set `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DB` on both Render
+services. The worker must use the database hostname, not `localhost`.
+Set `MYSQL_PORT` to the database port (defaults to `3306`).
+TLS is enabled by default; `MYSQL_SSL_CA` optionally specifies a CA certificate
+file. Use `MYSQL_SSL_DISABLED=true` only for local/non-TLS databases.
+For local runs, the pool loads `.env` from the repository root.
+
+Run the focused worker tests from the repository root:
+
+```bash
+python -m unittest discover -s tests -p 'test_quiz_worker.py' -v
+```
+
 ## Database maintenance
 
 The repository includes database migration scripts in `migrations/`.

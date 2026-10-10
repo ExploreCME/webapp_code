@@ -55,6 +55,12 @@ services:
         value: 3.11
       - key: MYSQL_HOST
         sync: false
+      - key: MYSQL_PORT
+        sync: false
+      - key: MYSQL_SSL_DISABLED
+        value: "false"
+      - key: MYSQL_SSL_CA
+        sync: false
       - key: MYSQL_USER
         sync: false
       - key: MYSQL_PASSWORD
