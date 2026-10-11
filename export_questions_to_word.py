@@ -1,25 +1,4 @@
-import os
-import pymysql
-import pymysql.cursors
-from dotenv import load_dotenv
-
-# 1. Load DB credentials
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
-
-MYSQL_HOST = os.getenv('MYSQL_HOST')
-MYSQL_USER = os.getenv('MYSQL_USER')
-MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD')
-MYSQL_DB = os.getenv('MYSQL_DB')
-
-def get_db_connection():
-    """Establish and return a connection to the MySQL database."""
-    return pymysql.connect(
-        host=MYSQL_HOST,
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD,
-        database=MYSQL_DB,
-        cursorclass=pymysql.cursors.DictCursor
-    )
+from db_pool import get_db_connection
 
 def export_questions():
     conn = None

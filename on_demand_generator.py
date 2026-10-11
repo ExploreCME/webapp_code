@@ -1,7 +1,7 @@
 ###on_demand_generator.py
 import os
 import json
-import aiomysql
+from db_pool import get_async_db_connection as get_db_connection
 import asyncio
 import uuid
 import random
@@ -17,23 +17,6 @@ from Question_writing_and_verification_optomized import (
 
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
-
-MYSQL_HOST = os.getenv('MYSQL_HOST')
-MYSQL_USER = os.getenv('MYSQL_USER')
-MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD')
-MYSQL_DB = os.getenv('MYSQL_DB')
-
-# ==========================================
-# MYSQL CONNECTION HELPER
-# ==========================================
-async def get_db_connection():
-    return await aiomysql.connect(
-        host=MYSQL_HOST,
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD,
-        db=MYSQL_DB,
-        cursorclass=aiomysql.DictCursor
-    )
 
 # ==========================================
 # DATABASE ROUTING LOGIC (SINGLE QUESTIONS)

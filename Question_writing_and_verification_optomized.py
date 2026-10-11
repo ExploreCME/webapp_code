@@ -1,7 +1,7 @@
 ####Question_writing_and_verification_optomized.py
 import os
 import json
-import aiomysql
+from db_pool import get_async_db_connection
 import re
 import asyncio
 import uuid
@@ -15,12 +15,6 @@ from dotenv import load_dotenv
 # Point exactly to where your .env file lives
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 DEFAULT_OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') or os.getenv('MY_API_KEY')
-
-# Fetch keys & DB credentials
-MYSQL_HOST = os.getenv('MYSQL_HOST')
-MYSQL_USER = os.getenv('MYSQL_USER')
-MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD')
-MYSQL_DB = os.getenv('MYSQL_DB')
 
 DEFAULT_MODEL = "gpt-6.1-sol"
 DEFAULT_SYSTEM_MESSAGE = "You are an experienced professor in a Physician Assistant program."
@@ -491,13 +485,7 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
     conv_manager = ConversationManager(model="gpt-6.1-sol")
     conv_manager_verify = ConversationManager(model="gpt-6.1-sol")
     try:
-        conn = await aiomysql.connect(
-            host=MYSQL_HOST,
-            user=MYSQL_USER,
-            password=MYSQL_PASSWORD,
-            db=MYSQL_DB,
-            cursorclass=aiomysql.DictCursor
-        )
+        conn = await get_async_db_connection()
 
         sem = asyncio.Semaphore(3)
 
@@ -624,13 +612,7 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
             raise RuntimeError("Document generation produced no questions.")
 
         if all_quiz_questions:
-            conn = await aiomysql.connect(
-                host=MYSQL_HOST,
-                user=MYSQL_USER,
-                password=MYSQL_PASSWORD,
-                db=MYSQL_DB,
-                cursorclass=aiomysql.DictCursor
-            )
+            conn = await get_async_db_connection()
 
             async with conn.cursor() as cursor:
                 if not quiz_id:
