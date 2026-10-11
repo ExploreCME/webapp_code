@@ -82,10 +82,15 @@ def process_tasks():
             print(f"[{datetime.now()}] Processing Task #{task_id}: {quiz_name} ({task_type})")
 
             # Mark as processing
-            cursor.execute("UPDATE quiz_generation_tasks SET status = 'processing', updated_at = NOW() WHERE id = %s AND status = 'pending'", (task_id,))
-            claimed = cursor.rowcount
-            task_claimed = claimed > 0
-            conn.commit()
+            # Defer SIGTERM until the database claim and local ownership agree.
+            previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+            try:
+                cursor.execute("UPDATE quiz_generation_tasks SET status = 'processing', updated_at = NOW() WHERE id = %s AND status = 'pending'", (task_id,))
+                claimed = cursor.rowcount
+                task_claimed = claimed > 0
+                conn.commit()
+            finally:
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
             if claimed == 0:
                 task = None
                 continue

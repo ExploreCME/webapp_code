@@ -370,6 +370,31 @@ class QuizWorkerTests(unittest.TestCase):
         requeue.close.assert_called_once()
         self.delete_document.assert_not_called()
 
+    def test_sigterm_immediately_after_database_claim_requeues_task(self):
+        fetch = self.connection(self.document_task())
+        requeue = self.connection()
+
+        def execute(query, *args):
+            if "SET status = 'processing'" in query:
+                os.kill(os.getpid(), self.worker.signal.SIGTERM)
+
+        fetch.cursor.return_value.execute.side_effect = execute
+        previous_handler = self.worker.signal.signal(
+            self.worker.signal.SIGTERM, self.worker._handle_sigterm)
+        try:
+            with patch.object(self.worker, "get_db_connection", side_effect=[fetch, requeue]), \
+                    patch("builtins.print"):
+                with self.assertRaises(self.worker.WorkerShutdown):
+                    self.worker.process_tasks()
+        finally:
+            self.worker.signal.signal(self.worker.signal.SIGTERM, previous_handler)
+        fetch.commit.assert_called_once()
+        requeue.cursor.return_value.execute.assert_called_once()
+        self.assertIn("status = 'pending'", requeue.cursor.return_value.execute.call_args.args[0])
+        requeue.commit.assert_called_once()
+        self.worker.question_generator.generate_questions_from_eor.assert_not_called()
+        self.delete_document.assert_not_called()
+
     def test_shutdown_before_claim_does_not_requeue_another_workers_task(self):
         conn = self.connection(self.document_task())
         conn.cursor.return_value.execute.side_effect = [None, self.worker.WorkerShutdown]
