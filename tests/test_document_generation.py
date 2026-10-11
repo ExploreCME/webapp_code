@@ -69,6 +69,52 @@ class DocumentGenerationTests(unittest.TestCase):
                     str(topics), "quiz", None, "owner", 1, True))
         self.assertEqual(manager.client.close.await_count, 2)
 
+    def test_per_topic_counts_and_percentage_allocation_reach_generation(self):
+        for use_existing in (False, True):
+            with self.subTest(use_existing=use_existing):
+                generator = self.load("Question_writing_and_verification_optomized")
+                manager = MagicMock()
+                manager.client.close = AsyncMock()
+                conn = MagicMock()
+                cursor = AsyncMock()
+                cursor.fetchall.return_value = []
+                cursor.rowcount = 100
+                conn.cursor.return_value.__aenter__.return_value = cursor
+                conn.commit = AsyncMock()
+                generator.aiomysql.connect = AsyncMock(return_value=conn)
+                items = [
+                    {"organ_system": "Cardiovascular System", "topic_area": "Heart failure"},
+                    {"organ_system": "Pulmonary System", "topic_area": "Asthma"},
+                    {"organ_system": "Endocrine System", "topic_area": "Diabetes",
+                     "percentage": 50},
+                    {"organ_system": "Neurologic System", "topic_area": "Headache",
+                     "percentage": 0},
+                ]
+
+                async def generate(sem, item, count, *args):
+                    return [{
+                        **item, "question_stem": f"{item['topic_area']} {index}"
+                    } for index in range(count)]
+
+                with tempfile.TemporaryDirectory() as directory, \
+                        patch.object(generator, "ConversationManager", return_value=manager), \
+                        patch.object(generator, "sem_process_topic_batch",
+                                     side_effect=generate) as batch:
+                    topics = Path(directory) / "topics.json"
+                    topics.write_text(json.dumps({"extracted_topics": items}) + "\n")
+                    asyncio.run(generator.generate_questions_from_eor_async(
+                        str(topics), "quiz", None, "owner", 4, use_existing, "quiz-id"))
+
+                self.assertEqual([call.args[2] for call in batch.call_args_list], [4, 4, 2, 1])
+                inserted = cursor.executemany.call_args_list[0].args[1]
+                mapped = cursor.executemany.call_args_list[1].args[1]
+                self.assertEqual(len(inserted), 11)
+                self.assertEqual(len(mapped), 11)
+                if use_existing:
+                    limits = [call.args[1][-1] for call in cursor.execute.call_args_list]
+                    self.assertEqual(limits, [4, 4, 2, 1])
+                conn.commit.assert_awaited_once()
+
 
 if __name__ == "__main__":
     unittest.main()
