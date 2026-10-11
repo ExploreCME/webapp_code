@@ -4,13 +4,58 @@ import argparse
 import pymysql
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv('/home/ps51632/mysite/explorecme/.env')
+# Load environment variables from the local project root when present,
+# but do not depend on a machine-specific absolute path.
+load_dotenv()
 
 MYSQL_HOST = os.getenv('MYSQL_HOST')
 MYSQL_USER = os.getenv('MYSQL_USER')
 MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD')
 MYSQL_DB = os.getenv('MYSQL_DB')
+MYSQL_PORT = int(os.getenv('MYSQL_PORT', '25060'))
+
+
+def _connect_mysql():
+    """Create a MySQL connection using Render/DigitalOcean-friendly settings."""
+    missing = [
+        name for name, value in {
+            'MYSQL_HOST': MYSQL_HOST,
+            'MYSQL_USER': MYSQL_USER,
+            'MYSQL_PASSWORD': MYSQL_PASSWORD,
+            'MYSQL_DB': MYSQL_DB,
+        }.items() if not value
+    ]
+    if missing:
+        raise RuntimeError(
+            "Missing MySQL environment variables: " + ", ".join(missing)
+        )
+
+    ssl_disabled = os.getenv('MYSQL_SSL_DISABLED', 'false').lower() in (
+        '1', 'true', 'yes', 'on'
+    )
+    ssl_ca = os.getenv('MYSQL_SSL_CA')
+
+    connection_kwargs = {
+        'host': MYSQL_HOST,
+        'port': MYSQL_PORT,
+        'user': MYSQL_USER,
+        'password': MYSQL_PASSWORD,
+        'database': MYSQL_DB,
+        'cursorclass': pymysql.cursors.DictCursor,
+        'autocommit': False,
+        'connect_timeout': 10,
+        'charset': 'utf8mb4',
+    }
+
+    if not ssl_disabled:
+        if ssl_ca:
+            connection_kwargs['ssl'] = {'ca': ssl_ca}
+        else:
+            # DigitalOcean managed MySQL generally requires TLS.
+            # This matches the repo's safer encrypted-connection pattern.
+            connection_kwargs['ssl'] = {'ssl': {}}
+
+    return pymysql.connect(**connection_kwargs)
 
 
 def clear_database_except_flashcards(assume_yes: bool = False, keep_users: bool = True):
@@ -23,14 +68,7 @@ def clear_database_except_flashcards(assume_yes: bool = False, keep_users: bool 
     Intended for testing resets before generating new content.
     """
 
-    conn = pymysql.connect(
-        host=MYSQL_HOST,
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD,
-        database=MYSQL_DB,
-        cursorclass=pymysql.cursors.DictCursor,
-        autocommit=False
-    )
+    conn = _connect_mysql()
 
     # Child -> parent order to avoid FK violations.
     # NOTE: We do not disable FK checks; ordered DELETE is safer with evolving schemas.
@@ -164,4 +202,3 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     clear_database_except_flashcards(assume_yes=args.yes, keep_users=args.keep_users)
-       
