@@ -1,9 +1,10 @@
-# wipe_database.py
+#!/usr/bin/env python3
 import os
+import argparse
 import pymysql
 from dotenv import load_dotenv
 
-# Point to your .env file
+# Load environment variables
 load_dotenv('/home/ps51632/mysite/explorecme/.env')
 
 MYSQL_HOST = os.getenv('MYSQL_HOST')
@@ -11,59 +12,156 @@ MYSQL_USER = os.getenv('MYSQL_USER')
 MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD')
 MYSQL_DB = os.getenv('MYSQL_DB')
 
-def wipe_questions_and_quizzes_only():
+
+def clear_database_except_flashcards(assume_yes: bool = False, keep_users: bool = True):
+    """
+    Clears quiz/attempt/task/assignment/remediation/question data while preserving:
+      - flashcards
+      - flashcard_progress
+      - users (optional; preserved by default)
+
+    Intended for testing resets before generating new content.
+    """
+
     conn = pymysql.connect(
         host=MYSQL_HOST,
         user=MYSQL_USER,
         password=MYSQL_PASSWORD,
         database=MYSQL_DB,
-        cursorclass=pymysql.cursors.DictCursor
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=False
     )
+
+    # Child -> parent order to avoid FK violations.
+    # NOTE: We do not disable FK checks; ordered DELETE is safer with evolving schemas.
+    tables_to_delete = [
+        "attempt_responses",
+        "quiz_questions_map",
+        "remediation_questions",
+        "quiz_attempts",
+        "quiz_generation_tasks",
+        "assigned_quizzes",
+        "assigned_remediations",
+        "user_quizzes",
+        "question_bank",
+        "remediation_assignments",
+    ]
+
+    if not keep_users:
+        tables_to_delete.append("users")
+
+    confirmation_text = (
+        "This will DELETE all non-flashcard testing data, including remediations, quizzes, "
+        "attempt history, generation tasks, and mappings."
+    )
+    if keep_users:
+        confirmation_text += " Users will be preserved."
+    else:
+        confirmation_text += " Users will ALSO be deleted."
+
+    if not assume_yes:
+        print("⚠️  DATABASE RESET WARNING")
+        print(confirmation_text)
+        confirm = input("Type 'yes' to proceed: ").strip().lower()
+        if confirm != "yes":
+            print("Operation cancelled.")
+            conn.close()
+            return
+
+    deleted_counts = {}
 
     try:
         with conn.cursor() as cursor:
-            print("Starting targeted database cleanup...")
+            print("\nStarting database cleanup...")
 
-            # Disable foreign key checks temporarily to safely clear relational mapping tables
-            cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+            for table in tables_to_delete:
+                try:
+                    cursor.execute(f"DELETE FROM `{table}`")
+                    deleted_counts[table] = cursor.rowcount
+                    print(f"-> Cleared {table}: {cursor.rowcount} rows deleted")
+                except pymysql.err.ProgrammingError as e:
+                    # Table doesn't exist in this environment/schema variant
+                    deleted_counts[table] = None
+                    print(f"-> Skipped {table}: {e}")
+                except pymysql.err.OperationalError as e:
+                    deleted_counts[table] = None
+                    print(f"-> Note on {table}: {e}")
 
-            # Tables to wipe completely (Leaving `users` and `flashcards` untouched)
-            tables_to_truncate = [
+            conn.commit()
+            print("\n✅ Database cleanup committed.")
+
+            # Post-wipe verification report
+            verify_tables = [
                 "attempt_responses",
                 "quiz_attempts",
                 "quiz_questions_map",
                 "user_quizzes",
                 "question_bank",
                 "quiz_generation_tasks",
+                "assigned_quizzes",
+                "assigned_remediations",
+                "remediation_questions",
                 "remediation_assignments",
-                "remediation_questions"
+                "flashcards",
+                "flashcard_progress",
             ]
+            if not keep_users:
+                verify_tables.append("users")
 
-            for table in tables_to_truncate:
+            print("\nPost-wipe verification (row counts):")
+            for t in verify_tables:
                 try:
-                    cursor.execute(f"TRUNCATE TABLE {table};")
-                    print(f"-> Cleared table: {table}")
-                except pymysql.err.OperationalError as e:
-                    print(f"-> Note on {table}: {e}")
+                    cursor.execute(f"SELECT COUNT(*) AS c FROM `{t}`")
+                    c = cursor.fetchone()["c"]
+                    print(f"-> {t}: {c}")
+                except Exception as e:
+                    print(f"-> {t}: skipped ({e})")
 
-            # Re-enable foreign key checks
-            cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
-
-            conn.commit()
-            print("\nDatabase cleanup complete!")
-            print("-> User accounts (`users` table) remain intact.")
-            print("-> Flashcards (`flashcards` table) remain intact.")
-            print("-> All questions, attempt logs, quiz history, tasks, and remediations have been cleared.")
+            print("\nSummary:")
+            print("Preserved:")
+            print("-> flashcards")
+            print("-> flashcard_progress")
+            if keep_users:
+                print("-> users")
+            print("Cleared:")
+            print("-> questions, quizzes, attempts, tasks, assignments, remediations")
 
     except Exception as e:
         conn.rollback()
-        print(f"Error during database wipe: {e}")
+        print(f"\n❌ Error during cleanup. Rolled back. Details: {e}")
+        raise
     finally:
         conn.close()
+        print("Database connection closed.")
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Reset ExploreCME DB for testing while preserving flashcards."
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Run non-interactively without confirmation prompt."
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--keep-users",
+        dest="keep_users",
+        action="store_true",
+        help="Preserve users table (default)."
+    )
+    group.add_argument(
+        "--delete-users",
+        dest="keep_users",
+        action="store_false",
+        help="Also delete users table."
+    )
+    parser.set_defaults(keep_users=True)
+    return parser.parse_args()
+
 
 if __name__ == "__main__":
-    confirm = input("Are you sure you want to delete all questions, attempt history, quiz records, and remediations? (yes/no): ").strip().lower()
-    if confirm == 'yes':
-        wipe_questions_and_quizzes_only()
-    else:
-        print("Operation cancelled.")
+    args = parse_args()
+    clear_database_except_flashcards(assume_yes=args.yes, keep_users=args.keep_users)
+       
