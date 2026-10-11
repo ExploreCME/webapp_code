@@ -147,25 +147,6 @@ def process_tasks():
             conn.commit()
             print(f"[{datetime.now()}] Task #{task_id} Completed!")
 
-        except WorkerShutdown:
-            document_claimed = False
-            print(f"[{datetime.now()}] Worker shutting down; re-queueing interrupted task.")
-            if conn is not None:
-                try:
-                    conn.close()
-                except Exception as db_e:
-                    print(f"[{datetime.now()}] Failed to close database connection: {db_e}")
-                finally:
-                    conn = None
-            if task_claimed:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE quiz_generation_tasks SET status = 'pending', updated_at = NOW() WHERE id = %s AND status = 'processing'",
-                    (task['id'],),
-                )
-                conn.commit()
-            raise
         except Exception as e:
             print(f"[{datetime.now()}] Task FAILED: {e}")
             try:
@@ -185,6 +166,27 @@ def process_tasks():
                 print(f"[{datetime.now()}] Failed to update status to 'failed': {db_e}")
             time.sleep(5)
         finally:
+            if isinstance(sys.exc_info()[1], WorkerShutdown):
+                document_claimed = False
+                print(f"[{datetime.now()}] Worker shutting down; re-queueing interrupted task.")
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception as db_e:
+                        print(f"[{datetime.now()}] Failed to close database connection: {db_e}")
+                    finally:
+                        conn = None
+                if task_claimed:
+                    requeue_conn = get_db_connection()
+                    try:
+                        cursor = requeue_conn.cursor()
+                        cursor.execute(
+                            "UPDATE quiz_generation_tasks SET status = 'pending', updated_at = NOW() WHERE id = %s AND status = 'processing'",
+                            (task['id'],),
+                        )
+                        requeue_conn.commit()
+                    finally:
+                        requeue_conn.close()
             if document_claimed:
                 try:
                     delete_document(payload, username)

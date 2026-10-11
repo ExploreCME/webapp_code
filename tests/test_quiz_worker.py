@@ -407,6 +407,22 @@ class QuizWorkerTests(unittest.TestCase):
         conn.close.assert_called_once()
         self.delete_document.assert_not_called()
 
+    def test_shutdown_during_failure_recording_requeues_and_preserves_document(self):
+        fetch = self.connection(self.document_task())
+        failed = self.connection()
+        requeue = self.connection()
+        self.worker.question_generator.generate_questions_from_eor.side_effect = RuntimeError("failed")
+        failed.cursor.return_value.execute.side_effect = self.worker.WorkerShutdown
+        with patch.object(self.worker, "get_db_connection", side_effect=[fetch, failed, requeue]), \
+                patch("builtins.print"):
+            with self.assertRaises(self.worker.WorkerShutdown):
+                self.worker.process_tasks()
+        failed.close.assert_called_once()
+        requeue.commit.assert_called_once()
+        requeue.close.assert_called_once()
+        self.assertIn("status = 'pending'", requeue.cursor.return_value.execute.call_args.args[0])
+        self.delete_document.assert_not_called()
+
     def test_startup_recovery_only_updates_stale_processing_tasks(self):
         conn = self.connection()
         with patch.object(self.worker, "get_db_connection", return_value=conn), \
