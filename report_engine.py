@@ -130,10 +130,10 @@ class ReportEngine:
 
         # 1. Fetch valid organ systems (Top 14) to establish our defined list
         self.m_cursor.execute("""
-            SELECT organ_system_norm AS organ_system
+            SELECT TRIM(organ_system) AS organ_system
             FROM question_bank
-            WHERE organ_system_norm IS NOT NULL AND organ_system_norm != ''
-            GROUP BY organ_system_norm
+            WHERE organ_system IS NOT NULL AND TRIM(organ_system) != ''
+            GROUP BY TRIM(organ_system)
             ORDER BY COUNT(*) DESC
             LIMIT 14
         """)
@@ -179,8 +179,8 @@ class ReportEngine:
                 stats['total_correct'] += 1
 
             # Check if organ is in the defined valid list, else force to 'Miscellaneous'
-            org = r['organ_system'] or 'Unknown'
-            if str(org).strip().lower() not in valid_organs:
+            org = str(r['organ_system'] or 'Unknown').strip()
+            if org not in valid_organs:
                 org = "Miscellaneous"
 
             mapped_task = get_standardized_task_area(r['task_area'])
