@@ -1,5 +1,6 @@
 # db_pool.py
 import os
+import ssl
 import pymysql
 from dbutils.pooled_db import PooledDB
 from dotenv import load_dotenv
@@ -9,6 +10,35 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(base_dir, '.env'))
 
 mysql_pool = None
+
+
+def _async_ssl_context():
+    if os.getenv('MYSQL_SSL_DISABLED', 'false').lower() in ('1', 'true', 'yes', 'on'):
+        return None
+    ca = os.getenv('MYSQL_SSL_CA')
+    context = ssl.create_default_context(cafile=ca or None)
+    if not ca:
+        # Preserve the pool's encryption-only mode when no CA is configured.
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    return context
+
+
+async def get_async_db_connection():
+    """Return an async connection using the pool's environment and TLS settings."""
+    import aiomysql
+
+    return await aiomysql.connect(
+        host=os.getenv('MYSQL_HOST'),
+        port=int(os.getenv('MYSQL_PORT', '3306')),
+        user=os.getenv('MYSQL_USER'),
+        **{'password': os.getenv('MYSQL_PASSWORD')},
+        db=os.getenv('MYSQL_DB'),
+        charset='utf8mb4',
+        cursorclass=aiomysql.DictCursor,
+        connect_timeout=10,
+        ssl=_async_ssl_context(),
+    )
 
 
 def _build_pool():

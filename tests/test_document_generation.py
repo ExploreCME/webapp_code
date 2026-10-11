@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class DocumentGenerationTests(unittest.TestCase):
     def load(self, name):
-        dependencies = {key: MagicMock() for key in ("openai", "aiomysql", "dotenv")}
+        dependencies = {key: MagicMock() for key in ("openai", "db_pool", "dotenv")}
         with patch.dict(sys.modules, dependencies):
             spec = importlib.util.spec_from_file_location(name, ROOT / (name + ".py"))
             module = importlib.util.module_from_spec(spec)
@@ -59,7 +59,7 @@ class DocumentGenerationTests(unittest.TestCase):
         generator = self.load("Question_writing_and_verification_optomized")
         manager = MagicMock()
         manager.client.close = AsyncMock()
-        generator.aiomysql.connect = AsyncMock(side_effect=RuntimeError("db unavailable"))
+        generator.get_async_db_connection = AsyncMock(side_effect=RuntimeError("db unavailable"))
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(generator, "ConversationManager", return_value=manager):
             topics = Path(directory) / "topics.json"
@@ -81,7 +81,7 @@ class DocumentGenerationTests(unittest.TestCase):
                 cursor.rowcount = 100
                 conn.cursor.return_value.__aenter__.return_value = cursor
                 conn.commit = AsyncMock()
-                generator.aiomysql.connect = AsyncMock(return_value=conn)
+                generator.get_async_db_connection = AsyncMock(return_value=conn)
                 items = [
                     {"organ_system": "Cardiovascular System", "topic_area": "Heart failure"},
                     {"organ_system": "Pulmonary System", "topic_area": "Asthma"},
@@ -114,6 +114,7 @@ class DocumentGenerationTests(unittest.TestCase):
                     limits = [call.args[1][-1] for call in cursor.execute.call_args_list]
                     self.assertEqual(limits, [4, 4, 2, 1])
                 conn.commit.assert_awaited_once()
+                self.assertEqual(generator.get_async_db_connection.await_count, 2)
 
 
 if __name__ == "__main__":
