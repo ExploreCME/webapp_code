@@ -2,6 +2,7 @@ import os
 import pymysql
 import pymysql.cursors
 from dotenv import load_dotenv
+from standardizers import standardize_organ_system, standardize_task_area
 
 # Load environment variables
 load_dotenv('/home/ps51632/mysite/explorecme/.env')
@@ -13,41 +14,10 @@ MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD')
 MYSQL_DB = os.getenv('MYSQL_DB')
 
 def map_organ_to_canonical(raw_organ):
-    if not raw_organ: return "Unknown"
-    val = str(raw_organ).lower().strip()
-    if "cardio" in val: return "Cardiovascular System"
-    if "derm" in val: return "Dermatologic System"
-    if "endo" in val: return "Endocrine System"
-    if "eye" in val or "ear" in val or "nose" in val or "throat" in val or "ent" in val: return "Eyes, Ears, Nose, and Throat"
-    if "gastro" in val or "gi" in val or "nutri" in val: return "Gastrointestinal System/Nutrition"
-    if "renal" in val: return "Renal System"
-    if "genito" in val or "uro" in val or val == "gu": return "Genitourinary System"
-    if "hema" in val or "blood" in val: return "Hematologic System"
-    if "infect" in val or "id" == val: return "Infectious Diseases"
-    if "musculo" in val or "ortho" in val: return "Musculoskeletal System"
-    if "neuro" in val: return "Neurologic System"
-    if "psych" in val or "behav" in val: return "Psychiatry/Behavioral Science"
-    if "pulm" in val or "resp" in val: return "Pulmonary System"
-    if "repro" in val or "obgyn" in val or "ob/" in val: return "Reproductive System"
-    if "prof" in val or "pract" in val: return "Professional Practice"
-    
-    # Fallback if it's completely unrecognized, just clean it up a bit
-    return str(raw_organ).strip().title() 
+    return standardize_organ_system(raw_organ)
 
 def map_task_to_canonical(raw_task):
-    if not raw_task: return "Unknown"
-    val = str(raw_task).lower().strip()
-    if "history" in val or "physical" in val or "hx" in val or "pe" in val: return "History Taking and Performing Physical Examination"
-    if "lab" in val or "diagnos" in val or "dx" in val: return "Using Laboratory and Diagnostic Studies"
-    if "most likely" in val or "formulat" in val: return "Formulating Most Likely Diagnosis"
-    if "maint" in val or "prevent" in val or "educ" in val: return "Managing Patients - Health Maintenance, Patient Education, and Preventive Measures"
-    if "interven" in val or "clin int" in val: return "Managing Patients - Clinical Intervention"
-    if "pharm" in val or "therap" in val: return "Managing Patients - Pharmaceutical Therapeutics"
-    if "sci" in val or "found" in val or "basic" in val: return "Applying Foundational Scientific Concepts"
-    if "prof" in val or "pract" in val: return "Professional Practice"
-    
-    # Fallback if it's completely unrecognized
-    return str(raw_task).strip().title()
+    return standardize_task_area(raw_task)
 
 def fix_remediations():
     print("Connecting to database...")

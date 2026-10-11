@@ -6,6 +6,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import List, Literal
+from standardizers import standardize_organ_system, standardize_task_area
 
 # Point exactly to where your .env file lives
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
@@ -58,62 +59,7 @@ class EORResponse(BaseModel):
 
 def standardize_extracted_organ(raw_organ):
     """Normalizes raw input strings into strict PANCE categories or 'Misc'."""
-    exact_organs = [
-        "Cardiovascular System", "Dermatologic System", "Endocrine System",
-        "Eyes, Ears, Nose, and Throat", "Gastrointestinal System/Nutrition",
-        "Genitourinary System", "Hematologic System", "Infectious Diseases",
-        "Musculoskeletal System", "Neurologic System", "Psychiatry/Behavioral Science",
-        "Pulmonary System", "Renal System", "Reproductive System", "Professional Practice"
-    ]
-
-    raw_organ_str = str(raw_organ).strip() if raw_organ else ""
-    if ":" in raw_organ_str:
-        prefix = raw_organ_str.split(":")[0].strip()
-        organ_lower = prefix.lower()
-    else:
-        organ_lower = raw_organ_str.lower()
-
-    if any(term in organ_lower for term in ["hematolog", "heme", "blood", "hemato", "myeloma", "anemia", "b12"]):
-        clean_organ = "Hematologic System"
-    elif any(term in organ_lower for term in ["neurolog", "neuro", "brain", "parkinson", "seizure", "dementia"]):
-        clean_organ = "Neurologic System"
-    elif any(term in organ_lower for term in ["gynecolog", "reproductive", "obstetric", "ob/gyn", "obgyn", "women", "female", "pregnancy"]):
-        clean_organ = "Reproductive System"
-    elif any(term in organ_lower for term in ["eenot", "eent", "ear", "eye", "throat", "nose", "oral cavity", "ent", "glaucoma"]):
-        clean_organ = "Eyes, Ears, Nose, and Throat"
-    elif any(term in organ_lower for term in ["gastrointestinal", "gi", "gastro", "nutrition", "stomach", "bowel", "esophag", "ulcerative"]):
-        clean_organ = "Gastrointestinal System/Nutrition"
-    elif any(term in organ_lower for term in ["cardiovascular", "cardio", "heart", "vascular", "tamponade", "tachycardia"]):
-        clean_organ = "Cardiovascular System"
-    elif any(term in organ_lower for term in ["dermatolog", "derm", "skin"]):
-        clean_organ = "Dermatologic System"
-    elif any(term in organ_lower for term in ["psychiat", "behavior", "psych", "mental"]):
-        clean_organ = "Psychiatry/Behavioral Science"
-    elif any(term in organ_lower for term in ["rheumatolog", "musculoskeletal", "ortho", "bone", "joint", "musculo", "lupus", "stenosis"]):
-        clean_organ = "Musculoskeletal System"
-    elif any(term in organ_lower for term in ["infectious", "infec", "salmonella"]):
-        clean_organ = "Infectious Diseases"
-    elif any(term in organ_lower for term in ["endocrine", "endo", "thyroid", "diabetes"]):
-        clean_organ = "Endocrine System"
-    elif any(term in organ_lower for term in ["pulmonary", "pulm", "resp", "asthma", "pneumonia", "sarcoidosis"]):
-        clean_organ = "Pulmonary System"
-    elif "renal" in organ_lower and "genitourinary" not in organ_lower:
-        clean_organ = "Renal System"
-    elif "genitourinary" in organ_lower and "renal" not in organ_lower:
-        clean_organ = "Genitourinary System"
-    elif "renal" in organ_lower or "genitourinary" in organ_lower:
-        clean_organ = "Genitourinary System"
-    else:
-        clean_organ = raw_organ_str.title()
-
-    organ_match = difflib.get_close_matches(clean_organ, exact_organs, n=1, cutoff=0.3)
-
-    if organ_match:
-        return organ_match[0]
-    elif clean_organ in exact_organs:
-        return clean_organ
-    else:
-        return "Misc"
+    return standardize_organ_system(raw_organ)
 
 class ConversationManager:
     def __init__(self, api_key=None, model=None, temperature=None, max_tokens=None):
@@ -204,6 +150,7 @@ def eor_extract_information(conv_manager, uploaded_file_id, output_file_path=Non
             # Pre-normalize organ system using our matching logic to catch edge cases & prefixes
             raw_organ = item.get("organ_system")
             item["organ_system"] = standardize_extracted_organ(raw_organ)
+            item["task_area"] = standardize_task_area(item.get("task_area"))
 
             organ_system = item.get("organ_system")
             raw_topic = item.get("topic_area")
