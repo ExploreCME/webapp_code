@@ -297,6 +297,155 @@ class QuizWorkerTests(unittest.TestCase):
                 self.delete_document.assert_not_called()
                 conn.close.assert_called_once()
 
+    def test_sigterm_raises_shutdown_not_generation_failure(self):
+        with patch.object(self.worker.signal, "signal") as register:
+            with self.assertRaises(self.worker.WorkerShutdown):
+                self.worker._handle_sigterm(self.worker.signal.SIGTERM, None)
+        register.assert_called_once_with(
+            self.worker.signal.SIGTERM, self.worker.signal.SIG_IGN)
+        self.assertFalse(issubclass(self.worker.WorkerShutdown, Exception))
+
+    def test_shutdown_requeues_claimed_tasks_and_preserves_documents(self):
+        for task_type in ("blueprint", "document", "remediation_pdf"):
+            with self.subTest(task_type=task_type):
+                task = self.task if task_type == "blueprint" else self.document_task(task_type)
+                fetch = self.connection(task)
+                requeue = self.connection()
+                generators = (
+                    self.worker.on_demand_generator.generate_batch,
+                    self.worker.question_generator.generate_questions_from_eor,
+                    self.worker.start_remediation_job,
+                )
+                for generator in generators:
+                    generator.side_effect = self.worker.WorkerShutdown
+                self.delete_document.reset_mock()
+                with patch.object(self.worker, "get_db_connection",
+                                  side_effect=[fetch, requeue]) as get_conn, \
+                        patch.object(self.worker.time, "sleep") as sleep, \
+                        patch("builtins.print"):
+                    with self.assertRaises(self.worker.WorkerShutdown):
+                        self.worker.process_tasks()
+                self.assertEqual(get_conn.call_count, 2)
+                requeue.cursor.return_value.execute.assert_called_once_with(
+                    "UPDATE quiz_generation_tasks SET status = 'pending', updated_at = NOW() WHERE id = %s AND status = 'processing'",
+                    (task["id"],),
+                )
+                requeue.commit.assert_called_once()
+                fetch.close.assert_called_once()
+                requeue.close.assert_called_once()
+                self.delete_document.assert_not_called()
+                sleep.assert_not_called()
+
+    def test_shutdown_with_empty_queue_does_not_requeue(self):
+        conn = self.connection()
+        with patch.object(self.worker, "get_db_connection", return_value=conn) as get_conn, \
+                patch.object(self.worker.time, "sleep", side_effect=self.worker.WorkerShutdown), \
+                patch("builtins.print"):
+            with self.assertRaises(self.worker.WorkerShutdown):
+                self.worker.process_tasks()
+        get_conn.assert_called_once()
+        self.assertEqual(conn.cursor.return_value.execute.call_count, 1)
+        conn.close.assert_called_once()
+        self.delete_document.assert_not_called()
+
+    def test_actual_sigterm_during_document_generation_requeues_task(self):
+        fetch = self.connection(self.document_task())
+        requeue = self.connection()
+
+        def terminate(*args):
+            os.kill(os.getpid(), self.worker.signal.SIGTERM)
+
+        previous_handler = self.worker.signal.signal(
+            self.worker.signal.SIGTERM, self.worker._handle_sigterm)
+        try:
+            self.worker.question_generator.generate_questions_from_eor.side_effect = terminate
+            with patch.object(self.worker, "get_db_connection", side_effect=[fetch, requeue]), \
+                    patch("builtins.print"):
+                with self.assertRaises(self.worker.WorkerShutdown):
+                    self.worker.process_tasks()
+        finally:
+            self.worker.signal.signal(self.worker.signal.SIGTERM, previous_handler)
+        self.assertIn("status = 'pending'", requeue.cursor.return_value.execute.call_args.args[0])
+        requeue.commit.assert_called_once()
+        requeue.close.assert_called_once()
+        self.delete_document.assert_not_called()
+
+    def test_sigterm_immediately_after_database_claim_requeues_task(self):
+        fetch = self.connection(self.document_task())
+        requeue = self.connection()
+
+        def execute(query, *args):
+            if "SET status = 'processing'" in query:
+                os.kill(os.getpid(), self.worker.signal.SIGTERM)
+
+        fetch.cursor.return_value.execute.side_effect = execute
+        previous_handler = self.worker.signal.signal(
+            self.worker.signal.SIGTERM, self.worker._handle_sigterm)
+        try:
+            with patch.object(self.worker, "get_db_connection", side_effect=[fetch, requeue]), \
+                    patch("builtins.print"):
+                with self.assertRaises(self.worker.WorkerShutdown):
+                    self.worker.process_tasks()
+        finally:
+            self.worker.signal.signal(self.worker.signal.SIGTERM, previous_handler)
+        fetch.commit.assert_called_once()
+        requeue.cursor.return_value.execute.assert_called_once()
+        self.assertIn("status = 'pending'", requeue.cursor.return_value.execute.call_args.args[0])
+        requeue.commit.assert_called_once()
+        self.worker.question_generator.generate_questions_from_eor.assert_not_called()
+        self.delete_document.assert_not_called()
+
+    def test_shutdown_before_claim_does_not_requeue_another_workers_task(self):
+        conn = self.connection(self.document_task())
+        conn.cursor.return_value.execute.side_effect = [None, self.worker.WorkerShutdown]
+        with patch.object(self.worker, "get_db_connection", return_value=conn) as get_conn, \
+                patch("builtins.print"):
+            with self.assertRaises(self.worker.WorkerShutdown):
+                self.worker.process_tasks()
+        get_conn.assert_called_once()
+        conn.commit.assert_not_called()
+        conn.close.assert_called_once()
+        self.delete_document.assert_not_called()
+
+    def test_shutdown_during_failure_recording_requeues_and_preserves_document(self):
+        fetch = self.connection(self.document_task())
+        failed = self.connection()
+        requeue = self.connection()
+        self.worker.question_generator.generate_questions_from_eor.side_effect = RuntimeError("failed")
+        failed.cursor.return_value.execute.side_effect = self.worker.WorkerShutdown
+        with patch.object(self.worker, "get_db_connection", side_effect=[fetch, failed, requeue]), \
+                patch("builtins.print"):
+            with self.assertRaises(self.worker.WorkerShutdown):
+                self.worker.process_tasks()
+        failed.close.assert_called_once()
+        requeue.commit.assert_called_once()
+        requeue.close.assert_called_once()
+        self.assertIn("status = 'pending'", requeue.cursor.return_value.execute.call_args.args[0])
+        self.delete_document.assert_not_called()
+
+    def test_startup_recovery_only_updates_stale_processing_tasks(self):
+        conn = self.connection()
+        with patch.object(self.worker, "get_db_connection", return_value=conn), \
+                patch("builtins.print") as log:
+            self.worker.requeue_stale_tasks()
+        query, params = conn.cursor.return_value.execute.call_args.args
+        self.assertIn("SET status = 'pending', updated_at = NOW()", query)
+        self.assertIn("WHERE status = 'processing'", query)
+        self.assertIn("updated_at < NOW() - INTERVAL %s MINUTE", query)
+        self.assertEqual(params, (30,))
+        conn.commit.assert_called_once()
+        conn.close.assert_called_once()
+        log.assert_called_once()
+
+    def test_startup_recovery_closes_connection_on_database_error(self):
+        conn = self.connection()
+        conn.cursor.return_value.execute.side_effect = RuntimeError("database unavailable")
+        with patch.object(self.worker, "get_db_connection", return_value=conn):
+            with self.assertRaisesRegex(RuntimeError, "database unavailable"):
+                self.worker.requeue_stale_tasks()
+        conn.commit.assert_not_called()
+        conn.close.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

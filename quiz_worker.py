@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import json
+import signal
 from db_pool import get_db_connection
 from document_storage import validated_file_id, delete_document
 from tempfile import TemporaryDirectory
@@ -19,10 +20,38 @@ import Question_writing_and_verification_optomized as question_generator
 import on_demand_generator
 from create_remediation_assignment import start_remediation_job
 
+class WorkerShutdown(BaseException):
+    pass
+
+
+def _handle_sigterm(signum, frame):
+    # Let cleanup finish even if the host sends another shutdown signal.
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    raise WorkerShutdown()
+
+
+def requeue_stale_tasks(minutes=30):
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE quiz_generation_tasks
+            SET status = 'pending', updated_at = NOW()
+            WHERE status = 'processing'
+              AND updated_at < NOW() - INTERVAL %s MINUTE
+        """, (minutes,))
+        conn.commit()
+        if cursor.rowcount:
+            print(f"[{datetime.now()}] Re-queued {cursor.rowcount} stale task(s).")
+    finally:
+        conn.close()
+
+
 def process_tasks():
     while True:
         conn = None
         task = None
+        task_claimed = False
         document_claimed = False
         try:
             # 1. Connect to fetch one pending task
@@ -53,9 +82,15 @@ def process_tasks():
             print(f"[{datetime.now()}] Processing Task #{task_id}: {quiz_name} ({task_type})")
 
             # Mark as processing
-            cursor.execute("UPDATE quiz_generation_tasks SET status = 'processing', updated_at = NOW() WHERE id = %s AND status = 'pending'", (task_id,))
-            claimed = cursor.rowcount
-            conn.commit()
+            # Defer SIGTERM until the database claim and local ownership agree.
+            previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+            try:
+                cursor.execute("UPDATE quiz_generation_tasks SET status = 'processing', updated_at = NOW() WHERE id = %s AND status = 'pending'", (task_id,))
+                claimed = cursor.rowcount
+                task_claimed = claimed > 0
+                conn.commit()
+            finally:
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
             if claimed == 0:
                 task = None
                 continue
@@ -131,6 +166,27 @@ def process_tasks():
                 print(f"[{datetime.now()}] Failed to update status to 'failed': {db_e}")
             time.sleep(5)
         finally:
+            if isinstance(sys.exc_info()[1], WorkerShutdown):
+                document_claimed = False
+                print(f"[{datetime.now()}] Worker shutting down; re-queueing interrupted task.")
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception as db_e:
+                        print(f"[{datetime.now()}] Failed to close database connection: {db_e}")
+                    finally:
+                        conn = None
+                if task_claimed:
+                    requeue_conn = get_db_connection()
+                    try:
+                        cursor = requeue_conn.cursor()
+                        cursor.execute(
+                            "UPDATE quiz_generation_tasks SET status = 'pending', updated_at = NOW() WHERE id = %s AND status = 'processing'",
+                            (task['id'],),
+                        )
+                        requeue_conn.commit()
+                    finally:
+                        requeue_conn.close()
             if document_claimed:
                 try:
                     delete_document(payload, username)
@@ -145,4 +201,9 @@ def process_tasks():
 
 if __name__ == "__main__":
     print("Starting Background Quiz Worker...")
-    process_tasks()
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+    try:
+        requeue_stale_tasks()
+        process_tasks()
+    except WorkerShutdown:
+        print(f"[{datetime.now()}] Worker stopped.")

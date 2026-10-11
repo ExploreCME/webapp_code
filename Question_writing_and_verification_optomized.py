@@ -477,8 +477,11 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
     print(f"[{datetime.now()}] Found {len(tasks_to_process)} items to process.")
 
     for item in tasks_to_process:
-        pct = item.get("percentage", 0) / 100.0
-        item["target_count"] = max(1, round(total_quiz_questions * pct))
+        if "percentage" in item:
+            pct = item["percentage"] / 100.0
+            item["target_count"] = max(1, round(total_quiz_questions * pct))
+        else:
+            item["target_count"] = total_quiz_questions
 
     successful_questions = []
     existing_quiz_questions = []
