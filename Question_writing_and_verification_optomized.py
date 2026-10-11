@@ -7,7 +7,7 @@ import asyncio
 import uuid
 import random
 import traceback
-import difflib
+from standardizers import standardize_organ_system, standardize_task_area
 from openai import AsyncOpenAI
 from datetime import datetime
 from dotenv import load_dotenv
@@ -155,99 +155,7 @@ def clean_json_response(response_text):
     return cleaned
 
 def standardize_categories(raw_organ, raw_task):
-    exact_organs = [
-        "Cardiovascular System", "Dermatologic System", "Endocrine System",
-        "Eyes, Ears, Nose, and Throat", "Gastrointestinal System/Nutrition",
-        "Genitourinary System", "Hematologic System", "Infectious Diseases",
-        "Musculoskeletal System", "Neurologic System", "Psychiatry/Behavioral Science",
-        "Pulmonary System", "Renal System", "Reproductive System"
-    ]
-
-    exact_tasks = [
-        "History Taking and Performing Physical Examination",
-        "Using Diagnostic and Laboratory Studies",
-        "Formulating the Most Likely Diagnosis",
-        "Health Maintenance, Patient Education, and Preventive Measures",
-        "Clinical Intervention",
-        "Pharmaceutical Therapeutics",
-        "Applying Foundational Scientific Concepts"
-    ]
-
-    raw_organ_str = str(raw_organ).strip() if raw_organ else ""
-    raw_task_str = str(raw_task).strip() if raw_task else ""
-
-    # 🚨 FIX 1: Extract category prefix if whole line was passed into raw_organ (e.g., "Hematology: Diagnostic Studies...")
-    if ":" in raw_organ_str:
-        prefix = raw_organ_str.split(":")[0].strip()
-        organ_lower = prefix.lower()
-    else:
-        organ_lower = raw_organ_str.lower()
-
-    # 🚨 FIX 2: Explicit Intercepts (Prioritized before fuzzy matching)
-    if any(term in organ_lower for term in ["hematolog", "heme", "blood", "hemato", "myeloma", "anemia", "b12"]):
-        clean_organ = "Hematologic System"
-    elif any(term in organ_lower for term in ["neurolog", "neuro", "brain", "parkinson", "seizure", "dementia"]):
-        clean_organ = "Neurologic System"
-    elif any(term in organ_lower for term in ["gynecolog", "reproductive", "obstetric", "ob/gyn", "obgyn", "women", "female", "pregnancy"]):
-        clean_organ = "Reproductive System"
-    elif any(term in organ_lower for term in ["eenot", "eent", "ear", "eye", "throat", "nose", "oral cavity", "ent", "glaucoma"]):
-        clean_organ = "Eyes, Ears, Nose, and Throat"
-    elif any(term in organ_lower for term in ["gastrointestinal", "gi", "gastro", "nutrition", "stomach", "bowel", "esophag", "ulcerative"]):
-        clean_organ = "Gastrointestinal System/Nutrition"
-    elif any(term in organ_lower for term in ["cardiovascular", "cardio", "heart", "vascular", "tamponade", "tachycardia"]):
-        clean_organ = "Cardiovascular System"
-    elif any(term in organ_lower for term in ["dermatolog", "derm", "skin"]):
-        clean_organ = "Dermatologic System"
-    elif any(term in organ_lower for term in ["psychiat", "behavior", "psych", "mental"]):
-        clean_organ = "Psychiatry/Behavioral Science"
-    elif any(term in organ_lower for term in ["rheumatolog", "musculoskeletal", "ortho", "bone", "joint", "musculo", "lupus", "stenosis"]):
-        clean_organ = "Musculoskeletal System"
-    elif any(term in organ_lower for term in ["infectious", "infec", "salmonella"]):
-        clean_organ = "Infectious Diseases"
-    elif any(term in organ_lower for term in ["endocrine", "endo", "thyroid", "diabetes"]):
-        clean_organ = "Endocrine System"
-    elif any(term in organ_lower for term in ["pulmonary", "pulm", "resp", "asthma", "pneumonia", "sarcoidosis"]):
-        clean_organ = "Pulmonary System"
-    elif "renal" in organ_lower and "genitourinary" not in organ_lower:
-        clean_organ = "Renal System"
-    elif "genitourinary" in organ_lower and "renal" not in organ_lower:
-        clean_organ = "Genitourinary System"
-    elif "renal" in organ_lower or "genitourinary" in organ_lower:
-        clean_organ = "Genitourinary System"
-    else:
-        clean_organ = raw_organ_str.title()
-
-    # 🚨 FIX 3: Clean up Task Area Extraction
-    task_lower = raw_task_str.lower()
-    if any(term in task_lower for term in ["lab", "diagnostic", "study"]):
-        clean_task = "Using Diagnostic and Laboratory Studies"
-    elif any(term in task_lower for term in ["pharm", "medication", "drug", "therapeutics", "treatment"]):
-        clean_task = "Pharmaceutical Therapeutics"
-    elif any(term in task_lower for term in ["history", "physical", "exam"]):
-        clean_task = "History Taking and Performing Physical Examination"
-    elif any(term in task_lower for term in ["prevent", "educat", "health maintenance", "maintenance"]):
-        clean_task = "Health Maintenance, Patient Education, and Preventive Measures"
-    elif any(term in task_lower for term in ["intervention", "procedure", "surgery"]):
-        clean_task = "Clinical Intervention"
-    elif any(term in task_lower for term in ["scientific", "concept", "pathophysiology"]):
-        clean_task = "Applying Foundational Scientific Concepts"
-    else:
-        clean_task = raw_task_str.title()
-
-    organ_match = difflib.get_close_matches(clean_organ, exact_organs, n=1, cutoff=0.3)
-    task_match = difflib.get_close_matches(clean_task, exact_tasks, n=1, cutoff=0.3)
-
-    # 🚨 Updated Fallback: Tag unmatched organ systems as "Misc"
-    if organ_match:
-        final_organ = organ_match[0]
-    elif clean_organ in exact_organs:
-        final_organ = clean_organ
-    else:
-        final_organ = "Misc"
-
-    final_task = task_match[0] if task_match else (clean_task if clean_task in exact_tasks else "Formulating the Most Likely Diagnosis")
-
-    return final_organ, final_task
+    return standardize_organ_system(raw_organ), standardize_task_area(raw_task)
 
 def extract_correct_letter(raw_text, q_data):
     if not raw_text:
