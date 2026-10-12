@@ -213,7 +213,8 @@ class GenerationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(f"Shortfall: {SYSTEM} / Asthma / {cli.TASK_AREAS[0]}: accepted 0/1 "
                       "(discard reasons: verifier_disagreed=1)", output)
         self.assertIn(f"Rejected: {SYSTEM} / COPD / {cli.TASK_AREAS[0]}: Wrong topic_area", output)
-        self.assertNotIn("/ COPD / " + cli.TASK_AREAS[0] + ": accepted 0/1 (", output)
+        self.assertIn(f"Shortfall: {SYSTEM} / COPD / {cli.TASK_AREAS[0]}: accepted 0/1 "
+                      "(discard reasons: rejected: Wrong topic_area=1)", output)
         self.assertIn("Discard reasons: rejected: Wrong topic_area=7, verifier_disagreed=7", output)
 
     def test_format_reasons_separates_retries(self):

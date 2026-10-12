@@ -65,6 +65,8 @@ class ParsingTests(unittest.TestCase):
         self.assertEqual(engine.extract_correct_letter("b", q_data), "B")
         self.assertEqual(engine.extract_correct_letter("Option C", q_data), "C")
         self.assertEqual(engine.extract_correct_letter("choice d", q_data), "D")
+        self.assertEqual(engine.extract_correct_letter(
+            "Surgical option", question(answer_choice_C="Surgical option")), "C")
 
     def test_parse_score(self):
         for raw, expected in ((9, 9), ("8", 8), (0.9, 9), ("90%", 9), ("9/10", 9),
@@ -74,6 +76,7 @@ class ParsingTests(unittest.TestCase):
                 self.assertAlmostEqual(engine.parse_score(raw), expected)
         self.assertEqual(engine.parse_score(1.0, allow_fraction=False), 1)
         self.assertEqual(engine.parse_score("80%", allow_fraction=False), 8)
+        self.assertIsNone(engine.parse_score(15, allow_fraction=False))
         for raw in (None, True, "high", "", [], 150, -1, float("nan"), "15/10"):
             with self.subTest(raw=raw):
                 self.assertIsNone(engine.parse_score(raw))
@@ -210,6 +213,15 @@ class BatchTests(unittest.IsolatedAsyncioTestCase):
                                  "generator_malformed_json": 2})
         self.assertIn("Returning 1/2 questions", output)
         self.assertIn("verifier_disagreed=1", output)
+
+    async def test_reasons_log_only_this_call(self):
+        stats = {"verifier_disagreed": 5}
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            await engine.process_topic_batch(
+                dict(ITEM), 1, FakeManager([{"questions": [question()]}] + ["x"] * 3),
+                FakeManager([verdict("D")]), stats=stats)
+        self.assertEqual(stats["verifier_disagreed"], 6)
+        self.assertIn("Reasons so far: generator_malformed_json=3, verifier_disagreed=1", output.getvalue())
 
     async def test_non_object_questions_are_counted(self):
         results, stats, _ = await self.run_batch(

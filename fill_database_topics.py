@@ -306,7 +306,6 @@ async def generate(args, selected, engine, writer, api_key, model):
                 counts["shortfall"] += args.questions_per_task
                 print(f"Generation failed: {label} ({type(error).__name__})", file=sys.stderr)
                 continue
-            reasons.update(job_reasons)
             counts["generated"] += len(results)
             valid, stems = [], set()
             for result in results:
@@ -318,8 +317,9 @@ async def generate(args, selected, engine, writer, api_key, model):
                     valid.append(question)
                 except ValueError as error:
                     counts["rejected"] += 1
-                    reasons[f"rejected: {error}"] += 1
+                    job_reasons[f"rejected: {error}"] += 1
                     print(f"Rejected: {label}: {error}")
+            reasons.update(job_reasons)
             deficit = max(0, args.questions_per_task - len(valid))
             counts["shortfall"] += deficit
             if deficit:

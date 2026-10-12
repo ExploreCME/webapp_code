@@ -185,7 +185,7 @@ def parse_score(raw_score, allow_fraction=True):
     Accepts ints/floats, numeric strings, percentages ("90%"), "9/10", "90/100",
     and 0-1 fractions (0.9 -> 9.0; a decimal 1.0 is a fraction, an integer 1 is 1/10).
     Bare values in (10, 100] are treated as percentages. Pass ``allow_fraction=False``
-    for scores (like difficulty) that are never reported as 0-1 fractions.
+    for scores (like difficulty) that are never bare fractions or percentages.
     """
     if raw_score is None or isinstance(raw_score, bool):
         return None
@@ -202,7 +202,7 @@ def parse_score(raw_score, allow_fraction=True):
         return None
     if not math.isfinite(value):
         return None
-    if suffix in ("%", "/100") or (not suffix and 10 < value <= 100):
+    if suffix in ("%", "/100") or (allow_fraction and not suffix and 10 < value <= 100):
         value /= 10
     elif allow_fraction and not suffix and (0 < value < 1 or (decimal and value == 1)):
         value *= 10
@@ -227,14 +227,15 @@ def extract_correct_letter(raw_text, q_data):
     if not raw_text:
         return None
 
-    raw_text = str(raw_text).upper().replace("OPTION", "").strip()
-    if not raw_text:
-        return None
-
+    upper_text = str(raw_text).upper().strip()
     for letter in ['A', 'B', 'C', 'D', 'E']:
         ans_text = str(q_data.get(f'answer_choice_{letter}', '')).strip().upper()
-        if ans_text and ans_text == raw_text:
+        if ans_text and ans_text == upper_text:
             return letter
+
+    raw_text = upper_text.replace("OPTION", "").strip()
+    if not raw_text:
+        return None
 
     match = re.search(r'\b([A-E])\b', raw_text)
     if match:
@@ -442,6 +443,7 @@ async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_
         return []
 
     label = f"{organ_system} / {topic_area} / {task_area}"
+    stats_at_start = dict(stats) if stats else {}
     verified_questions = []
     attempts = 0
     MAX_ATTEMPTS = 4
@@ -492,8 +494,10 @@ async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_
     if len(verified_questions) < num_needed:
         details = ""
         if stats:
-            details = ", ".join(f"{key}={value}" for key, value in sorted(stats.items())
-                                if not key.startswith("retried_"))
+            # Report only this call's reasons, even if the caller reuses the stats dict.
+            details = ", ".join(f"{key}={value - stats_at_start.get(key, 0)}"
+                                for key, value in sorted(stats.items())
+                                if not key.startswith("retried_") and value > stats_at_start.get(key, 0))
             details = f" Reasons so far: {details}" if details else ""
         print(f"DEBUG: [{label}] Max attempts reached. Returning {len(verified_questions)}/{num_needed} questions.{details}")
 
