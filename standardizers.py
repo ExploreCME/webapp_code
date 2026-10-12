@@ -24,10 +24,15 @@ TASK_AREAS = (
 
 _CANONICAL_ORGANS = {label.lower(): label for label in ORGAN_SYSTEMS}
 _CANONICAL_TASKS = {label.lower(): label for label in TASK_AREAS}
+TASK_ALIASES = {
+    "Using Laboratory and Diagnostic Studies": TASK_AREAS[1],
+    "Formulating Most Likely Diagnosis": TASK_AREAS[2],
+    "Health Maintenance, Patient Education, and Preventative Measures": TASK_AREAS[3],
+    "Applying Basic Scientific Concepts": TASK_AREAS[6],
+    **{f"Managing Patients - {label}": label for label in TASK_AREAS[3:6]},
+}
+_CANONICAL_TASKS.update({alias.lower(): label for alias, label in TASK_ALIASES.items()})
 _CANONICAL_TASKS.update({
-    "using laboratory and diagnostic studies": TASK_AREAS[1],
-    "formulating most likely diagnosis": TASK_AREAS[2],
-    **{f"managing patients - {label.lower()}": label for label in TASK_AREAS[3:6]},
     "professional practice": "Professional Practice",
 })
 
@@ -69,13 +74,13 @@ def _match_rules(value, rules):
     return None
 
 
-def standardize_organ_system(raw_organ):
-    """Return a canonical organ label, or Misc for unrecognized input."""
+def standardize_organ_system(raw_organ, *, default="Misc"):
+    """Return a canonical organ label, or the given default for unrecognized input."""
     value = str(raw_organ).strip() if raw_organ else ""
     value = value.split(":", 1)[0].strip().lower()
     if value in _CANONICAL_ORGANS:
         return _CANONICAL_ORGANS[value]
-    return _match_rules(value, _ORGAN_RULES) or "Misc"
+    return _match_rules(value, _ORGAN_RULES) or default
 
 
 def standardize_task_area(raw_task):

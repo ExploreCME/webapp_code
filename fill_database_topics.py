@@ -13,6 +13,7 @@ from pathlib import Path
 import sys
 import uuid
 
+from standardizers import TASK_AREAS
 
 ROOT = Path(__file__).resolve().parent
 ORGAN_SYSTEMS = (
@@ -21,15 +22,6 @@ ORGAN_SYSTEMS = (
     "Genitourinary System", "Hematologic System", "Infectious Diseases",
     "Musculoskeletal System", "Neurologic System", "Psychiatry/Behavioral Science",
     "Pulmonary System", "Renal System", "Reproductive System",
-)
-TASK_AREAS = (
-    "History Taking and Performing Physical Examination",
-    "Using Diagnostic and Laboratory Studies",
-    "Formulating the Most Likely Diagnosis",
-    "Health Maintenance, Patient Education, and Preventive Measures",
-    "Clinical Intervention",
-    "Pharmaceutical Therapeutics",
-    "Applying Foundational Scientific Concepts",
 )
 QUESTION_FIELDS = (
     "organ_system", "task_area", "topic_area", "question_stem",

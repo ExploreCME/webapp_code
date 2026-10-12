@@ -17,6 +17,7 @@ from document_storage import upload_document, list_documents
 
 # --- IMPORT SHARED UNIQUE CHECK ---
 from shared_utils import is_assignment_name_unique
+from standardizers import TASK_AREAS, TASK_ALIASES, standardize_organ_system, standardize_task_area
 
 # ==========================================
 # BLUEPRINT INITIALIZATION
@@ -730,15 +731,7 @@ def custom_quiz():
     except Exception:
         organ_data = {}
 
-    task_areas = [
-        "History Taking and Performing Physical Examination",
-        "Using Laboratory and Diagnostic Studies",
-        "Formulating Most Likely Diagnosis",
-        "Health Maintenance, Patient Education, and Preventative Measures",
-        "Clinical Intervention",
-        "Pharmaceutical Therapeutics",
-        "Applying Basic Scientific Concepts"
-    ]
+    task_areas = TASK_AREAS
 
     is_faculty = False
     if session.get('is_faculty'):
@@ -801,8 +794,13 @@ def custom_quiz():
                     organ_selected_topics[organ] = topics_val
 
         for task in task_areas:
-            safe_name = task.replace(" ", "_").replace(",", "")
-            pct_val = request.form.get(f'task_pct_{safe_name}')
+            field_labels = [task] + [alias for alias, canonical in TASK_ALIASES.items() if canonical == task]
+            pct_val = None
+            for label in field_labels:
+                safe_name = label.replace(" ", "_").replace(",", "")
+                pct_val = request.form.get(f'task_pct_{safe_name}')
+                if pct_val is not None:
+                    break
             if pct_val and pct_val.isdigit() and int(pct_val) > 0:
                 task_percentages[task] = int(pct_val)
 
@@ -917,32 +915,35 @@ def build_quiz_batch():
     cursor.execute('SELECT question_id FROM quiz_questions_map WHERE quiz_id = %s', (quiz_id,))
     used_ids = {row['question_id'] for row in cursor.fetchall()}
 
+    def normalize_organ(value):
+        return standardize_organ_system(value, default=value)
+
     candidate_pool = {}
+    def normalize_category(value, standardize):
+        raw = (value or '').strip()
+        if not raw or raw.lower() == 'any':
+            return ''
+        return standardize(raw).lower()
+
     if use_existing and blueprint:
         cursor.execute('SELECT id, TRIM(organ_system) as os, TRIM(task_area) as ta, TRIM(topic_area) as to_area FROM question_bank')
         all_qs = cursor.fetchall()
         for q in all_qs:
-            key = ((q['os'] or '').lower(), (q['ta'] or '').lower(), (q['to_area'] or '').lower())
+            key = (
+                normalize_category(q['os'], normalize_organ),
+                normalize_category(q['ta'], standardize_task_area),
+                (q['to_area'] or '').strip().lower()
+            )
             if key not in candidate_pool:
                 candidate_pool[key] = []
             candidate_pool[key].append(q['id'])
 
-    PANCE_TASK_AREAS = [
-        "History Taking and Performing Physical Examination",
-        "Using Laboratory and Diagnostic Studies",
-        "Formulating Most Likely Diagnosis",
-        "Health Maintenance, Patient Education, and Preventative Measures",
-        "Clinical Intervention",
-        "Pharmaceutical Therapeutics",
-        "Applying Basic Scientific Concepts"
-    ]
-
     generation_requests = []
     mappings_to_insert = []
-
+    candidate_lists = []
     for item in blueprint:
-        o_sys = (item.get('organ_system') or '').strip().lower()
-        ta_area = (item.get('task_area') or '').strip().lower()
+        o_sys = normalize_category(item.get('organ_system'), normalize_organ)
+        ta_area = normalize_category(item.get('task_area'), standardize_task_area)
         to_area = (item.get('topic_area') or '').strip().lower()
 
         # Strict wildcard filtering
@@ -965,19 +966,42 @@ def build_quiz_batch():
             # If all strict filters pass, add the available questions
             candidates.extend([q_id for q_id in q_ids if q_id not in used_ids])
 
-        if use_existing and candidates:
-            selected_id = random.choice(candidates)
-            used_ids.add(selected_id)
+        candidates = list(set(candidates))
+        random.shuffle(candidates)
+        candidate_lists.append(candidates)
+
+    # Reassign wildcard matches when necessary so no compatible row is wasted.
+    matched_questions = {}
+    def match_slot(slot, visited):
+        for question_id in candidate_lists[slot]:
+            if question_id in visited:
+                continue
+            visited.add(question_id)
+            previous_slot = matched_questions.get(question_id)
+            if previous_slot is None or match_slot(previous_slot, visited):
+                matched_questions[question_id] = slot
+                return True
+        return False
+
+    for slot in range(len(blueprint)):
+        match_slot(slot, set())
+    selected_questions = {slot: question_id for question_id, slot in matched_questions.items()}
+
+    for slot, item in enumerate(blueprint):
+        if slot in selected_questions:
+            selected_id = selected_questions[slot]
             mappings_to_insert.append((quiz_id, selected_id))
         else:
             # If we run out of exact topic matches, send it to AI Generation!
             original_ta = (item.get('task_area') or '').strip()
-            gen_ta = original_ta if (original_ta and original_ta.lower() != 'any') else random.choice(PANCE_TASK_AREAS)
+            gen_ta = standardize_task_area(original_ta) if (original_ta and original_ta.lower() != 'any') else random.choice(TASK_AREAS)
+            original_organ = (item.get('organ_system') or '').strip()
+            gen_organ = normalize_organ(original_organ) if (original_organ and original_organ.lower() != 'any') else 'any'
 
             generation_requests.append({
-                "organ_system": item.get('organ_system'),
+                "organ_system": gen_organ,
                 "task_area": gen_ta,
-                "topic_area": item.get('topic_area')
+                "topic_area": (item.get('topic_area') or '').strip() or 'any'
             })
 
     if mappings_to_insert:
