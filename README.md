@@ -65,6 +65,7 @@ generator's own labels are logged when they differ. Shortfall lines and a final
 `Discard reasons:` line count why questions were dropped (for example,
 `verifier_disagreed`, `verifier_low_confidence`, `verifier_malformed_json`,
 `verifier_confidence_malformed`, `generator_api_error`, or `rejected: ...`).
+Retries that recovered are shown separately under `diagnostics:`.
 API errors during a batch no longer drop questions that were already verified.
 Model verification does **not** assure clinical correctness; review
 questions before educational or clinical use.

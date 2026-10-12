@@ -131,7 +131,7 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
         (ok, _), stats, output, _ = await self.verify(
             ["not json", RuntimeError("secret-detail"), verdict(confidence="very")])
         self.assertFalse(ok)
-        self.assertEqual(stats, {"verifier_responses_retried": 2,
+        self.assertEqual(stats, {engine.RETRIED_VERIFIER_RESPONSES: 2,
                                  "verifier_confidence_malformed": 1})
         self.assertIn("verifier_malformed_json", output)
         self.assertIn("verifier_confidence_malformed", output)
@@ -142,7 +142,7 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
         (ok, _), stats, _, _ = await self.verify(
             [verdict(), "", verdict(), verdict(), {"difficulty": 4}])
         self.assertTrue(ok)
-        self.assertEqual(stats, {"verifier_responses_retried": 1})
+        self.assertEqual(stats, {engine.RETRIED_VERIFIER_RESPONSES: 1})
 
     async def test_unparseable_generator_answer(self):
         (ok, _), stats, _, manager = await self.verify([], question(correct_answer="??"))
@@ -154,7 +154,7 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
         responses = [verdict("no idea")] * 3
         (ok, _), stats, output, _ = await self.verify(responses)
         self.assertFalse(ok)
-        self.assertEqual(stats, {"verifier_responses_retried": 2, "verifier_answer_unparseable": 1})
+        self.assertEqual(stats, {engine.RETRIED_VERIFIER_RESPONSES: 2, "verifier_answer_unparseable": 1})
         self.assertIn("'no idea'", output)
 
     async def test_malformed_difficulty(self):
@@ -188,6 +188,14 @@ class BatchTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(result["difficulty_rating"], int)
         self.assertEqual(stats, {})
         self.assertIn("Generator labeled topic_area as 'Anemia of Chronic Disease'", output)
+        self.assertIn("Generator labeled organ_system as 'Cardiovascular System'", output)
+
+    async def test_formatting_only_label_differences_are_not_logged(self):
+        generated = {"questions": [question(organ_system="hematologic", task_area="clinical intervention")]}
+        results, _, output = await self.run_batch(
+            [generated], [verdict()] * 3 + [{"difficulty": 5}], num_needed=1)
+        self.assertEqual({key: results[0][key] for key in ITEM}, ITEM)
+        self.assertNotIn("Generator labeled", output)
 
     async def test_partial_failures_keep_verified_questions(self):
         generated = {"questions": [question(), question(question_stem="Second")]}

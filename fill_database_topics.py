@@ -257,7 +257,12 @@ class DatabaseWriter:
 
 
 def format_reasons(reasons):
-    return ", ".join(f"{key}={value}" for key, value in sorted(reasons.items()) if value)
+    # Engine keys starting with "retried_" count recovered retries, not discards.
+    discards = ", ".join(f"{key}={value}" for key, value in sorted(reasons.items())
+                         if value and not key.startswith("retried_"))
+    retries = ", ".join(f"{key}={value}" for key, value in sorted(reasons.items())
+                        if value and key.startswith("retried_"))
+    return "; ".join(part for part in (discards, retries and f"diagnostics: {retries}") if part)
 
 
 async def thread_call(executor, function, *args):

@@ -152,6 +152,8 @@ MIN_VERIFICATION_CONFIDENCE = 8
 MAX_UNUSABLE_VERIFIER_RESPONSES = 2
 DIFFICULTY_ATTEMPTS = 2
 DEFAULT_TOPIC_AREA = "General Medical Knowledge"
+# Stats key for retries; keys starting with "retried_" are diagnostics, not discard reasons.
+RETRIED_VERIFIER_RESPONSES = "retried_verifier_responses"
 _PLACEHOLDER_VALUES = ("str", "string")
 _SCORE_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*(%|/\s*100|/\s*10)?")
 
@@ -322,7 +324,8 @@ async def Question_Verification(conv_manager_verify, q_data, label=None, stats=N
 
     Returns (True, verified_copy) or (False, None). The input dict is never mutated.
     When ``stats`` (a dict) is provided, the reason a question is discarded is counted
-    in it, along with ``verifier_responses_retried`` for unusable verifier responses.
+    in it; retried unusable verifier responses are counted under ``RETRIED_VERIFIER_RESPONSES``
+    (a diagnostic, not a discard reason).
     """
     q_data = dict(q_data)
     label = label or f"{q_data.get('organ_system')} / {q_data.get('topic_area')} / {q_data.get('task_area')}"
@@ -366,7 +369,7 @@ async def Question_Verification(conv_manager_verify, q_data, label=None, stats=N
                 _record(stats, reason)
                 print(f"DEBUG: [{label}] Question failed verification after {unusable} unusable verifier responses. Passed {passed}/{VERIFICATION_PASSES}.")
                 return False, None
-            _record(stats, "verifier_responses_retried")
+            _record(stats, RETRIED_VERIFIER_RESPONSES)
             continue
 
         if verification_answer != correct_answer:
@@ -406,10 +409,12 @@ def _apply_requested_metadata(q_data, organ_system, task_area, topic_area, label
     else:
         final_topic = DEFAULT_TOPIC_AREA
 
-    for field, llm_value, final_value in (("organ_system", llm_organ, final_organ),
-                                          ("task_area", llm_task, final_task),
-                                          ("topic_area", llm_topic, final_topic)):
-        if not _is_placeholder(llm_value) and str(llm_value).strip().casefold() != str(final_value).casefold():
+    std_llm_organ, std_llm_task = standardize_categories(llm_organ, llm_task)
+    for field, llm_value, comparable, final_value in (
+            ("organ_system", llm_organ, std_llm_organ, final_organ),
+            ("task_area", llm_task, std_llm_task, final_task),
+            ("topic_area", llm_topic, llm_topic, final_topic)):
+        if not _is_placeholder(llm_value) and str(comparable).strip().casefold() != str(final_value).casefold():
             print(f"DEBUG: [{label}] Generator labeled {field} as {_snippet(llm_value)!r}; using requested {final_value!r}.")
 
     q_data["organ_system"] = final_organ
