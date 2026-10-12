@@ -2,6 +2,32 @@
 
 This repository contains the web application and supporting services for the ExploreCME platform.
 
+## Public landing pages and product logos
+
+The ExploreCME home page (`/`) and RNXcel/MDXcel coming-soon pages omit the
+application navbar and Clerk browser scripts. `/paxcel` and application pages
+retain their existing navigation and authentication. Marketing templates opt out
+with `show_app_header = false`; the shared base defaults to showing the header.
+
+Product images use these case-sensitive paths:
+
+- `static/images/paxcel_logo.png` — home card and PAXcel landing page
+- `static/images/rnxcel_logo.png` — home card and RNXcel coming-soon page
+- `static/images/mdxcel_logo.png` — home card and MDXcel coming-soon page
+
+The current product files are placeholders, not newly uploaded user logos.
+Replace them with the real PNG logos at these exact paths, or supply the actual
+upload paths and branch so the references can be updated. Uploading files only
+to the `static/` root (or a directory named `ststic`) does not change references
+to `static/images/`. The main ExploreCME brand uses `static/FullLogo.png`.
+
+Run the focused regressions from the repository root:
+
+```bash
+python -m unittest discover -s tests -p 'test_landing_pages.py' -v
+python -m unittest discover -s tests -p 'test_entitlements.py' -v
+```
+
 ## Blueprint quiz database-first selection
 
 Blueprint forms, fallback generation, and the topic-filling pipeline share the
