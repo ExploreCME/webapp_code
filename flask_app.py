@@ -138,7 +138,7 @@ def restrict_guest_users():
         if request.endpoint and request.endpoint not in allowed_endpoints and not request.endpoint.startswith('static'):
             session.pop('username', None)
             flash("Sample session ended. Please sign in to access the full application.", "warning")
-            return redirect(url_for('index'))
+            return redirect(url_for('paxcel_landing'))
 
 # ==========================================
 # ROUTE: GUEST EXIT HANDLER
@@ -147,7 +147,7 @@ def restrict_guest_users():
 def guest_exit():
     """Silently pops the guest session and returns them to the landing page."""
     session.pop('username', None)
-    return redirect(url_for('index'))
+    return redirect(url_for('paxcel_landing'))
 
 
 # ==========================================
@@ -156,21 +156,21 @@ def guest_exit():
 @quiz_bp.route('/eula', methods=['GET'])
 def view_eula():
     if not request.cookies.get('__session'):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     return render_template('eula.html')
 
 @quiz_bp.route('/accept_eula', methods=['POST'])
 def accept_eula():
     clerk_token = request.cookies.get('__session')
     if not clerk_token:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     try:
         decoded_token = jwt.decode(clerk_token, options={"verify_signature": False})
         username = decoded_token.get('sub')
     except Exception:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     if not username:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     try:
         conn = get_db()
@@ -195,7 +195,7 @@ def accept_eula():
 @quiz_bp.route('/student_dashboard')
 def student_dashboard():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     username = session['username']
     conn = get_db()
@@ -267,7 +267,7 @@ def dashboard():
 
     username = refresh_user_status()
     if not username:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     is_premium = g.is_premium
     if not is_premium:
@@ -316,7 +316,7 @@ def sync_clerk_user():
 @quiz_bp.route('/generate_from_document', methods=['POST'])
 def generate_from_document():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     username = session.get('username')
     request.max_content_length = int(os.getenv('MAX_DOCUMENT_BYTES', '20971520')) + 1048576
     token = session.get('document_csrf_token', '')
@@ -393,7 +393,7 @@ def generate_from_document():
 @quiz_bp.route('/menu')
 def menu():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     username = session['username']
 
@@ -422,7 +422,7 @@ def menu():
 @quiz_bp.route('/home', methods=['GET'])
 def home():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     username = session.get('username')
     documents, generating_quizzes = [], []
 
@@ -476,7 +476,7 @@ def generation_status():
 @quiz_bp.route('/select_quiz')
 def select_quiz():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     username = session.get('username')
 
     conn = get_db()
@@ -681,7 +681,7 @@ def select_quiz():
 @quiz_bp.route('/delete_quiz', methods=['POST'])
 def delete_quiz():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     quiz_name = request.form.get('quiz_name')
     username = session.get('username')
 
@@ -721,7 +721,7 @@ def delete_quiz():
 @quiz_bp.route('/custom_quiz', methods=['GET', 'POST'])
 def custom_quiz():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     username = session.get('username')
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -1256,7 +1256,7 @@ def quiz_mode():
         session['username'] = 'guest_' + uuid.uuid4().hex[:8]
 
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     quiz_name = request.args.get('quiz_name')
 
@@ -1405,7 +1405,7 @@ def start_quiz():
         session['username'] = 'guest_' + uuid.uuid4().hex[:8]
 
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     username = session['username']
     quiz_name = request.form.get('quiz_name')
@@ -1537,7 +1537,7 @@ def start_quiz():
 @quiz_bp.route('/resume_quiz/<quiz_name>')
 def resume_quiz(quiz_name):
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_db()
     cursor = conn.cursor()
@@ -1563,7 +1563,7 @@ def resume_quiz(quiz_name):
 @quiz_bp.route('/quiz_attempts')
 def quiz_attempts():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     username, quiz_name = session.get('username'), request.args.get('quiz_name')
     if not quiz_name:
         return redirect(url_for('quiz.select_quiz'))
@@ -1589,7 +1589,7 @@ def quiz_attempts():
 @quiz_bp.route('/quiz_results')
 def quiz_results():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     attempt_id, quiz_name = request.args.get('attempt_id'), request.args.get('quiz_name')
     if not attempt_id:
         return redirect(url_for('quiz.select_quiz'))
@@ -1647,7 +1647,7 @@ def quiz_results():
 @quiz_bp.route('/review_attempt')
 def review_attempt():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     attempt_id = request.args.get('attempt_id')
     faculty_return_url = request.args.get('faculty_return_url')
     if not attempt_id:
@@ -1720,7 +1720,7 @@ def rate_question():
 @quiz_bp.route('/flashcards')
 def flashcards_select_organ():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     return render_template('flashcards_organ_select.html', organ_systems=[
         "Cardiovascular System", "Dermatologic System", "Endocrine System",
         "Eyes, Ears, Nose, and Throat", "Gastrointestinal System/Nutrition",
@@ -1735,7 +1735,7 @@ def flashcards_select_organ():
 @quiz_bp.route('/flashcards/<path:organ_system>')
 def flashcards_select_topic(organ_system):
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     organ_system = unquote(organ_system)
     conn = get_db()
     cursor = conn.cursor()
@@ -1756,7 +1756,7 @@ def flashcards_select_topic(organ_system):
 @quiz_bp.route('/flashcards/<path:organ_system>/<path:topic>')
 def flashcards_viewer(organ_system, topic):
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     username = session['username']
     organ_system = unquote(organ_system)
     topic = unquote(topic)
@@ -1837,7 +1837,7 @@ def save_flashcard_progress():
 @quiz_bp.route('/remediation/modules/<path:remediation_name>')
 def remediation_modules(remediation_name):
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     attempt_id = request.args.get('attempt_id')
     if not attempt_id:
         return redirect(url_for('quiz.select_quiz'))
@@ -1895,7 +1895,7 @@ def remediation_modules(remediation_name):
 @quiz_bp.route('/remediation/review/<assignment_id>')
 def view_remediation_flashcard(assignment_id):
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     attempt_id = request.args.get('attempt_id')
 
     conn = get_db()
@@ -1912,7 +1912,7 @@ def view_remediation_flashcard(assignment_id):
 @quiz_bp.route('/remediation/questions/<assignment_id>')
 def remediation_question_page(assignment_id):
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_db()
     cursor = conn.cursor()

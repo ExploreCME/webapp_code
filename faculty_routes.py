@@ -99,7 +99,7 @@ def dashboard():
     username = session.get('username')
     if not is_user_faculty(username):
         flash("Unauthorized access. Faculty privileges required.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     return render_template('faculty_dashboard.html')
 
@@ -111,7 +111,7 @@ def dashboard():
 def generate_hub():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     return render_template('faculty_generate_hub.html')
 
 @faculty_bp.route('/faculty/reports_hub')
@@ -120,7 +120,7 @@ def reports_hub():
     try:
         username = session.get('username')
         if not is_user_faculty(username):
-            return redirect(url_for('index'))
+            return redirect(url_for('paxcel_landing'))
         return render_template('faculty_reports_hub.html')
     except Exception as e:
         import traceback
@@ -135,7 +135,7 @@ def remediation_menu():
     username = session.get('username')
     if not is_user_faculty(username):
         flash("Unauthorized access. Faculty privileges required.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     return render_template('faculty_remediation_menu.html')
 
 @faculty_bp.route('/faculty/create_remediation', methods=['GET', 'POST'])
@@ -144,7 +144,7 @@ def create_remediation():
     username = session.get('username')
     if not is_user_faculty(username):
         flash("Unauthorized access. Faculty privileges required.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     if request.method == 'POST':
         request.max_content_length = int(os.getenv('MAX_DOCUMENT_BYTES', '20971520')) + 1048576
@@ -212,7 +212,7 @@ def create_remediation():
 def review_remediation():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_mysql_connection()
     remediations_dict = {}
@@ -256,7 +256,7 @@ def review_remediation():
 def review_remediation_details(remediation_name):
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_mysql_connection()
     modules = []
@@ -295,7 +295,7 @@ def review_remediation_details(remediation_name):
 def delete_remediation_module():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     module_id = request.form.get('module_id')
     remediation_name = request.form.get('remediation_name')
@@ -334,7 +334,7 @@ def delete_remediation_module():
 def delete_entire_remediation():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     remediation_name = request.form.get('remediation_name')
     if not remediation_name:
@@ -383,7 +383,7 @@ def delete_entire_remediation():
 def review_remediation_questions(module_id):
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_mysql_connection()
     questions = []
@@ -421,7 +421,7 @@ def review_remediation_questions(module_id):
 def remove_remediation_question():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     question_id = request.form.get('question_id')
     module_id = request.form.get('module_id')
@@ -459,7 +459,7 @@ def remove_remediation_question():
 def review_list():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_mysql_connection()
     try:
@@ -483,7 +483,7 @@ def review_list():
 def review_single(quiz_name):
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_mysql_connection()
     try:
@@ -507,7 +507,7 @@ def review_single(quiz_name):
 def remove_question():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     question_id = request.form.get('question_id')
     quiz_name = request.form.get('quiz_name')
@@ -536,7 +536,7 @@ def remove_question():
 def search_add_questions(quiz_name):
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     try:
@@ -672,7 +672,7 @@ def search_add_questions(quiz_name):
 def attach_questions_to_quiz(quiz_name):
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     selected_question_ids = request.form.getlist('selected_questions')
     if not selected_question_ids:
@@ -705,7 +705,7 @@ def assign_menu():
     username = session.get('username')
     if not is_user_faculty(username):
         flash("Unauthorized access.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     return render_template('faculty_assign_menu.html')
 
 @faculty_bp.route('/faculty/assign', methods=['GET', 'POST'])
@@ -713,7 +713,7 @@ def assign_menu():
 def assign_quiz():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_mysql_connection()
     try:
@@ -830,7 +830,7 @@ def assign_quiz():
 def manage_classes():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_mysql_connection()
     try:
@@ -855,7 +855,7 @@ def create_class():
     try:
         username = session.get('username')
         if not is_user_faculty(username):
-            return redirect(url_for('index'))
+            return redirect(url_for('paxcel_landing'))
 
         conn = get_mysql_connection()
         try:
@@ -918,7 +918,7 @@ def create_class():
 def edit_class(class_id):
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_mysql_connection()
     try:
@@ -1018,7 +1018,7 @@ def edit_class(class_id):
 def class_results():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_mysql_connection()
     try:
@@ -1236,7 +1236,7 @@ def generate_report():
     try:
         username = session.get('username')
         if not is_user_faculty(username):
-            return redirect(url_for('index'))
+            return redirect(url_for('paxcel_landing'))
 
         conn = get_mysql_connection()
         try:
@@ -1666,7 +1666,7 @@ def generate_report():
 def review_assigned():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     conn = get_mysql_connection()
     try:
@@ -1755,7 +1755,7 @@ def review_assigned():
 def delete_assigned_record():
     username = session.get('username')
     if not is_user_faculty(username):
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
     record_id = request.form.get('record_id')
     assignment_type = request.form.get('assignment_type')

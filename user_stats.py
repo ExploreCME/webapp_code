@@ -43,7 +43,7 @@ GLOBAL_TOP_ORGANS_TIMESTAMP = 0
 @stats_bp.route('/my_statistics')
 def my_statistics():
     if 'username' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
     user_identifier = session['username']  # clerk_id / username
 
     mysql_conn = get_mysql_db()

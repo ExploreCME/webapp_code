@@ -64,7 +64,7 @@ class EntitlementTests(unittest.TestCase):
             session.update(is_premium=premium, is_faculty=True, last_db_sync=10**12)
 
     def test_page_loads_restore_paid_status_despite_recent_session_sync(self):
-        for path in ("/", "/db_dashboard", "/dashboard", "/home"):
+        for path in ("/paxcel", "/db_dashboard", "/dashboard", "/home"):
             with self.subTest(path=path):
                 self.seed_stale_status()
                 self.db.cursor.return_value.execute.reset_mock()
@@ -89,14 +89,14 @@ class EntitlementTests(unittest.TestCase):
                 session.clear()
             self.client.set_cookie("__session", "test-clerk-token")
             self.assertEqual(self.client.get("/db_dashboard").text, "True:False")
-            self.assertEqual(self.client.get("/").text, "True:False")
+            self.assertEqual(self.client.get("/paxcel").text, "True:False")
             self.assertEqual(self.client.get("/dashboard").text, "True:False")
 
     def test_guest_session_remains_nonpremium_without_clerk_cookie(self):
         self.client.delete_cookie("__session")
         with self.client.session_transaction() as session:
             session.update(username="guest_sample", is_premium=True, is_faculty=True)
-        self.assertEqual(self.client.get("/").text, "False:False")
+        self.assertEqual(self.client.get("/paxcel").text, "False:False")
         with self.client.session_transaction() as session:
             self.assertEqual(session["username"], "guest_sample")
             self.assertFalse(session["is_premium"])
@@ -112,7 +112,7 @@ class EntitlementTests(unittest.TestCase):
     def test_missing_user_is_nonpremium(self):
         self.seed_stale_status(premium=True)
         self.user = None
-        self.assertEqual(self.client.get("/").text, "False:False")
+        self.assertEqual(self.client.get("/paxcel").text, "False:False")
 
     def test_faculty_values_and_changes_are_refreshed(self):
         for value in (1, " Y ", "YES", "true", 0, "N", None):
@@ -125,7 +125,7 @@ class EntitlementTests(unittest.TestCase):
         self.seed_stale_status(premium=True)
         self.decode.return_value = {"sub": "other-user"}
         self.user["has_paid"] = 0
-        self.assertEqual(self.client.get("/").text, "False:False")
+        self.assertEqual(self.client.get("/paxcel").text, "False:False")
         self.db.cursor.return_value.execute.assert_called_with(
             "SELECT has_paid, is_faculty FROM users WHERE clerk_id = %s", ("other-user",)
         )
@@ -142,14 +142,14 @@ class EntitlementTests(unittest.TestCase):
                     self.decode.side_effect = ValueError("Invalid token")
                 else:
                     self.client.delete_cookie("__session")
-                self.assertEqual(self.client.get("/").text, "False:False")
+                self.assertEqual(self.client.get("/paxcel").text, "False:False")
                 self.assertEqual(self.client.get("/db_dashboard").status_code, 302)
 
     def test_database_failure_does_not_grant_cached_premium(self):
         self.seed_stale_status(premium=True)
         self.db.cursor.return_value.execute.side_effect = RuntimeError("Database unavailable")
         self.assertEqual(self.client.get("/db_dashboard").status_code, 302)
-        self.assertEqual(self.client.get("/").text, "False:False")
+        self.assertEqual(self.client.get("/paxcel").text, "False:False")
 
     def test_entitlement_connection_is_released_before_route_database_work(self):
         self.user["has_paid"] = 0
@@ -170,9 +170,9 @@ class EntitlementTests(unittest.TestCase):
             self.user if "has_paid" in self.db.cursor.return_value.execute.call_args.args[0]
             else {"c": 25}
         )
-        self.assertEqual(self.client.get("/").text, "True:False")
+        self.assertEqual(self.client.get("/paxcel").text, "True:False")
         self.user["has_paid"] = 0
-        self.assertEqual(self.client.get("/").text, "False:False")
+        self.assertEqual(self.client.get("/paxcel").text, "False:False")
         queries = [call.args[0] for call in self.db.cursor.return_value.execute.call_args_list]
         self.assertEqual(sum("SELECT has_paid" in q for q in queries), 2)
         self.assertEqual(sum("SELECT COUNT(id)" in q for q in queries), 1)
@@ -212,7 +212,7 @@ class EntitlementTests(unittest.TestCase):
 
     def test_webhook_updates_are_visible_on_next_request(self):
         self.user["has_paid"] = 0
-        self.assertEqual(self.client.get("/").text, "False:False")
+        self.assertEqual(self.client.get("/paxcel").text, "False:False")
         event = {
             "type": "checkout.session.completed",
             "data": {"object": SimpleNamespace(client_reference_id="paid-user", customer="test-customer")},
@@ -220,10 +220,10 @@ class EntitlementTests(unittest.TestCase):
         self.db.commit.side_effect = lambda: self.user.update(has_paid=1)
         with patch.object(display_database.stripe.Webhook, "construct_event", return_value=event):
             self.assertEqual(self.client.post("/webhook").status_code, 200)
-        self.assertEqual(self.client.get("/").text, "True:False")
+        self.assertEqual(self.client.get("/paxcel").text, "True:False")
 
     def test_cancellation_webhook_revokes_stale_session_on_next_request(self):
-        self.assertEqual(self.client.get("/").text, "True:False")
+        self.assertEqual(self.client.get("/paxcel").text, "True:False")
         event = {
             "type": "customer.subscription.deleted",
             "data": {"object": SimpleNamespace(customer="test-customer")},
@@ -231,7 +231,7 @@ class EntitlementTests(unittest.TestCase):
         self.db.commit.side_effect = lambda: self.user.update(has_paid=0)
         with patch.object(display_database.stripe.Webhook, "construct_event", return_value=event):
             self.assertEqual(self.client.post("/webhook").status_code, 200)
-        self.assertEqual(self.client.get("/").text, "False:False")
+        self.assertEqual(self.client.get("/paxcel").text, "False:False")
 
     def test_clerk_profile_sync_preserves_paid_record(self):
         self.assertEqual(self.client.post("/sync_clerk_user", json={
@@ -240,7 +240,7 @@ class EntitlementTests(unittest.TestCase):
         self.assertEqual(self.client.post("/clerk-webhook", json={
             "type": "user.updated", "data": {"id": "paid-user", "first_name": "Test"},
         }).status_code, 200)
-        self.assertEqual(self.client.get("/").text, "True:False")
+        self.assertEqual(self.client.get("/paxcel").text, "True:False")
         queries = [call.args[0] for call in self.db.cursor.return_value.execute.call_args_list]
         self.assertFalse(any("SET has_paid" in query for query in queries))
 

@@ -1,5 +1,5 @@
 # display_database.py
-from flask import Flask, render_template, request, redirect, url_for, flash, session, g, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, session, g, make_response, abort
 from functools import wraps
 import pymysql
 import os
@@ -18,6 +18,23 @@ from db_pool import get_db_connection  # <-- Uses the new global pool
 # 1. Use the repo root instead of a PythonAnywhere absolute path
 basedir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
+
+COMING_SOON_PRODUCTS = {
+    'rnxcel': {
+        'product_name': 'RNXcel',
+        'product_tagline': 'Nursing Question Bank',
+        'product_description': 'Board-style practice questions for nursing students, built with the same generation and verification process as PAXcel.',
+        'logo_file': 'images/rnxcel_logo.png',
+        'launch_date': '01/01/2027',
+    },
+    'mdxcel': {
+        'product_name': 'MDXcel',
+        'product_tagline': 'Medical Doctor Question Bank',
+        'product_description': 'Board-style practice questions for medical students and physicians, built with the same generation and verification process as PAXcel.',
+        'logo_file': 'images/mdxcel_logo.png',
+        'launch_date': '06/02/2027',
+    },
+}
 
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates', 'template standardization'))
 flask_secret_key = os.getenv('FLASK_SECRET_KEY')
@@ -183,7 +200,7 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if not refresh_user_status():
             flash("Please sign in to access your dashboard.", "error")
-            return redirect(url_for('index'))
+            return redirect(url_for('paxcel_landing'))
 
         return f(*args, **kwargs)
     return decorated_function
@@ -298,7 +315,20 @@ def db_dashboard():
 
 @app.route('/')
 @nocache
-def index():
+def explorecme_home():
+    return render_template('explorecme_home.html')
+
+@app.route('/coming-soon/<product>')
+@nocache
+def coming_soon(product):
+    info = COMING_SOON_PRODUCTS.get(product.lower())
+    if info is None:
+        abort(404)
+    return render_template('coming_soon.html', **info)
+
+@app.route('/paxcel')
+@nocache
+def paxcel_landing():
     user_agent = request.headers.get('User-Agent', '').lower()
     is_app = 'median' in user_agent
 
@@ -489,7 +519,7 @@ def institutional_access():
     except Exception as e:
         print(f"Error redirecting to institutional checkout: {e}")
         flash("An error occurred starting checkout. Please try again.", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('paxcel_landing'))
 
 
 @app.route('/create-checkout-session', methods=['POST'])
@@ -574,7 +604,7 @@ def customer_portal():
 
         if not result or not result.get('stripe_customer_id'):
             flash("No active subscription found.", "error")
-            return redirect(url_for('index'))
+            return redirect(url_for('paxcel_landing'))
 
         stripe_customer_id = result.get('stripe_customer_id')
 
@@ -591,7 +621,7 @@ def customer_portal():
 @app.route('/logout')
 def logout():
     session.clear()
-    response = redirect(url_for('index'))
+    response = redirect(url_for('paxcel_landing'))
     response.set_cookie('__session', '', expires=0, path='/')
     flash("You have been successfully logged out.", "success")
     return response
