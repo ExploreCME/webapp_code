@@ -2,6 +2,36 @@
 
 This repository contains the web application and supporting services for the ExploreCME platform.
 
+## Blueprint quiz database-first selection
+
+Blueprint forms, fallback generation, and the topic-filling pipeline share the
+canonical task definitions in `standardizers.py`. Previously, raw-label matching
+treated legacy names such as “Applying Basic Scientific Concepts” as different
+from the stored “Applying Foundational Scientific Concepts”, incorrectly queuing
+generation despite sufficient matching questions.
+
+Database-first selection now normalizes both request and stored organ/task
+aliases. It selects unique question IDs per quiz, reassigning overlapping wildcard
+matches when needed to exhaust compatible rows before queuing only the deficit.
+Questions may still be reused across different quizzes. Selected organs, tasks,
+and topics are never relaxed; any/blank/absent topics allow all topics within the
+selected organ/task. Wildcards remain independent of category defaults, and
+unrecognized organ labels do not fall back to unrelated `Misc` rows.
+
+Legacy task percentage field names remain accepted, with canonical fields taking
+precedence when both are submitted. Faculty create-new mode bypasses the existing
+pool. The UI forwards this preference and distinguishes database reuse from
+queued generation. No bank questions are rewritten, and clinical verification
+criteria are unchanged.
+
+Run the mocked regressions (no database or live OpenAI calls):
+
+```bash
+python -m unittest discover -s tests -p 'test_blueprint_quiz.py' -v
+python -m unittest discover -s tests -p 'test_standardizers.py' -v
+python -m unittest discover -s tests -p 'test_fill_database_topics.py' -v
+```
+
 ## Fill a quiz from selected topics (Bash)
 
 `fill_database_topics.py` is a standalone CLI; it does not replace

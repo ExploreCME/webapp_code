@@ -66,6 +66,12 @@ class StandardizerTests(unittest.TestCase):
             with self.subTest(raw=raw):
                 self.assertEqual(standardize_organ_system(raw), "Misc")
 
+    def test_organ_fallback_can_preserve_unknown_labels_for_strict_selection(self):
+        self.assertEqual(standardize_organ_system("unknown category", default="unknown category"),
+                         "unknown category")
+        self.assertEqual(standardize_organ_system("Hematology", default="Hematology"),
+                         "Hematologic System")
+
     def test_task_aliases(self):
         aliases = (
             ("lab", TASKS[1]), ("labs", TASKS[1]), ("laboratory", TASKS[1]),
