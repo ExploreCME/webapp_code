@@ -179,28 +179,32 @@ def parse_json_object(response_text):
         return None, "malformed_json"
     return data, None
 
-def parse_score(raw_score):
+def parse_score(raw_score, allow_fraction=True):
     """Normalize a model score to a float on a 0-10 scale, or None if malformed.
 
     Accepts ints/floats, numeric strings, percentages ("90%"), "9/10", "90/100",
-    and 0-1 fractions (0.9 -> 9.0). Bare values in (10, 100] are treated as percentages.
+    and 0-1 fractions (0.9 -> 9.0; a decimal 1.0 is a fraction, an integer 1 is 1/10).
+    Bare values in (10, 100] are treated as percentages. Pass ``allow_fraction=False``
+    for scores (like difficulty) that are never reported as 0-1 fractions.
     """
     if raw_score is None or isinstance(raw_score, bool):
         return None
     if isinstance(raw_score, (int, float)):
         value, suffix = float(raw_score), ""
+        decimal = isinstance(raw_score, float)
     elif isinstance(raw_score, str):
         match = _SCORE_PATTERN.fullmatch(raw_score.strip())
         if not match:
             return None
         value, suffix = float(match.group(1)), re.sub(r"\s", "", match.group(2) or "")
+        decimal = "." in match.group(1)
     else:
         return None
     if not math.isfinite(value):
         return None
     if suffix in ("%", "/100") or (not suffix and 10 < value <= 100):
         value /= 10
-    elif not suffix and 0 < value < 1:
+    elif allow_fraction and not suffix and (0 < value < 1 or (decimal and value == 1)):
         value *= 10
     return value if 0 <= value <= 10 else None
 
@@ -310,7 +314,7 @@ async def _rate_difficulty(conv_manager_verify, q_data, label, stats):
                 reason, detail = f"difficulty_{parse_reason}", f"response={_snippet(response)!r}"
             else:
                 raw_difficulty = data.get("difficulty")
-                score = parse_score(raw_difficulty)
+                score = parse_score(raw_difficulty, allow_fraction=False)
                 difficulty = int(round(score)) if score is not None else None
                 if difficulty is not None and 1 <= difficulty <= 10:
                     return difficulty
@@ -488,7 +492,9 @@ async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_
     if len(verified_questions) < num_needed:
         details = ""
         if stats:
-            details = " Reasons so far: " + ", ".join(f"{key}={value}" for key, value in sorted(stats.items()))
+            details = ", ".join(f"{key}={value}" for key, value in sorted(stats.items())
+                                if not key.startswith("retried_"))
+            details = f" Reasons so far: {details}" if details else ""
         print(f"DEBUG: [{label}] Max attempts reached. Returning {len(verified_questions)}/{num_needed} questions.{details}")
 
     return verified_questions

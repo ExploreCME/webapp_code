@@ -68,9 +68,12 @@ class ParsingTests(unittest.TestCase):
 
     def test_parse_score(self):
         for raw, expected in ((9, 9), ("8", 8), (0.9, 9), ("90%", 9), ("9/10", 9),
-                              ("85/100", 8.5), (95, 9.5), ("7.5", 7.5), (0, 0)):
+                              ("85/100", 8.5), (95, 9.5), ("7.5", 7.5), (0, 0),
+                              (1, 1), ("1", 1), (1.0, 10), ("1.0", 10)):
             with self.subTest(raw=raw):
                 self.assertAlmostEqual(engine.parse_score(raw), expected)
+        self.assertEqual(engine.parse_score(1.0, allow_fraction=False), 1)
+        self.assertEqual(engine.parse_score("80%", allow_fraction=False), 8)
         for raw in (None, True, "high", "", [], 150, -1, float("nan"), "15/10"):
             with self.subTest(raw=raw):
                 self.assertIsNone(engine.parse_score(raw))
