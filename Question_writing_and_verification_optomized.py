@@ -185,7 +185,9 @@ def parse_score(raw_score, allow_fraction=True):
     Accepts ints/floats, numeric strings, percentages ("90%"), "9/10", "90/100",
     and 0-1 fractions (0.9 -> 9.0; a decimal 1.0 is a fraction, an integer 1 is 1/10).
     Bare values in (10, 100] are treated as percentages. Pass ``allow_fraction=False``
-    for scores (like difficulty) that are never bare fractions or percentages.
+    for scores (like difficulty) that are never bare fractions or bare percentages;
+    explicit "%" and "/100" suffixes are always honored. A confidence of 0 is accepted
+    as a (failing) low-confidence verdict rather than treated as malformed.
     """
     if raw_score is None or isinstance(raw_score, bool):
         return None
