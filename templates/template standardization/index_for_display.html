@@ -107,11 +107,15 @@
 {% block content %}
 <div style="text-align: center; padding: 40px 20px;">
 
+    <div style="text-align: left; margin-bottom: 10px;">
+        <a href="{{ url_for('explorecme_home') }}" style="color: #7f8c8d; font-size: 0.9em; text-decoration: none;">&larr; ExploreCME Home</a>
+    </div>
+
    <!-- Logo Section -->
     <div style="margin-bottom: 30px;">
         <h2 style="color: #2c3e50; display: inline-flex; align-items: center; justify-content: center; gap: 15px; margin: 0;">
             <!-- SEO Update: Better alt text for crawlers -->
-            <img src="{{ url_for('static', filename='FullLogo.png') }}" alt="PANCE Quiz App Logo - Where Knowledge Evolves" style="height: 120px; width: auto;">
+            <img src="{{ url_for('static', filename='images/paxcel_logo.png') }}" alt="PAXcel Logo - Where Knowledge Evolves" style="height: 120px; width: auto;">
             <strong>Where Knowledge Evolves</strong>
         </h2>
     </div>

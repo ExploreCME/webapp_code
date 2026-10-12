@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product_name }} - Coming Soon | ExploreCME{% endblock %}
+{% block description %}{{ product_name }}, the {{ product_tagline }}, is coming soon to ExploreCME.{% endblock %}
+
+{% block container_class %}container-large{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 60px 20px;">
+    <img src="{{ url_for('static', filename=logo_file) }}" alt="{{ product_name }} logo" style="height: 140px; width: auto; margin-bottom: 20px;">
+    <h1 style="color: #1a4b57; margin-bottom: 5px;">{{ product_name }}</h1>
+    <h3 style="color: #2b7080; margin-top: 0;">{{ product_tagline }}</h3>
+    <p style="font-size: 1.15em; color: #444; max-width: 600px; margin: 20px auto; line-height: 1.6;">{{ product_description }}</p>
+    <h2 style="color: #2c3e50;">Coming Soon</h2>
+    <p style="font-size: 1.2em; color: #444;">Target launch date: <strong>{{ launch_date }}</strong></p>
+    <a href="{{ url_for('explorecme_home') }}" style="color: #2b7080; font-weight: bold; text-decoration: none;">&larr; Back to ExploreCME</a>
+</div>
+{% endblock %}
