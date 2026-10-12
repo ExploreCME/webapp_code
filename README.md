@@ -53,8 +53,20 @@ is used. Its current repository value, `gpt-6.1-sol`, is configuration, **not a
 claim of public provider availability**. Select a model available to your account
 and compatible with the shared engine's JSON response/chat-completion parameters.
 `--verify-model` optionally selects another account-accessible verification model.
-The shared engine's three answer/confidence checks and difficulty rating are
-unchanged. Model verification does **not** assure clinical correctness; review
+The shared engine requires three agreeing verifier answers with confidence of at
+least 8 on a 1-10 scale, then a 1-10 difficulty rating. Confidence and difficulty
+values such as `0.9`, `"9/10"`, or `"90%"` are normalized to that scale.
+Unusable verifier responses, such as API errors, empty or malformed JSON, or answers
+and confidence values that can't be parsed, are retried up to twice per question.
+A verifier disagreement or low confidence discards the question immediately.
+Every debug line includes the question's `organ / topic / task #attempt.index`
+label. Saved questions always keep the requested organ, task, and topic. The
+generator's own labels are logged when they differ. Shortfall lines and a final
+`Discard reasons:` line count why questions were dropped (for example,
+`verifier_disagreed`, `verifier_low_confidence`, `verifier_malformed_json`,
+`verifier_confidence_malformed`, `generator_api_error`, or `rejected: ...`).
+API errors during a batch no longer drop questions that were already verified.
+Model verification does **not** assure clinical correctness; review
 questions before educational or clinical use.
 
 **Regular generation incurs API costs and modifies the configured database.**

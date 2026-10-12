@@ -3,6 +3,7 @@
 
 import argparse
 import asyncio
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import importlib
@@ -255,6 +256,10 @@ class DatabaseWriter:
             conn.close()
 
 
+def format_reasons(reasons):
+    return ", ".join(f"{key}={value}" for key, value in sorted(reasons.items()) if value)
+
+
 async def thread_call(executor, function, *args):
     future = asyncio.get_running_loop().run_in_executor(executor, function, *args)
     try:
@@ -274,23 +279,29 @@ async def generate(args, selected, engine, writer, api_key, model):
     counts["requested"] = len(selected) * len(TASK_AREAS) * args.questions_per_task
     jobs = iter({"organ_system": system, "topic_area": topic, "task_area": task}
                 for system, topic in selected for task in TASK_AREAS)
+    reasons = Counter()
     managers, workers = [], []
     executor = ThreadPoolExecutor(max_workers=1)
 
     async def worker():
         for item in jobs:
             label = f"{item['organ_system']} / {item['topic_area']} / {item['task_area']}"
+            # Per-job reasons keep diagnostics attributed to this topic/task only.
+            job_reasons = Counter()
             try:
                 results = await engine.process_topic_batch(
-                    item_dict=item, num_needed=args.questions_per_task,
-                    conv_manager=managers[0], conv_manager_verify=managers[1])
+                    item_dict=dict(item), num_needed=args.questions_per_task,
+                    conv_manager=managers[0], conv_manager_verify=managers[1],
+                    stats=job_reasons)
                 if not isinstance(results, list):
                     raise ValueError("Batch result is not a list")
             except Exception as error:
+                reasons.update(job_reasons)
                 counts["failed"] += 1
                 counts["shortfall"] += args.questions_per_task
                 print(f"Generation failed: {label} ({type(error).__name__})", file=sys.stderr)
                 continue
+            reasons.update(job_reasons)
             counts["generated"] += len(results)
             valid, stems = [], set()
             for result in results:
@@ -300,12 +311,16 @@ async def generate(args, selected, engine, writer, api_key, model):
                         raise ValueError("Duplicate stem or excess question")
                     stems.add(question["question_stem"])
                     valid.append(question)
-                except ValueError:
+                except ValueError as error:
                     counts["rejected"] += 1
+                    reasons[f"rejected: {error}"] += 1
+                    print(f"Rejected: {label}: {error}")
             deficit = max(0, args.questions_per_task - len(valid))
             counts["shortfall"] += deficit
             if deficit:
-                print(f"Shortfall: {label}: accepted {len(valid)}/{args.questions_per_task}")
+                details = format_reasons(job_reasons)
+                print(f"Shortfall: {label}: accepted {len(valid)}/{args.questions_per_task}"
+                      + (f" (discard reasons: {details})" if details else ""))
             if valid:
                 try:
                     saved = await thread_call(executor, writer.save, valid)
@@ -338,6 +353,8 @@ async def generate(args, selected, engine, writer, api_key, model):
         finally:
             executor.shutdown(wait=True)
     print("Summary: " + ", ".join(f"{key}={value}" for key, value in counts.items()))
+    if reasons:
+        print("Discard reasons: " + format_reasons(reasons))
     complete = (counts["persisted"] == counts["requested"]
                 and not any(counts[key] for key in ("failed", "rejected", "shortfall")))
     print("Target satisfied and persisted." if complete else
