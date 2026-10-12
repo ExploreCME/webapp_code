@@ -1,6 +1,7 @@
 ####Question_writing_and_verification_optomized.py
 import os
 import json
+import math
 from db_pool import get_async_db_connection
 import re
 import asyncio
@@ -122,8 +123,8 @@ PANCE_Verification_CONSTRAINTS = """Follow these rules:
 """
 PANCE_Verification_OUTPUT = """Output your response as valid JSON with this structure:
 {
-  "correct_answer": "str",
-  "confidence_score": "int"
+  "correct_answer": "<single letter A-E>",
+  "confidence_score": <integer from 1 to 10, where 10 means completely certain>
 }
 Respond with JSON only. No explanations or markdown.
 """
@@ -135,7 +136,7 @@ PANCE_DIFFICULTY_CONSTRAINTS = """Follow these rules:
 """
 PANCE_DIFFICULTY_OUTPUT = """Output your response as valid JSON with this structure:
 {
-  "difficulty": "int"
+  "difficulty": <integer from 1 to 10>
 }
 Respond with JSON only. No explanations or markdown.
 """
@@ -143,6 +144,18 @@ Respond with JSON only. No explanations or markdown.
 # ==========================================
 # ASYNCHRONOUS GENERATION & VERIFICATION
 # ==========================================
+
+VERIFICATION_PASSES = 3
+MIN_VERIFICATION_CONFIDENCE = 8
+# Unusable verifier responses (API errors, empty/malformed JSON, unparseable
+# answer/confidence) are retried this many times before the question is discarded.
+MAX_UNUSABLE_VERIFIER_RESPONSES = 2
+DIFFICULTY_ATTEMPTS = 2
+DEFAULT_TOPIC_AREA = "General Medical Knowledge"
+# Stats key for retries; keys starting with "retried_" are diagnostics, not discard reasons.
+RETRIED_VERIFIER_RESPONSES = "retried_verifier_responses"
+_PLACEHOLDER_VALUES = ("str", "string")
+_SCORE_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*(%|/\s*100|/\s*10)?")
 
 def clean_json_response(response_text):
     if not response_text:
@@ -154,20 +167,83 @@ def clean_json_response(response_text):
         return cleaned[start_idx:end_idx + 1]
     return cleaned
 
+def parse_json_object(response_text):
+    """Return (dict, None) on success or (None, reason) for empty/malformed responses."""
+    if response_text is None or not str(response_text).strip():
+        return None, "empty_response"
+    try:
+        data = json.loads(clean_json_response(response_text))
+    except json.JSONDecodeError:
+        return None, "malformed_json"
+    if not isinstance(data, dict):
+        return None, "malformed_json"
+    return data, None
+
+def parse_score(raw_score, allow_fraction=True):
+    """Normalize a model score to a float on a 0-10 scale, or None if malformed.
+
+    Accepts ints/floats, numeric strings, percentages ("90%"), "9/10", "90/100",
+    and 0-1 fractions (0.9 -> 9.0; a decimal 1.0 is a fraction, an integer 1 is 1/10).
+    Bare values in (10, 100] are treated as percentages. Pass ``allow_fraction=False``
+    for scores (like difficulty) that are never bare fractions or bare percentages;
+    explicit "%" and "/100" suffixes are always honored. A confidence of 0 is accepted
+    as a (failing) low-confidence verdict rather than treated as malformed.
+    """
+    if raw_score is None or isinstance(raw_score, bool):
+        return None
+    if isinstance(raw_score, (int, float)):
+        value, suffix = float(raw_score), ""
+        decimal = isinstance(raw_score, float)
+    elif isinstance(raw_score, str):
+        match = _SCORE_PATTERN.fullmatch(raw_score.strip())
+        if not match:
+            return None
+        value, suffix = float(match.group(1)), re.sub(r"\s", "", match.group(2) or "")
+        decimal = "." in match.group(1)
+    else:
+        return None
+    if not math.isfinite(value):
+        return None
+    if suffix in ("%", "/100") or (allow_fraction and not suffix and 10 < value <= 100):
+        value /= 10
+    elif allow_fraction and not suffix and (0 < value < 1 or (decimal and value == 1)):
+        value *= 10
+    return value if 0 <= value <= 10 else None
+
+def _record(stats, reason):
+    if stats is not None:
+        stats[reason] = stats.get(reason, 0) + 1
+
+def _snippet(text, limit=200):
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[:limit] + "..."
+
+def _is_placeholder(value):
+    return not value or str(value).strip().lower() in _PLACEHOLDER_VALUES
+
 def standardize_categories(raw_organ, raw_task):
     return standardize_organ_system(raw_organ), standardize_task_area(raw_task)
 
 def extract_correct_letter(raw_text, q_data):
+    """Return the answer letter A-E, or None if the text cannot be normalized."""
     if not raw_text:
-        return 'A'
+        return None
 
-    raw_text = str(raw_text).upper().replace("OPTION", "").strip()
+    upper_text = str(raw_text).upper().strip()
+    for letter in ['A', 'B', 'C', 'D', 'E']:
+        ans_text = str(q_data.get(f'answer_choice_{letter}', '')).strip().upper()
+        if ans_text and ans_text == upper_text:
+            return letter
+
+    raw_text = upper_text.replace("OPTION", "").strip()
+    if not raw_text:
+        return None
 
     match = re.search(r'\b([A-E])\b', raw_text)
     if match:
         return match.group(1)
 
-    if len(raw_text) > 0 and raw_text[0] in ['A', 'B', 'C', 'D', 'E']:
+    if raw_text[0] in ['A', 'B', 'C', 'D', 'E']:
         return raw_text[0]
 
     for letter in ['A', 'B', 'C', 'D', 'E']:
@@ -175,9 +251,12 @@ def extract_correct_letter(raw_text, q_data):
         if ans_text and (ans_text in raw_text or raw_text in ans_text):
             return letter
 
-    return 'A'
+    return None
 
-def shuffle_answer_choices(q_data, target_letter=None):
+def shuffle_answer_choices(q_data, target_letter=None, label=None):
+    # Work on a copy so the caller's (generator's) dict is never mutated.
+    q_data = dict(q_data)
+    prefix = f"[{label}] " if label else ""
     try:
         choices = {
             'A': q_data.get('answer_choice_A', ''),
@@ -190,7 +269,7 @@ def shuffle_answer_choices(q_data, target_letter=None):
         original_correct_letter = extract_correct_letter(q_data.get('correct_answer', ''), q_data)
 
         if not original_correct_letter:
-            print(f"DEBUG: Could not parse correct_answer. Skipping shuffle.")
+            print(f"DEBUG: {prefix}Could not parse correct_answer. Skipping shuffle.")
             return q_data
 
         correct_text = choices.get(original_correct_letter, '')
@@ -218,122 +297,211 @@ def shuffle_answer_choices(q_data, target_letter=None):
         old_exp = str(q_data.get('explanation', '')).strip()
         q_data['explanation'] = f"**Correct Answer: {target_letter}**. \n\n" + old_exp
 
-        print(f"DEBUG: Successfully shuffled. Moved correct answer from {original_correct_letter} to {target_letter}.")
+        print(f"DEBUG: {prefix}Successfully shuffled. Moved correct answer from {original_correct_letter} to {target_letter}.")
         return q_data
     except Exception as e:
-        print(f"DEBUG: Shuffle failed - {e}")
+        print(f"DEBUG: {prefix}Shuffle failed - {e}")
         return q_data
 
-async def Question_Verification(conv_manager_verify, q_data):
-    verification_count = 0
-    correct_count = 0
+async def _rate_difficulty(conv_manager_verify, q_data, label, stats):
+    reason = None
+    for attempt in range(1, DIFFICULTY_ATTEMPTS + 1):
+        try:
+            prompt = conv_manager_verify.build_PANCE_Difficulty_prompt(q_data)
+            response = await conv_manager_verify.chat_completion(prompt, max_tokens=10000)
+        except Exception as error:
+            reason, detail = "difficulty_api_error", type(error).__name__
+        else:
+            data, parse_reason = parse_json_object(response)
+            if parse_reason:
+                reason, detail = f"difficulty_{parse_reason}", f"response={_snippet(response)!r}"
+            else:
+                raw_difficulty = data.get("difficulty")
+                score = parse_score(raw_difficulty, allow_fraction=False)
+                difficulty = int(round(score)) if score is not None else None
+                if difficulty is not None and 1 <= difficulty <= 10:
+                    return difficulty
+                reason, detail = "difficulty_malformed", f"difficulty={raw_difficulty!r}"
+        print(f"DEBUG: [{label}] Difficulty rating attempt {attempt}/{DIFFICULTY_ATTEMPTS} unusable ({reason}): {detail}")
+    _record(stats, reason)
+    return None
 
-    correct_answer = extract_correct_letter(q_data.get("correct_answer", ""), q_data)
+async def Question_Verification(conv_manager_verify, q_data, label=None, stats=None):
+    """Verify a generated question.
+
+    Returns (True, verified_copy) or (False, None). The input dict is never mutated.
+    When ``stats`` (a dict) is provided, the reason a question is discarded is counted
+    in it; retried unusable verifier responses are counted under ``RETRIED_VERIFIER_RESPONSES``
+    (a diagnostic, not a discard reason).
+    """
+    q_data = dict(q_data)
+    label = label or f"{q_data.get('organ_system')} / {q_data.get('topic_area')} / {q_data.get('task_area')}"
+
+    raw_generator_answer = q_data.get("correct_answer", "")
+    correct_answer = extract_correct_letter(raw_generator_answer, q_data)
 
     if not correct_answer:
-        print(f"DEBUG: Verification Failed - Generator correct_answer is improperly formatted.")
+        print(f"DEBUG: [{label}] Verification failed - generator correct_answer {_snippet(raw_generator_answer)!r} could not be normalized to A-E.")
+        _record(stats, "generator_answer_unparseable")
         return False, None
 
-    while verification_count < 3:
-        prompt = conv_manager_verify.build_PANCE_Verification_prompt(q_data)
-        response = await conv_manager_verify.chat_completion(prompt, max_tokens=10000)
+    passed = 0
+    unusable = 0
+    while passed < VERIFICATION_PASSES:
+        pass_label = f"pass {passed + 1}/{VERIFICATION_PASSES}"
+        reason = detail = None
         try:
-            extracted_data = json.loads(clean_json_response(response))
-            verification_answer = extract_correct_letter(extracted_data.get("correct_answer", ""), q_data)
+            prompt = conv_manager_verify.build_PANCE_Verification_prompt(q_data)
+            response = await conv_manager_verify.chat_completion(prompt, max_tokens=10000)
+        except Exception as error:
+            reason, detail = "verifier_api_error", type(error).__name__
+        else:
+            extracted_data, parse_reason = parse_json_object(response)
+            if parse_reason:
+                reason, detail = f"verifier_{parse_reason}", f"response={_snippet(response)!r}"
+            else:
+                raw_answer = extracted_data.get("correct_answer")
+                raw_confidence = extracted_data.get("confidence_score")
+                verification_answer = extract_correct_letter(raw_answer, q_data)
+                confidence = parse_score(raw_confidence)
+                if not verification_answer:
+                    reason, detail = "verifier_answer_unparseable", f"answer={_snippet(raw_answer)!r}"
+                elif confidence is None:
+                    reason, detail = "verifier_confidence_malformed", f"confidence_score={_snippet(repr(raw_confidence))}"
 
-            if not verification_answer:
-                verification_count += 1
-                continue
+        if reason:
+            unusable += 1
+            print(f"DEBUG: [{label}] Verification {pass_label} unusable ({reason}): {detail}")
+            if unusable > MAX_UNUSABLE_VERIFIER_RESPONSES:
+                _record(stats, reason)
+                print(f"DEBUG: [{label}] Question failed verification after {unusable} unusable verifier responses. Passed {passed}/{VERIFICATION_PASSES}.")
+                return False, None
+            _record(stats, RETRIED_VERIFIER_RESPONSES)
+            continue
 
-            raw_confidence = extracted_data.get("confidence_score", 0)
-            try:
-                confidence = int(raw_confidence)
-            except (ValueError, TypeError):
-                confidence = 0
-
-            if verification_answer == correct_answer and confidence >= 8:
-                correct_count += 1
-        except json.JSONDecodeError:
-            pass
-
-        verification_count += 1
-
-    if correct_count == 3:
-        prompt = conv_manager_verify.build_PANCE_Difficulty_prompt(q_data)
-        response = await conv_manager_verify.chat_completion(prompt, max_tokens=10000)
-        try:
-            extracted_data = json.loads(clean_json_response(response))
-            q_data["difficulty_rating"] = extracted_data.get("difficulty")
-            q_data["correct_answer"] = correct_answer
-            return True, q_data
-        except json.JSONDecodeError:
+        if verification_answer != correct_answer:
+            reason = "verifier_disagreed"
+        elif confidence < MIN_VERIFICATION_CONFIDENCE:
+            reason = "verifier_low_confidence"
+        if reason:
+            _record(stats, reason)
+            print(f"DEBUG: [{label}] Question failed verification ({reason}) on {pass_label}: "
+                  f"generator answer {correct_answer}, verifier answer {verification_answer} "
+                  f"(raw {_snippet(raw_answer)!r}), confidence {raw_confidence!r} "
+                  f"(normalized {confidence:g}, minimum {MIN_VERIFICATION_CONFIDENCE}). "
+                  f"Passed {passed}/{VERIFICATION_PASSES}.")
             return False, None
+        passed += 1
 
-    print(f"DEBUG: Question failed verification. Correct count: {correct_count}")
-    return False, None
+    difficulty = await _rate_difficulty(conv_manager_verify, q_data, label, stats)
+    if difficulty is None:
+        print(f"DEBUG: [{label}] Question passed verification but difficulty rating failed. Discarding.")
+        return False, None
+    q_data["difficulty_rating"] = difficulty
+    q_data["correct_answer"] = correct_answer
+    return True, q_data
 
-async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_verify):
+def _apply_requested_metadata(q_data, organ_system, task_area, topic_area, label):
+    """Return a copy whose organ/task/topic come from the request (LLM labels are fallbacks only)."""
+    q_data = dict(q_data)
+    llm_organ, llm_task, llm_topic = (q_data.get(key) for key in ("organ_system", "task_area", "topic_area"))
+    raw_organ = organ_system if not _is_placeholder(organ_system) else (None if _is_placeholder(llm_organ) else llm_organ)
+    raw_task = task_area if not _is_placeholder(task_area) else (None if _is_placeholder(llm_task) else llm_task)
+    final_organ, final_task = standardize_categories(raw_organ, raw_task)
+
+    if not _is_placeholder(topic_area):
+        final_topic = topic_area
+    elif not _is_placeholder(llm_topic):
+        final_topic = llm_topic
+    else:
+        final_topic = DEFAULT_TOPIC_AREA
+
+    std_llm_organ, std_llm_task = standardize_categories(llm_organ, llm_task)
+    for field, llm_value, comparable, final_value in (
+            ("organ_system", llm_organ, std_llm_organ, final_organ),
+            ("task_area", llm_task, std_llm_task, final_task),
+            ("topic_area", llm_topic, llm_topic, final_topic)):
+        if not _is_placeholder(llm_value) and str(comparable).strip().casefold() != str(final_value).casefold():
+            print(f"DEBUG: [{label}] Generator labeled {field} as {_snippet(llm_value)!r}; using requested {final_value!r}.")
+
+    q_data["organ_system"] = final_organ
+    q_data["task_area"] = final_task
+    q_data["topic_area"] = final_topic
+    return q_data
+
+async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_verify, stats=None):
+    """Generate and verify up to ``num_needed`` questions for one organ/topic/task request.
+
+    Verified questions are always returned even if later API calls fail. When ``stats``
+    (a dict) is provided, discard/failure reasons are counted in it for diagnostics.
+    """
     organ_system = item_dict.get("organ_system")
     task_area = item_dict.get("task_area")
-    topic_area = item_dict.get("topic_area", "General Medical Knowledge")
+    requested_topic = item_dict.get("topic_area")
+    topic_area = requested_topic if not _is_placeholder(requested_topic) else DEFAULT_TOPIC_AREA
     summary = item_dict.get("summary")
 
     if not organ_system:
         return []
 
+    label = f"{organ_system} / {topic_area} / {task_area}"
+    stats_at_start = dict(stats) if stats else {}
     verified_questions = []
     attempts = 0
     MAX_ATTEMPTS = 4
 
     while len(verified_questions) < num_needed and attempts < MAX_ATTEMPTS:
+        attempts += 1
         deficit = num_needed - len(verified_questions)
-        print(f"DEBUG: Generating batch of {deficit} questions for {topic_area} ({organ_system}) (Attempt {attempts + 1})")
+        print(f"DEBUG: [{label}] Generating batch of {deficit} questions (Attempt {attempts})")
 
         prompt = conv_manager.build_PANCE_batch_prompt(organ_system, topic_area, task_area, deficit, summary)
-        response = await conv_manager.chat_completion(prompt, max_tokens=10000)
-
         try:
-            batch_data = json.loads(clean_json_response(response))
-            generated_questions = batch_data.get("questions", [])
-        except json.JSONDecodeError:
-            generated_questions = []
+            response = await conv_manager.chat_completion(prompt, max_tokens=10000)
+        except Exception as error:
+            _record(stats, "generator_api_error")
+            print(f"DEBUG: [{label}] Generation attempt {attempts} failed ({type(error).__name__}).")
+            continue
 
-        for q_data in generated_questions:
+        batch_data, parse_reason = parse_json_object(response)
+        generated_questions = batch_data.get("questions", []) if batch_data else []
+        if parse_reason or not isinstance(generated_questions, list):
+            _record(stats, f"generator_{parse_reason or 'malformed_json'}")
+            print(f"DEBUG: [{label}] Generation attempt {attempts} returned unusable JSON: {_snippet(response)!r}")
+            generated_questions = []
+        elif len(generated_questions) < deficit:
+            print(f"DEBUG: [{label}] Generator returned {len(generated_questions)}/{deficit} requested questions.")
+
+        for index, q_data in enumerate(generated_questions, 1):
             if len(verified_questions) >= num_needed:
                 break
+            q_label = f"{label} #{attempts}.{index}"
+            if not isinstance(q_data, dict):
+                _record(stats, "generator_invalid_question")
+                print(f"DEBUG: [{q_label}] Generated question is not a JSON object. Discarding.")
+                continue
 
-            is_good_question, final_q_data = await Question_Verification(conv_manager_verify, q_data)
+            is_good_question, final_q_data = await Question_Verification(
+                conv_manager_verify, q_data, label=q_label, stats=stats)
 
             if is_good_question:
-                llm_organ = final_q_data.get("organ_system")
-                llm_task = final_q_data.get("task_area")
-
-                if not llm_organ or str(llm_organ).lower() in ["str", "string"]:
-                    final_q_data["organ_system"] = organ_system
-                else:
-                    std_organ, _ = standardize_categories(llm_organ, llm_task)
-                    final_q_data["organ_system"] = std_organ
-
-                if not llm_task or str(llm_task).lower() in ["str", "string"]:
-                    final_q_data["task_area"] = task_area
-                else:
-                    _, std_task = standardize_categories(llm_organ, llm_task)
-                    final_q_data["task_area"] = std_task
-
-                if not final_q_data.get("topic_area") or str(final_q_data.get("topic_area")).lower() in ["str", "string"]:
-                    final_q_data["topic_area"] = topic_area
-
+                final_q_data = _apply_requested_metadata(final_q_data, organ_system, task_area, requested_topic, q_label)
                 target_letter = random.choice(['A', 'B', 'C', 'D', 'E'])
-                shuffled_q = shuffle_answer_choices(final_q_data, target_letter)
+                shuffled_q = shuffle_answer_choices(final_q_data, target_letter, label=q_label)
                 verified_questions.append(shuffled_q)
-                print(f"DEBUG: Successfully verified 1 question for {topic_area}. Total: {len(verified_questions)}/{num_needed}")
+                print(f"DEBUG: [{q_label}] Successfully verified 1 question. Total: {len(verified_questions)}/{num_needed}")
             else:
-                print(f"DEBUG: A question for {topic_area} failed verification. Discarding.")
-
-        attempts += 1
+                print(f"DEBUG: [{q_label}] Question failed verification. Discarding.")
 
     if len(verified_questions) < num_needed:
-        print(f"DEBUG: Max attempts reached for {topic_area}. Returning {len(verified_questions)}/{num_needed} questions.")
+        details = ""
+        if stats:
+            # Report only this call's reasons, even if the caller reuses the stats dict.
+            details = ", ".join(f"{key}={value - stats_at_start.get(key, 0)}"
+                                for key, value in sorted(stats.items())
+                                if not key.startswith("retried_") and value > stats_at_start.get(key, 0))
+            details = f" Reasons so far: {details}" if details else ""
+        print(f"DEBUG: [{label}] Max attempts reached. Returning {len(verified_questions)}/{num_needed} questions.{details}")
 
     return verified_questions
 

@@ -201,6 +201,29 @@ class GenerationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(writer.save.call_count, 14)
         self.assertIn("rejected=28", output)
 
+    async def test_shortfall_reports_discard_reasons_per_job(self):
+        def process(**kwargs):
+            item = kwargs["item_dict"]
+            if item["topic_area"] == "Asthma":
+                kwargs["stats"]["verifier_disagreed"] = 1
+                return []
+            return [{**question(item), "topic_area": "Asthma"}]
+        status, output, _, _, _ = await self.run_generation(process)
+        self.assertEqual(status, 1)
+        self.assertIn(f"Shortfall: {SYSTEM} / Asthma / {cli.TASK_AREAS[0]}: accepted 0/1 "
+                      "(discard reasons: verifier_disagreed=1)", output)
+        self.assertIn(f"Rejected: {SYSTEM} / COPD / {cli.TASK_AREAS[0]}: Wrong topic_area", output)
+        self.assertIn(f"Shortfall: {SYSTEM} / COPD / {cli.TASK_AREAS[0]}: accepted 0/1 "
+                      "(discard reasons: rejected: Wrong topic_area=1)", output)
+        self.assertIn("Discard reasons: rejected: Wrong topic_area=7, verifier_disagreed=7", output)
+
+    def test_format_reasons_separates_retries(self):
+        self.assertEqual(cli.format_reasons({"verifier_disagreed": 2, "retried_verifier_responses": 1,
+                                             "unused": 0}),
+                         "verifier_disagreed=2; diagnostics: retried_verifier_responses=1")
+        self.assertEqual(cli.format_reasons({"retried_verifier_responses": 1}),
+                         "diagnostics: retried_verifier_responses=1")
+
     async def test_nonlist_results(self):
         status, output, _, writer, _ = await self.run_generation(lambda **kwargs: {})
         self.assertEqual(status, 1)
