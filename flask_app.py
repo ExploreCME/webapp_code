@@ -19,7 +19,7 @@ from document_storage import upload_document, list_documents
 from shared_utils import is_assignment_name_unique
 from standardizers import TASK_AREAS, TASK_ALIASES, standardize_organ_system, standardize_task_area
 from standardized_quizzes import (
-    STANDARDIZED_PREFIX, STANDARDIZED_QUIZZES,
+    STANDARDIZED_PREFIX, STANDARDIZED_QUESTION_PREFIX, STANDARDIZED_QUIZZES,
     get_standardized_questions as get_catalog_questions, store_standardized_questions,
     list_standardized_versions,
 )
@@ -508,7 +508,7 @@ def require_standardized_access():
             if quiz_name or request.endpoint not in ('quiz.quiz_results', 'quiz.review_attempt'):
                 return "Invalid standardized quiz name.", 400
             quiz_name = attempt['quiz_name']
-    if question_id and question_id.startswith('std-') and not quiz_name.startswith(STANDARDIZED_PREFIX):
+    if question_id and question_id.startswith(STANDARDIZED_QUESTION_PREFIX) and not quiz_name.startswith(STANDARDIZED_PREFIX):
         return "Invalid standardized quiz name.", 400
     if request.endpoint not in ('quiz.select_standardized_quiz', 'quiz.select_standardized_versions') and not quiz_name.startswith(STANDARDIZED_PREFIX):
         return
@@ -556,7 +556,7 @@ def require_standardized_access():
 @quiz_bp.context_processor
 def standardized_quiz_context():
     values = request.form if request.method == 'POST' else request.args
-    return {'is_standardized': get_standardized_questions(values.get('quiz_name')) is not None}
+    return {'is_standardized': values.get('quiz_name', '').startswith(STANDARDIZED_PREFIX)}
 
 
 @quiz_bp.route('/select_standardized_quiz')
@@ -1039,7 +1039,10 @@ def build_quiz_batch():
         return standardize(raw).lower()
 
     if use_existing and blueprint:
-        cursor.execute("SELECT id, TRIM(organ_system) as os, TRIM(task_area) as ta, TRIM(topic_area) as to_area FROM question_bank WHERE id NOT LIKE 'std-%'")
+        cursor.execute(
+            "SELECT id, TRIM(organ_system) as os, TRIM(task_area) as ta, TRIM(topic_area) as to_area "
+            "FROM question_bank WHERE id NOT LIKE %s", (STANDARDIZED_QUESTION_PREFIX + '%',)
+        )
         all_qs = cursor.fetchall()
         for q in all_qs:
             key = (

@@ -18,12 +18,16 @@ from fill_database_topics import (
     QUESTION_FIELDS, ROOT, format_reasons, load_topics, positive_int,
     validate_question,
 )
-from standardized_quizzes import STANDARDIZED_PREFIX, STANDARDIZED_QUIZZES
+from standardized_quizzes import STANDARDIZED_PREFIX, STANDARDIZED_QUESTION_PREFIX, STANDARDIZED_QUIZZES
 from standardizers import TASK_AREAS
 
 QUESTIONS_PER_VERSION = 120
 VERSION_COUNT = 3
 BATCH_SIZE = 5
+
+
+def normalized_stem(question):
+    return " ".join(question["question_stem"].casefold().split())
 
 
 def validate_name(value):
@@ -129,7 +133,7 @@ class VersionPublisher:
     def publish(self, versions):
         if len(versions) != VERSION_COUNT or any(len(version) != QUESTIONS_PER_VERSION for version in versions):
             raise ValueError("Only three complete 120-question versions can be published")
-        stems = [question["question_stem"].strip().casefold()
+        stems = [normalized_stem(question)
                  for version in versions for question in version]
         if len(set(stems)) != len(stems):
             raise ValueError("Questions must have distinct stems across all three versions")
@@ -138,7 +142,7 @@ class VersionPublisher:
             conn.begin()
             with conn.cursor() as cursor:
                 for name, questions in zip(self.names(), versions):
-                    question_ids = ["std-" + uuid.uuid4().hex for _ in questions]
+                    question_ids = [STANDARDIZED_QUESTION_PREFIX + uuid.uuid4().hex for _ in questions]
                     columns = ("id", *QUESTION_FIELDS, "created_date")
                     cursor.executemany(
                         f"INSERT INTO question_bank ({', '.join(columns)}) "
@@ -197,7 +201,7 @@ async def generate_versions(blueprints, engine, api_key, model, verify_model, co
                         except ValueError:
                             reasons["invalid_question"] += 1
                             continue
-                        stem = " ".join(question["question_stem"].casefold().split())
+                        stem = normalized_stem(question)
                         if stem in stems:
                             reasons["duplicate_stem"] += 1
                             continue

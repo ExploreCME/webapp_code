@@ -343,6 +343,18 @@ class StandardizedQuizTests(unittest.TestCase):
             "quiz_name": "My own quiz",
         }).status_code, 200)
 
+    def test_repeated_sample_start_does_not_rewrite_persisted_questions(self):
+        self.start()
+        with patch.object(self.db, "executemany", wraps=self.db.executemany) as write:
+            self.start()
+        write.assert_not_called()
+
+    def test_standardized_template_flag_does_not_fetch_question_content(self):
+        with self.app.test_request_context("/quiz_mode?quiz_name=Standardized:+Unknown"), \
+                patch.object(flask_app, "get_db") as db:
+            self.assertTrue(flask_app.standardized_quiz_context()["is_standardized"])
+        db.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

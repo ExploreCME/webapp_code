@@ -260,7 +260,7 @@ class PublicationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.publisher.publish(versions)
         versions = make_versions()
-        versions[1][0]["question_stem"] = versions[0][0]["question_stem"]
+        versions[1][0]["question_stem"] = "  " + versions[0][0]["question_stem"].replace(" ", "  ").upper() + "  "
         with self.assertRaises(ValueError):
             self.publisher.publish(versions)
         self.assertEqual(self.db.connection.execute(

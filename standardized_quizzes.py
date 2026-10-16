@@ -3,6 +3,7 @@
 import json
 
 STANDARDIZED_PREFIX = "Standardized: "
+STANDARDIZED_QUESTION_PREFIX = "std-"
 
 # Replace these flow-testing samples with reviewed questions from the source
 # document. Add questions to the appropriate category and give each a unique,
@@ -148,6 +149,17 @@ def list_standardized_versions(cursor):
 
 def store_standardized_questions(cursor, questions):
     """Persist once so the shared grader, statistics, and review can use them."""
+    if not questions:
+        return
+    placeholders = ','.join(['%s'] * len(questions))
+    cursor.execute(
+        f"SELECT id FROM question_bank WHERE id IN ({placeholders})",
+        [question["id"] for question in questions],
+    )
+    stored = {row["id"] for row in cursor.fetchall()}
+    questions = [question for question in questions if question["id"] not in stored]
+    if not questions:
+        return
     cursor.executemany("""
         INSERT IGNORE INTO question_bank
         (id, organ_system, task_area, topic_area, question_stem,
