@@ -1,0 +1,31 @@
+{% extends "select_quiz.html" %}
+{% block title %}{{ category }} - Standardized Quizzes{% endblock %}
+{% block content %}
+<h2>{{ category }}</h2>
+<p>Choose a version to set up a session or review your previous attempts.</p>
+<div class="quiz-grid">
+    {% for version in versions %}
+    <div class="quiz-card">
+        <h3 class="quiz-title">{{ version.name }}</h3>
+        <p><strong>Questions:</strong> {{ version.count }}</p>
+        <a class="btn btn-success" href="{{ url_for('quiz.quiz_mode', quiz_name=version.quiz_name) }}">Setup Quiz &rarr;</a>
+        <a href="{{ url_for('quiz.quiz_attempts', quiz_name=version.quiz_name) }}" style="margin-top: 15px; text-align: center;">View Attempts</a>
+    </div>
+    {% else %}
+    <p>No generated versions are available yet. Please check back later.</p>
+    {% if sample_questions %}
+    <div class="quiz-card">
+        <h3 class="quiz-title">{{ category }} — Sample Practice</h3>
+        <p>Testing samples only, not a complete exam ({{ sample_questions|length }} question(s)).</p>
+        <a class="btn btn-secondary" href="{{ url_for('quiz.quiz_mode', quiz_name=sample_quiz_name) }}">Try Sample Practice</a>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+{% if sample_questions %}
+<p style="margin-top: 25px;"><a href="{{ url_for('quiz.quiz_attempts', quiz_name=sample_quiz_name) }}">View Legacy Sample Attempts</a></p>
+{% endif %}
+<div style="margin-top: 35px;">
+    <a href="{{ url_for('quiz.select_standardized_quiz') }}" class="btn btn-secondary">&larr; All Standardized Quizzes</a>
+</div>
+{% endblock %}

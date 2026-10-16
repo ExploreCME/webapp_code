@@ -3,23 +3,22 @@
 {% block content %}
 <h2>Standardized Quizzes</h2>
 <p style="color: #666; font-size: 1.05em; margin-bottom: 25px;">
-    Choose a category to set up a quiz. These sets currently contain sample questions for testing, not a complete exam.
+    Choose a category to view its standardized quiz versions. Available to every signed-in user.
 </p>
 <div class="quiz-grid">
-    {% for category, questions in standardized_quizzes.items() %}
+    {% for category in standardized_categories %}
     <div class="quiz-card">
-        <a href="{{ url_for('quiz.quiz_mode', quiz_name=standardized_prefix ~ category) }}" style="text-decoration: none;">
+        <a href="{{ url_for('quiz.select_standardized_versions', category=category.name) }}" style="text-decoration: none;">
         <div class="card-header-flex">
-            <h3 class="quiz-title">{{ category }}</h3>
+            <h3 class="quiz-title">{{ category.name }}</h3>
         </div>
         <div style="font-size: 0.95em; color: #555; margin-top: auto;">
-            <strong>Questions:</strong> {{ questions|length }}
+            <strong>Published versions:</strong> {{ category.count }}
             <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #eee; text-align: center; font-weight: bold; color: #0d6efd;">
-                {% if questions %}Setup Quiz &rarr;{% else %}Questions coming soon{% endif %}
+                View Versions &rarr;
             </div>
         </div>
         </a>
-        <a href="{{ url_for('quiz.quiz_attempts', quiz_name=standardized_prefix ~ category) }}" style="margin-top: 15px; text-align: center;">View Attempts</a>
     </div>
     {% endfor %}
 </div>

@@ -32,6 +32,9 @@ class QuizDatabase:
                 due_date TEXT, required_mode TEXT, assigned_date TEXT
             );
             CREATE TABLE user_quizzes (quiz_id TEXT, username TEXT, quiz_name TEXT, created_date TEXT);
+            CREATE TABLE standardized_quiz_versions (
+                quiz_name TEXT PRIMARY KEY, category TEXT, question_ids TEXT, created_date TEXT
+            );
             CREATE TABLE quiz_questions_map (map_id INTEGER, quiz_id TEXT, question_id TEXT);
             CREATE TABLE question_bank (
                 id TEXT PRIMARY KEY, organ_system TEXT, task_area TEXT, topic_area TEXT,
@@ -53,6 +56,21 @@ class QuizDatabase:
 
     def cursor(self):
         return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def begin(self):
+        self.connection.execute("BEGIN")
+
+    def rollback(self):
+        self.connection.rollback()
+
+    def close(self):
+        pass
 
     def translate(self, query):
         query = query.replace("%s", "?").replace("NOW()", "CURRENT_TIMESTAMP")
@@ -142,7 +160,8 @@ class StandardizedQuizTests(unittest.TestCase):
         for category in STANDARDIZED_QUIZZES:
             self.assertIn(category.replace("'", "&#39;"), page)
         self.assertIn(".quiz-grid", page)
-        self.assertEqual(page.count("View Attempts"), 6)
+        self.assertEqual(page.count("View Versions"), 6)
+        self.assertIn("/standardized_quizzes/Emergency%20Medicine", page)
 
     def test_every_category_uses_shared_setup_take_scoring_and_review(self):
         for category, questions in STANDARDIZED_QUIZZES.items():
@@ -171,7 +190,7 @@ class StandardizedQuizTests(unittest.TestCase):
         for mode in ("test", "study_no_exp", "study_exp", "study_missed"):
             self.assertIn(f'value="{mode}"', html)
             self.assertEqual(self.start(mode).status_code, 302)
-        self.assertIn("all 1 available question(s)", html)
+        self.assertIn("All 1 available question(s)", html)
         self.assertIn('href="/select_standardized_quiz"', html)
 
     def test_study_feedback_missed_filter_and_resume(self):
@@ -260,19 +279,21 @@ class StandardizedQuizTests(unittest.TestCase):
             "SELECT question_id FROM quiz_questions_map"
         ).fetchall(), [{"question_id": "ordinary-question"}])
 
-    def test_access_requires_premium_student_login(self):
+    def test_access_requires_login_but_not_payment_or_student_role(self):
         with self.client.session_transaction() as session:
             session.clear()
         self.assertEqual(self.client.get("/select_standardized_quiz").location, "/")
         self.login()
         self.db.connection.execute("UPDATE users SET has_paid = 0")
-        self.assertEqual(self.client.get("/select_standardized_quiz").status_code, 302)
+        self.assertEqual(self.client.get("/select_standardized_quiz").status_code, 200)
         for flag in ("Y", "1", "TRUE"):
-            self.db.connection.execute("UPDATE users SET has_paid = 1, is_faculty = ?", (flag,))
-            self.assertEqual(self.client.get("/select_standardized_quiz").status_code, 403)
+            self.db.connection.execute("UPDATE users SET has_paid = 0, is_faculty = ?", (flag,))
+            self.assertEqual(self.client.get("/select_standardized_quiz").status_code, 200)
             self.assertEqual(self.client.get("/quiz_mode", query_string={
                 "quiz_name": self.quiz_name,
-            }).status_code, 403)
+            }).status_code, 200)
+        self.login("guest_test")
+        self.assertEqual(self.client.get("/select_standardized_quiz").status_code, 302)
 
     def test_invalid_start_and_cross_student_attempts_are_rejected(self):
         self.assertEqual(self.client.post("/start_quiz", data={
@@ -294,16 +315,13 @@ class StandardizedQuizTests(unittest.TestCase):
     def test_query_parameters_cannot_override_post_access_checks(self):
         response = self.start()
         attempt_id = parse_qs(urlparse(response.location).query)["attempt_id"][0]
-        self.db.connection.execute("UPDATE users SET is_faculty = 'Y'")
         self.assertEqual(self.client.post("/start_quiz?quiz_name=ordinary", data={
             "quiz_name": self.quiz_name, "mode": "test",
-            "standardized_csrf_token": self.token(),
-        }).status_code, 403)
+        }).status_code, 400)
         self.assertEqual(self.client.post("/submit-answer?quiz_name=ordinary", data={
             "quiz_name": self.quiz_name, "attempt_id": attempt_id, "mode": "test",
             "question_id": "std-emergency-sample-1", "user_choice": "A",
-            "standardized_csrf_token": self.token(),
-        }).status_code, 403)
+        }).status_code, 400)
         self.assertEqual(self.client.get("/question_page", query_string={
             "quiz_name": "ordinary", "attempt_id": attempt_id,
         }).status_code, 400)

@@ -30,26 +30,89 @@ python -m unittest discover -s tests -p 'test_entitlements.py' -v
 
 ## Standardized student quizzes
 
-The student dashboard links to `/select_standardized_quiz`, with six fixed
-clinical categories. Premium students use the existing quiz setup, four modes,
-question screens, grading, attempt history, and review. As with existing quizzes,
-all available questions are included; the setup shows the available count.
-Empty categories display a message instead of creating an attempt.
+The student dashboard and signed-in navigation link to `/select_standardized_quiz`.
+Each category opens a list of published versions with setup and attempt-history
+links. **Every signed-in account, including unpaid users and faculty, can take
+these quizzes** without assignments or a subscription. Guests cannot access them.
+Setup, four modes, question screens, scoring, results, resume, and review reuse
+the existing quiz engine. Ordinary generated/assigned quizzes retain their existing
+access rules.
 
-Replace the testing samples in `standardized_quizzes.py` with reviewed questions
-from the source document. Each category contains question-bank-format dictionaries
-with five answer choices, a correct-answer letter, an explanation, and organ/task/
-topic metadata. Give each new question a unique `std-` ID (maximum 64 characters).
-Use new IDs for replacement content; existing IDs and persisted rows preserve
-historical answers and reviews. Questions are inserted into the existing bank
-when a student starts a session; standardized membership comes from the module,
-not `user_quizzes` or `quiz_questions_map`. No migration or AI generation is needed.
-The `Standardized:` quiz-name prefix is reserved for this flow.
+### Generate and publish three versions
 
-Run the local SQLite-backed flow regressions (no MySQL or API access):
+Before deploying the version-selection routes or running the generator, apply
+`migrations/20261016_add_standardized_quiz_versions.sql` to the application's MySQL
+database. Fresh databases created with `init.db.py` include the same table.
+The generator checks the schema and transactional InnoDB storage before API calls.
+
+Run from the repository root:
+
+```bash
+python generate_standardized_quizzes.py
+```
+
+The script prompts for:
+
+1. Quiz name (for example, `Emergency Medicine`).
+2. Topics JSON filename, using the same canonical organ-system-to-topic-array
+   structure as `topics_by_organ_system.json`.
+3. A percentage for **every organ system in that file**, totaling exactly 100.
+4. A percentage for **each of the seven canonical task areas**, totaling exactly 100.
+5. Confirmation before incurring API costs and publishing shared quizzes.
+
+Use zero to exclude an organ or task. Largest-remainder rounding converts each
+distribution to exactly 120 questions per version, so rounding can differ slightly
+from the entered percentages. Tasks are shuffled independently against organ
+slots; a topic is chosen uniformly at random from that organ's topic list for each
+slot. Each version therefore preserves the organ and task totals while varying
+topic selection and question order.
+
+Generation calls the existing `process_topic_batch` engine in batches of up to five
+questions (within its response-token budget), including its answer,
+confidence, and difficulty verification. Output is validated against each requested
+organ/task/topic, and duplicate stems are rejected across all 360 questions.
+Bounded refill rounds request any missing slots without relaxing their categories.
+If any slot cannot be filled, **no versions are published**. On success, a single
+transaction stores all questions and publishes:
+
+- `Emergency Medicine version 1`
+- `Emergency Medicine version 2`
+- `Emergency Medicine version 3`
+
+Matching category names are case-insensitive and normalized to the six dashboard
+labels. Other names appear as additional categories. Published versions are
+immediately visible to all signed-in users with no assignment or app restart.
+Rerunning the same name is rejected before generation; versions are immutable to
+preserve attempt history. Choose a new quiz name for an additional set.
+
+Useful options:
+
+```bash
+python generate_standardized_quizzes.py --quiz-name "Emergency Medicine" --topics-file /absolute/path/topics.json --dry-run --seed 42
+python generate_standardized_quizzes.py --env-file /absolute/path/quiz.env --model ACCOUNT_MODEL --verify-model ACCOUNT_MODEL --concurrency 5 --max-rounds 3
+```
+
+Dry runs still prompt for percentages but need no credentials, database, or API
+access. `--seed` reproduces blueprint allocation, not model-generated questions.
+Normal runs use `OPENAI_API_KEY` (or `MY_API_KEY`) and `MYSQL_HOST`, `MYSQL_USER`,
+`MYSQL_PASSWORD`, `MYSQL_DB`, plus the shared pool's port/TLS environment settings.
+Existing environment variables override the selected `.env` file. Model selection
+uses `--model`, then `OPENAI_MODEL`, then the shared engine's default; use a model
+available to your account. No additional dependencies are required.
+
+Published membership is an ordered list of `std-` question IDs in
+`standardized_quiz_versions`; content lives in `question_bank`. Neither user quiz
+ownership nor `quiz_questions_map` is used. IDs and version names are immutable,
+and ordinary blueprint generation excludes standardized question IDs.
+`standardized_quizzes.py` retains the original sample sets for legacy attempts;
+categories with no generated versions show a clearly labeled sample fallback or
+an empty-state message. The `Standardized:` internal quiz-name prefix is reserved.
+
+Run the generator and SQLite-backed flow regressions without MySQL/API access:
 
 ```bash
 python -m unittest discover -s tests -p 'test_standardized_quizzes.py' -v
+python -m unittest discover -s tests -p 'test_generate_standardized_quizzes.py' -v
 ```
 
 ## Blueprint quiz database-first selection

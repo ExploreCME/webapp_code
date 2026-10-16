@@ -60,7 +60,7 @@
         <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
         {% if is_standardized %}
         <input type="hidden" name="standardized_csrf_token" value="{{ session.standardized_csrf_token }}">
-        <p>Sample question set: all {{ total_questions }} available question(s) will be included.</p>
+        <p>All {{ total_questions }} available question(s) will be included.</p>
         {% endif %}
 
         <!-- Option 1: Test Mode -->

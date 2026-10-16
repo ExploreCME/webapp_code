@@ -20,7 +20,8 @@ from shared_utils import is_assignment_name_unique
 from standardizers import TASK_AREAS, TASK_ALIASES, standardize_organ_system, standardize_task_area
 from standardized_quizzes import (
     STANDARDIZED_PREFIX, STANDARDIZED_QUIZZES,
-    get_standardized_questions, store_standardized_questions,
+    get_standardized_questions as get_catalog_questions, store_standardized_questions,
+    list_standardized_versions,
 )
 
 # ==========================================
@@ -39,6 +40,17 @@ def get_db():
 
 def get_user_quizzes_db():
     return get_db()
+
+def get_standardized_questions(quiz_name):
+    if not quiz_name or not quiz_name.startswith(STANDARDIZED_PREFIX):
+        return None
+    if quiz_name[len(STANDARDIZED_PREFIX):] in STANDARDIZED_QUIZZES:
+        return get_catalog_questions(quiz_name)
+    if not hasattr(g, 'standardized_questions'):
+        g.standardized_questions = {}
+    if quiz_name not in g.standardized_questions:
+        g.standardized_questions[quiz_name] = get_catalog_questions(quiz_name, get_db().cursor())
+    return g.standardized_questions[quiz_name]
 
 def is_quiz_name_unique(cursor, username, quiz_name):
     """Checks if a quiz name is already in use by this user (including pending generation tasks)."""
@@ -498,22 +510,15 @@ def require_standardized_access():
             quiz_name = attempt['quiz_name']
     if question_id and question_id.startswith('std-') and not quiz_name.startswith(STANDARDIZED_PREFIX):
         return "Invalid standardized quiz name.", 400
-    if request.endpoint != 'quiz.select_standardized_quiz' and not quiz_name.startswith(STANDARDIZED_PREFIX):
+    if request.endpoint not in ('quiz.select_standardized_quiz', 'quiz.select_standardized_versions') and not quiz_name.startswith(STANDARDIZED_PREFIX):
         return
     if 'username' not in session or session['username'].startswith('guest_'):
         return redirect(url_for('paxcel_landing'))
 
-    cursor = get_db().cursor()
-    cursor.execute("SELECT has_paid, is_faculty FROM users WHERE clerk_id = %s", (session['username'],))
-    user = cursor.fetchone()
-    if user and str(user.get('is_faculty')).strip().upper() in ('1', 'Y', 'YES', 'TRUE'):
-        return "Standardized quizzes are available to students only.", 403
-    if not user or user.get('has_paid') != 1:
-        flash("You need premium access to view standardized quizzes.", "error")
-        return redirect(url_for('quiz.dashboard'))
-    if request.endpoint == 'quiz.select_standardized_quiz':
+    if request.endpoint in ('quiz.select_standardized_quiz', 'quiz.select_standardized_versions'):
         return
 
+    cursor = get_db().cursor()
     questions = get_standardized_questions(quiz_name)
     if questions is None:
         return "Standardized category not found.", 404
@@ -556,9 +561,28 @@ def standardized_quiz_context():
 
 @quiz_bp.route('/select_standardized_quiz')
 def select_standardized_quiz():
+    versions = list_standardized_versions(get_db().cursor())
+    categories = list(STANDARDIZED_QUIZZES)
+    categories.extend(sorted({version['category'] for version in versions} - set(categories)))
     return render_template(
         'select_standardized_quiz.html',
-        standardized_quizzes=STANDARDIZED_QUIZZES, standardized_prefix=STANDARDIZED_PREFIX,
+        standardized_categories=[
+            {'name': category, 'count': sum(version['category'] == category for version in versions)}
+            for category in categories
+        ],
+    )
+
+
+@quiz_bp.route('/standardized_quizzes/<path:category>')
+def select_standardized_versions(category):
+    versions = [version for version in list_standardized_versions(get_db().cursor())
+                if version['category'] == category]
+    if category not in STANDARDIZED_QUIZZES and not versions:
+        return "Standardized category not found.", 404
+    return render_template(
+        'select_standardized_versions.html', category=category, versions=versions,
+        sample_questions=STANDARDIZED_QUIZZES.get(category, []),
+        sample_quiz_name=STANDARDIZED_PREFIX + category,
     )
 
 
@@ -1623,7 +1647,7 @@ def start_quiz():
 
     # All validations passed. Now build or resume the attempt.
     standardized_questions = get_standardized_questions(quiz_name)
-    if standardized_questions is not None:
+    if standardized_questions is not None and quiz_name[len(STANDARDIZED_PREFIX):] in STANDARDIZED_QUIZZES:
         store_standardized_questions(cursor, standardized_questions)
 
     if is_remediation:

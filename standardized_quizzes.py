@@ -1,4 +1,6 @@
-"""Hard-coded standardized question sets, using the question_bank format."""
+"""Standardized quiz catalog, published versions, and legacy sample questions."""
+
+import json
 
 STANDARDIZED_PREFIX = "Standardized: "
 
@@ -106,10 +108,42 @@ STANDARDIZED_QUIZZES = {
 }
 
 
-def get_standardized_questions(quiz_name):
+def get_standardized_questions(quiz_name, cursor=None):
     if quiz_name and quiz_name.startswith(STANDARDIZED_PREFIX):
-        return STANDARDIZED_QUIZZES.get(quiz_name[len(STANDARDIZED_PREFIX):])
+        name = quiz_name[len(STANDARDIZED_PREFIX):]
+        if name in STANDARDIZED_QUIZZES:
+            return STANDARDIZED_QUIZZES[name]
+        if cursor is not None:
+            cursor.execute(
+                "SELECT question_ids FROM standardized_quiz_versions WHERE quiz_name = %s",
+                (name,),
+            )
+            row = cursor.fetchone()
+            if row:
+                question_ids = json.loads(row["question_ids"])
+                if not question_ids:
+                    return []
+                placeholders = ','.join(['%s'] * len(question_ids))
+                cursor.execute(f"SELECT * FROM question_bank WHERE id IN ({placeholders})", question_ids)
+                questions = {question["id"]: question for question in cursor.fetchall()}
+                if any(question_id not in questions for question_id in question_ids):
+                    raise ValueError("Published standardized quiz is missing questions")
+                return [questions[question_id] for question_id in question_ids]
     return None
+
+
+def list_standardized_versions(cursor):
+    cursor.execute(
+        "SELECT quiz_name, category, question_ids FROM standardized_quiz_versions ORDER BY quiz_name"
+    )
+    return [
+        {
+            "name": row["quiz_name"], "category": row["category"],
+            "quiz_name": STANDARDIZED_PREFIX + row["quiz_name"],
+            "count": len(json.loads(row["question_ids"])),
+        }
+        for row in cursor.fetchall()
+    ]
 
 
 def store_standardized_questions(cursor, questions):
