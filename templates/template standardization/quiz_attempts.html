@@ -13,6 +13,9 @@
         <!-- Fast Start Quiz Form (Matches the lookup screen) -->
         <form action="{{ url_for('quiz.start_quiz') }}" method="POST" style="margin: 0; display: inline-flex; gap: 10px; align-items: center;">
             <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
+            {% if is_standardized %}
+            <input type="hidden" name="standardized_csrf_token" value="{{ session.standardized_csrf_token }}">
+            {% endif %}
             
             <!-- UPDATED DROPDOWN -->
             <select name="mode" required style="padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.95em;">
@@ -71,6 +74,6 @@
     </table>
 
     <div style="margin-top: 25px;">
-        <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-secondary">&larr; Back to Quiz List</a>
+        <a href="{{ url_for('quiz.select_standardized_quiz' if is_standardized else 'quiz.select_quiz') }}" class="btn btn-secondary">&larr; Back to Quiz List</a>
     </div>
 {% endblock %}

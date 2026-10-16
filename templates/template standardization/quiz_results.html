@@ -230,7 +230,7 @@
             <a href="{{ url_for('quiz.review_attempt', attempt_id=attempt.attempt_id) }}" class="btn btn-secondary">
                 Review Answers
             </a>
-            <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-primary">
+            <a href="{{ url_for('quiz.select_standardized_quiz' if is_standardized else 'quiz.select_quiz') }}" class="btn btn-primary">
                 Back to Quizzes &rarr;
             </a>
         </div>

@@ -256,6 +256,9 @@
     <!-- SYSTEM STATE (HIDDEN) -->
     <input type="hidden" name="question_id" value="{{ question.id }}">
     <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
+    {% if is_standardized %}
+    <input type="hidden" name="standardized_csrf_token" value="{{ session.standardized_csrf_token }}">
+    {% endif %}
     <input type="hidden" name="mode" value="{{ mode }}">
     <input type="hidden" name="attempt_id" value="{{ attempt_id }}">
     <input type="hidden" name="next_q_id" value="{{ next_q_id }}">
@@ -273,7 +276,7 @@
             {% if exit_url %}
                 <a href="{{ exit_url }}" class="btn btn-outline-danger btn-sm" style="font-weight: bold;">&#10006; Exit to Modules</a>
             {% else %}
-                <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-outline-danger btn-sm" style="font-weight: bold;">&#10006; Exit</a>
+                <a href="{{ url_for('quiz.select_standardized_quiz' if is_standardized else 'quiz.select_quiz') }}" class="btn btn-outline-danger btn-sm" style="font-weight: bold;">&#10006; Exit</a>
             {% endif %}
         </div>
     </div>
@@ -391,7 +394,7 @@
             {% if exit_url %}
                 <a href="{{ exit_url }}" class="btn btn-outline-danger" style="font-weight: bold;">&#10006; Exit to Modules</a>
             {% else %}
-                <a href="{{ url_for('quiz.select_quiz') }}" class="btn btn-outline-danger" style="font-weight: bold;">&#10006; Exit</a>
+                <a href="{{ url_for('quiz.select_standardized_quiz' if is_standardized else 'quiz.select_quiz') }}" class="btn btn-outline-danger" style="font-weight: bold;">&#10006; Exit</a>
             {% endif %}
             
             {% if prev_q_id %}
