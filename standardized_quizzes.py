@@ -133,15 +133,18 @@ def get_standardized_questions(quiz_name, cursor=None):
     return None
 
 
-def list_standardized_versions(cursor):
-    cursor.execute(
-        "SELECT quiz_name, category, question_ids FROM standardized_quiz_versions ORDER BY quiz_name"
-    )
+def list_standardized_versions(cursor, category=None):
+    query = "SELECT quiz_name, category, JSON_LENGTH(question_ids) AS question_count FROM standardized_quiz_versions"
+    parameters = ()
+    if category is not None:
+        query += " WHERE category = %s"
+        parameters = (category,)
+    cursor.execute(query + " ORDER BY quiz_name", parameters)
     return [
         {
             "name": row["quiz_name"], "category": row["category"],
             "quiz_name": STANDARDIZED_PREFIX + row["quiz_name"],
-            "count": len(json.loads(row["question_ids"])),
+            "count": row["question_count"],
         }
         for row in cursor.fetchall()
     ]

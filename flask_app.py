@@ -512,6 +512,7 @@ def require_standardized_access():
         return "Invalid standardized quiz name.", 400
     if request.endpoint not in ('quiz.select_standardized_quiz', 'quiz.select_standardized_versions') and not quiz_name.startswith(STANDARDIZED_PREFIX):
         return
+    g.standardized_quiz_name = quiz_name
     if 'username' not in session or session['username'].startswith('guest_'):
         return redirect(url_for('paxcel_landing'))
 
@@ -556,7 +557,8 @@ def require_standardized_access():
 @quiz_bp.context_processor
 def standardized_quiz_context():
     values = request.form if request.method == 'POST' else request.args
-    return {'is_standardized': values.get('quiz_name', '').startswith(STANDARDIZED_PREFIX)}
+    quiz_name = getattr(g, 'standardized_quiz_name', values.get('quiz_name', ''))
+    return {'is_standardized': quiz_name.startswith(STANDARDIZED_PREFIX)}
 
 
 @quiz_bp.route('/select_standardized_quiz')
@@ -575,8 +577,7 @@ def select_standardized_quiz():
 
 @quiz_bp.route('/standardized_quizzes/<path:category>')
 def select_standardized_versions(category):
-    versions = [version for version in list_standardized_versions(get_db().cursor())
-                if version['category'] == category]
+    versions = list_standardized_versions(get_db().cursor(), category)
     if category not in STANDARDIZED_QUIZZES and not versions:
         return "Standardized category not found.", 404
     return render_template(

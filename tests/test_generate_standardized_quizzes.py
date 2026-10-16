@@ -279,6 +279,15 @@ class PublicationTests(unittest.TestCase):
         for table in ("question_bank", "standardized_quiz_versions"):
             self.assertEqual(self.db.connection.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"], 0)
 
+    def test_begin_failure_is_preserved_and_connection_is_closed(self):
+        conn = MagicMock()
+        conn.begin.side_effect = RuntimeError("cannot start transaction")
+        publisher = generator.VersionPublisher(lambda: conn, "Emergency Medicine")
+        with self.assertRaisesRegex(RuntimeError, "cannot start transaction"):
+            publisher.publish(make_versions())
+        conn.rollback.assert_not_called()
+        conn.close.assert_called_once()
+
 
 class PublishedVersionFlowTests(unittest.TestCase):
     setUp = quiz_tests.StandardizedQuizTests.setUp

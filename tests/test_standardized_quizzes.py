@@ -1,4 +1,5 @@
 import sqlite3
+import json
 import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
@@ -15,6 +16,7 @@ class QuizDatabase:
 
     def __init__(self):
         self.connection = sqlite3.connect(":memory:")
+        self.connection.create_function("JSON_LENGTH", 1, lambda value: len(json.loads(value)))
         self.connection.row_factory = lambda cursor, row: dict(
             zip((column[0] for column in cursor.description), row)
         )

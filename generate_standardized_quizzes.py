@@ -121,9 +121,11 @@ class VersionPublisher:
                     row = cursor.fetchone()
                     if not row or row["ENGINE"].upper() != "INNODB":
                         raise ValueError("Publication requires transactional InnoDB tables")
+                names = self.names()
+                placeholders = ','.join(['%s'] * len(names))
                 cursor.execute(
-                    "SELECT quiz_name FROM standardized_quiz_versions WHERE quiz_name IN (%s, %s, %s)",
-                    self.names(),
+                    f"SELECT quiz_name FROM standardized_quiz_versions WHERE quiz_name IN ({placeholders})",
+                    names,
                 )
                 if cursor.fetchone():
                     raise ValueError("Versions already exist; choose a different quiz name. Published versions are immutable.")
@@ -138,8 +140,10 @@ class VersionPublisher:
         if len(set(stems)) != len(stems):
             raise ValueError("Questions must have distinct stems across all three versions")
         conn = self.connection_factory()
+        transaction_started = False
         try:
             conn.begin()
+            transaction_started = True
             with conn.cursor() as cursor:
                 for name, questions in zip(self.names(), versions):
                     question_ids = [STANDARDIZED_QUESTION_PREFIX + uuid.uuid4().hex for _ in questions]
@@ -157,7 +161,11 @@ class VersionPublisher:
                     )
             conn.commit()
         except BaseException:
-            conn.rollback()
+            if transaction_started:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
             raise
         finally:
             conn.close()
