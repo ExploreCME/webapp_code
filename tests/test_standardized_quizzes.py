@@ -7,7 +7,7 @@ from flask import Flask, render_template
 from jinja2 import ChoiceLoader, DictLoader
 
 import flask_app
-from standardized_quizzes import STANDARDIZED_PREFIX, STANDARDIZED_QUIZZES
+from standardized_quizzes import STANDARDIZED_PREFIX, STANDARDIZED_QUIZZES, store_standardized_questions
 
 
 class QuizDatabase:
@@ -31,7 +31,7 @@ class QuizDatabase:
                 quiz_name TEXT, clerk_id TEXT, class_id INTEGER, program_code TEXT,
                 due_date TEXT, required_mode TEXT, assigned_date TEXT
             );
-            CREATE TABLE user_quizzes (quiz_id TEXT, username TEXT, quiz_name TEXT);
+            CREATE TABLE user_quizzes (quiz_id TEXT, username TEXT, quiz_name TEXT, created_date TEXT);
             CREATE TABLE quiz_questions_map (map_id INTEGER, quiz_id TEXT, question_id TEXT);
             CREATE TABLE question_bank (
                 id TEXT PRIMARY KEY, organ_system TEXT, task_area TEXT, topic_area TEXT,
@@ -142,6 +142,7 @@ class StandardizedQuizTests(unittest.TestCase):
         for category in STANDARDIZED_QUIZZES:
             self.assertIn(category.replace("'", "&#39;"), page)
         self.assertIn(".quiz-grid", page)
+        self.assertEqual(page.count("View Attempts"), 6)
 
     def test_every_category_uses_shared_setup_take_scoring_and_review(self):
         for category, questions in STANDARDIZED_QUIZZES.items():
@@ -232,6 +233,33 @@ class StandardizedQuizTests(unittest.TestCase):
             "SELECT COUNT(*) AS n FROM quiz_attempts"
         ).fetchone()["n"], 0)
 
+    def test_empty_category_keeps_history_results_and_review_available(self):
+        response = self.start()
+        attempt_id = parse_qs(urlparse(response.location).query)["attempt_id"][0]
+        results = self.answer(attempt_id)
+        with patch.dict(STANDARDIZED_QUIZZES, {"Emergency Medicine": []}):
+            self.assertEqual(self.client.get(results.location).status_code, 200)
+            self.assertEqual(self.client.get("/quiz_attempts", query_string={
+                "quiz_name": self.quiz_name,
+            }).status_code, 200)
+            self.assertEqual(self.client.get("/review_attempt", query_string={
+                "attempt_id": attempt_id,
+            }).status_code, 200)
+
+    def test_regular_quiz_generation_excludes_standardized_questions(self):
+        self.start()
+        ordinary = dict(STANDARDIZED_QUIZZES["Emergency Medicine"][0], id="ordinary-question")
+        store_standardized_questions(self.db, [ordinary])
+        with patch.object(flask_app, "is_quiz_name_unique", return_value=True):
+            response = self.client.post("/build_quiz_batch", json={
+                "quiz_name": "Ordinary quiz", "use_existing": True,
+                "blueprint": [{"organ_system": "any", "task_area": "any", "topic_area": "any"}],
+            })
+        self.assertEqual(response.get_json()["duplicated"], 1)
+        self.assertEqual(self.db.connection.execute(
+            "SELECT question_id FROM quiz_questions_map"
+        ).fetchall(), [{"question_id": "ordinary-question"}])
+
     def test_access_requires_premium_student_login(self):
         with self.client.session_transaction() as session:
             session.clear()
@@ -281,6 +309,10 @@ class StandardizedQuizTests(unittest.TestCase):
         }).status_code, 400)
         self.assertEqual(self.client.get("/question_page", query_string={
             "q": "std-emergency-sample-1",
+        }).status_code, 400)
+        self.assertEqual(self.client.get("/question_page", query_string={
+            "q": "std-emergency-sample-1", "question_id": "ordinary",
+            "answered": "True", "mode": "study_exp",
         }).status_code, 400)
 
     def test_standardized_names_are_reserved_but_regular_names_are_unchanged(self):

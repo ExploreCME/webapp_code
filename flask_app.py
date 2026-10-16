@@ -484,7 +484,7 @@ def require_standardized_access():
     values = request.form if request.method == 'POST' else request.args
     quiz_name = (request.view_args or {}).get('quiz_name') or values.get('quiz_name', '')
     attempt_id = values.get('attempt_id') or values.get('resume_attempt_id')
-    question_id = values.get('question_id') or values.get('q')
+    question_id = values.get('question_id') if request.endpoint == 'quiz.check_answer' else values.get('q')
     if not quiz_name.startswith(STANDARDIZED_PREFIX) and attempt_id and request.endpoint in (
         'quiz.question_page', 'quiz.check_answer', 'quiz.quiz_results', 'quiz.review_attempt',
         'quiz.start_quiz',
@@ -517,7 +517,9 @@ def require_standardized_access():
     questions = get_standardized_questions(quiz_name)
     if questions is None:
         return "Standardized category not found.", 404
-    if not questions:
+    if not questions and request.endpoint in (
+        'quiz.quiz_mode', 'quiz.start_quiz', 'quiz.question_page', 'quiz.check_answer', 'quiz.resume_quiz',
+    ):
         flash("No questions are available for this category yet. Please choose another category.", "warning")
         return redirect(url_for('quiz.select_standardized_quiz'))
     session.setdefault('standardized_csrf_token', secrets.token_urlsafe(32))
@@ -1013,7 +1015,7 @@ def build_quiz_batch():
         return standardize(raw).lower()
 
     if use_existing and blueprint:
-        cursor.execute('SELECT id, TRIM(organ_system) as os, TRIM(task_area) as ta, TRIM(topic_area) as to_area FROM question_bank')
+        cursor.execute("SELECT id, TRIM(organ_system) as os, TRIM(task_area) as ta, TRIM(topic_area) as to_area FROM question_bank WHERE id NOT LIKE 'std-%'")
         all_qs = cursor.fetchall()
         for q in all_qs:
             key = (

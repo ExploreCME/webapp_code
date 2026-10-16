@@ -7,7 +7,8 @@
 </p>
 <div class="quiz-grid">
     {% for category, questions in standardized_quizzes.items() %}
-    <a class="quiz-card" href="{{ url_for('quiz.quiz_mode', quiz_name=standardized_prefix ~ category) }}" style="text-decoration: none;">
+    <div class="quiz-card">
+        <a href="{{ url_for('quiz.quiz_mode', quiz_name=standardized_prefix ~ category) }}" style="text-decoration: none;">
         <div class="card-header-flex">
             <h3 class="quiz-title">{{ category }}</h3>
         </div>
@@ -17,7 +18,9 @@
                 {% if questions %}Setup Quiz &rarr;{% else %}Questions coming soon{% endif %}
             </div>
         </div>
-    </a>
+        </a>
+        <a href="{{ url_for('quiz.quiz_attempts', quiz_name=standardized_prefix ~ category) }}" style="margin-top: 15px; text-align: center;">View Attempts</a>
+    </div>
     {% endfor %}
 </div>
 <div style="margin-top: 35px;">
