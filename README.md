@@ -30,7 +30,8 @@ python -m unittest discover -s tests -p 'test_entitlements.py' -v
 
 ## Standardized student quizzes
 
-The student dashboard and signed-in navigation link to `/select_standardized_quiz`.
+Discover Standardized Quizzes from the student dashboard card, which links to
+`/select_standardized_quiz`; it is not listed in the global header/navigation.
 Each category opens a list of published versions with setup and attempt-history
 links. **Every signed-in account, including unpaid users and faculty, can take
 these quizzes** without assignments or a subscription. Guests cannot access them.
@@ -44,6 +45,11 @@ Before deploying the version-selection routes or running the generator, apply
 `migrations/20261016_add_standardized_quiz_versions.sql` to the application's MySQL
 database. Fresh databases created with `init.db.py` include the same table.
 The generator checks the schema and transactional InnoDB storage before API calls.
+If the migration is missing, category selection remains available with the legacy
+sample fallback, and the server logs migration guidance. Generated versions require
+applying this migration to the same database used by the deployed application.
+Selection requests never create or alter tables; the migration does not generate
+or populate quiz versions.
 
 Run from the repository root:
 

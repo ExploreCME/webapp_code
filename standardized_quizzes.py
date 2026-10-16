@@ -1,6 +1,10 @@
 """Standardized quiz catalog, published versions, and legacy sample questions."""
 
 import json
+import logging
+
+from pymysql.constants import ER
+from pymysql.err import ProgrammingError
 
 STANDARDIZED_PREFIX = "Standardized: "
 STANDARDIZED_QUESTION_PREFIX = "std-"
@@ -139,7 +143,17 @@ def list_standardized_versions(cursor, category=None):
     if category is not None:
         query += " WHERE category = %s"
         parameters = (category,)
-    cursor.execute(query + " ORDER BY quiz_name", parameters)
+    try:
+        cursor.execute(query + " ORDER BY quiz_name", parameters)
+    except ProgrammingError as error:
+        if not error.args or error.args[0] != ER.NO_SUCH_TABLE:
+            raise
+        logging.getLogger(__name__).warning(
+            "Standardized quiz versions are unavailable. Apply "
+            "migrations/20261016_add_standardized_quiz_versions.sql "
+            "to the application's database; sample practice remains available."
+        )
+        return []
     return [
         {
             "name": row["quiz_name"], "category": row["category"],

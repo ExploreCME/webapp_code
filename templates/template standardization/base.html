@@ -307,9 +307,6 @@
             <a href="{{ url_for('paxcel_landing') }}" class="navbar-brand">PANCE Prep</a>
 
             <div class="nav-links">
-                {% if session.get('username') and not session.get('username', '').startswith('guest_') %}
-                    <a href="{{ url_for('quiz.select_standardized_quiz') }}">Standardized Quizzes</a>
-                {% endif %}
                 <!-- Only show these links if the user is signed in AND has purchased -->
                 {% if is_premium %}
 

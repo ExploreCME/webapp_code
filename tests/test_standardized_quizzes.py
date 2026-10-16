@@ -4,8 +4,8 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
-from flask import Flask, render_template
-from jinja2 import ChoiceLoader, DictLoader
+from flask import Flask, render_template, session
+from pymysql.err import DataError, OperationalError, ProgrammingError
 
 import flask_app
 from standardized_quizzes import STANDARDIZED_PREFIX, STANDARDIZED_QUIZZES, store_standardized_questions
@@ -31,7 +31,11 @@ class QuizDatabase:
             );
             CREATE TABLE assigned_quizzes (
                 quiz_name TEXT, clerk_id TEXT, class_id INTEGER, program_code TEXT,
-                due_date TEXT, required_mode TEXT, assigned_date TEXT
+                due_date TEXT, required_mode TEXT, assigned_date TEXT, assigned_by TEXT
+            );
+            CREATE TABLE assigned_remediations (
+                remediation_name TEXT, clerk_id TEXT, class_id INTEGER, program_code TEXT,
+                due_date TEXT, assigned_by TEXT
             );
             CREATE TABLE user_quizzes (quiz_id TEXT, username TEXT, quiz_name TEXT, created_date TEXT);
             CREATE TABLE standardized_quiz_versions (
@@ -86,7 +90,14 @@ class QuizDatabase:
         return query
 
     def execute(self, query, parameters=()):
-        self.result = self.connection.execute(self.translate(query), parameters)
+        try:
+            self.result = self.connection.execute(self.translate(query), parameters)
+        except sqlite3.OperationalError as error:
+            if str(error) == "no such table: standardized_quiz_versions":
+                raise ProgrammingError(
+                    1146, "Table 'test.standardized_quiz_versions' doesn't exist"
+                ) from error
+            raise
 
     def executemany(self, query, parameters):
         self.connection.executemany(self.translate(query), parameters)
@@ -110,14 +121,6 @@ class StandardizedQuizTests(unittest.TestCase):
         self.app.register_blueprint(flask_app.quiz_bp)
         self.app.add_url_rule("/", "paxcel_landing", lambda: "Sign in")
         self.app.add_url_rule("/statistics", "stats.my_statistics", lambda: "Statistics")
-        self.app.jinja_loader = ChoiceLoader([
-            DictLoader({"base.html": (
-                "{% block head %}{% endblock %}"
-                "{% for message in get_flashed_messages() %}{{ message }}{% endfor %}"
-                "{% block content %}{% endblock %}"
-            )}),
-            self.app.jinja_loader,
-        ])
         self.client = self.app.test_client()
         self.login()
         db_patch = patch.object(flask_app, "get_db", return_value=self.db)
@@ -151,9 +154,18 @@ class StandardizedQuizTests(unittest.TestCase):
 
     def test_dashboard_link_and_six_category_tiles(self):
         with self.app.test_request_context():
-            dashboard = render_template("student_dashboard.html")
+            session["username"] = "student"
+            dashboard = render_template("student_dashboard.html", is_premium=True)
+        header = dashboard.split('<nav class="navbar">', 1)[1].split("</nav>", 1)[0]
+        self.assertNotIn("Standardized Quizzes", header)
+        self.assertNotIn("/select_standardized_quiz", header)
+        self.assertIn('href="/student_dashboard"', header)
+        self.assertIn("Manage Subscription", header)
+        self.assertEqual(dashboard.count('href="/select_standardized_quiz"'), 1)
         self.assertIn('href="/select_standardized_quiz"', dashboard)
-        page = self.client.get("/select_standardized_quiz").get_data(as_text=True)
+        response = self.client.get("/select_standardized_quiz")
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
         self.assertEqual(page.count('class="quiz-card"'), 6)
         self.assertEqual(list(STANDARDIZED_QUIZZES), [
             "Emergency Medicine", "Family Medicine", "Internal Medicine",
@@ -164,6 +176,82 @@ class StandardizedQuizTests(unittest.TestCase):
         self.assertIn(".quiz-grid", page)
         self.assertEqual(page.count("View Versions"), 6)
         self.assertIn("/standardized_quizzes/Emergency%20Medicine", page)
+
+    def test_missing_versions_table_keeps_category_and_sample_selection_working(self):
+        self.db.connection.execute("DROP TABLE standardized_quiz_versions")
+        for path in ("/select_standardized_quiz", "/standardized_quizzes/Emergency%20Medicine"):
+            with self.subTest(path=path), self.assertLogs("standardized_quizzes", level="WARNING") as logs:
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("migrations/20261016_add_standardized_quiz_versions.sql", logs.output[0])
+                self.assertNotIn("test.standardized_quiz_versions", "\n".join(logs.output))
+                self.assertNotIn("standardized_quiz_versions", response.text)
+        self.assertIn("Try Sample Practice", response.text)
+        self.assertEqual(self.start().status_code, 302)
+        self.assertIsNone(self.db.connection.execute(
+            "SELECT name FROM sqlite_master WHERE name = 'standardized_quiz_versions'"
+        ).fetchone())
+
+    def test_dashboard_to_selection_with_production_app_hooks(self):
+        with patch("os.makedirs"):
+            import display_database
+
+        app = display_database.app
+        config = app.config.copy()
+        self.addCleanup(lambda: app.config.update(config))
+        app.config.update(TESTING=True, SECRET_KEY="standardized-test-only")
+        client = app.test_client()
+        client.set_cookie("__session", "test-clerk-token")
+        with client.session_transaction() as login_session:
+            login_session.update(username="student", accepted_eula=True)
+        with patch.object(display_database, "MAINTENANCE_MODE", False), \
+                patch.object(display_database, "decode_clerk_token", return_value={"sub": "student"}), \
+                patch.object(display_database, "get_db_connection", return_value=self.db):
+            dashboard = client.get("/student_dashboard")
+            self.assertEqual(dashboard.status_code, 200)
+            self.assertEqual(dashboard.text.count('href="/select_standardized_quiz"'), 1)
+            response = client.get("/select_standardized_quiz")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.text.count("View Versions"), 6)
+            self.assertEqual(client.get(
+                "/standardized_quizzes/Emergency%20Medicine"
+            ).status_code, 200)
+
+    def test_published_versions_list_and_setup_with_real_templates(self):
+        questions = STANDARDIZED_QUIZZES["Emergency Medicine"]
+        store_standardized_questions(self.db, questions)
+        name = "Emergency Medicine version 1"
+        self.db.connection.execute(
+            "INSERT INTO standardized_quiz_versions VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+            (name, "Emergency Medicine", json.dumps([q["id"] for q in questions])),
+        )
+        self.db.commit()
+        response = self.client.get("/select_standardized_quiz")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("<strong>Published versions:</strong> 1", response.text)
+        response = self.client.get("/standardized_quizzes/Emergency%20Medicine")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(name, response.text)
+        self.assertIn("<strong>Questions:</strong> 1", response.text)
+        self.assertNotIn("Try Sample Practice", response.text)
+        self.assertEqual(self.start(quiz_name=STANDARDIZED_PREFIX + name).status_code, 302)
+
+    def test_catalog_does_not_swallow_other_database_errors(self):
+        for error in (
+            ProgrammingError(1142, "SELECT denied"),
+            ProgrammingError(1054, "Unknown column"),
+            ProgrammingError(1064, "SQL syntax error"),
+            ProgrammingError(),
+            OperationalError(2003, "Connection unavailable"),
+            DataError(3141, "Invalid JSON"),
+            ValueError("Malformed catalog data"),
+        ):
+            for path in ("/select_standardized_quiz", "/standardized_quizzes/Emergency%20Medicine"):
+                with self.subTest(error=error, path=path), \
+                        patch.object(self.db, "execute", side_effect=error), \
+                        self.assertRaises(type(error)) as raised:
+                    self.client.get(path)
+                self.assertIs(raised.exception, error)
 
     def test_every_category_uses_shared_setup_take_scoring_and_review(self):
         for category, questions in STANDARDIZED_QUIZZES.items():
