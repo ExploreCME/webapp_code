@@ -27,6 +27,9 @@
                         <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
                         <input type="hidden" name="mode" value="{{ att.mode }}">
                         <input type="hidden" name="resume_attempt_id" value="{{ att.attempt_id }}">
+                        {% if is_standardized %}
+                        <input type="hidden" name="standardized_csrf_token" value="{{ session.standardized_csrf_token }}">
+                        {% endif %}
                         <button type="submit" class="btn btn-warning btn-sm" style="font-weight: bold; background-color: #e67e22; border-color: #e67e22; color: white;">Resume &rarr;</button>
                     </form>
                 </div>
@@ -55,6 +58,10 @@
 
     <form action="{{ url_for('quiz.start_quiz') }}" method="POST">
         <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
+        {% if is_standardized %}
+        <input type="hidden" name="standardized_csrf_token" value="{{ session.standardized_csrf_token }}">
+        <p>Sample question set: all {{ total_questions }} available question(s) will be included.</p>
+        {% endif %}
 
         <!-- Option 1: Test Mode -->
         <!-- If forced_mode equals anything OTHER than 'test' (e.g. 'study'), disable it -->
@@ -124,7 +131,7 @@
     </form>
 
     <div style="margin-top: 20px; text-align: center;">
-        <a href="{{ url_for('quiz.select_quiz') }}" style="color: #95a5a6; text-decoration: none; font-weight: 500; font-size: 0.95em;">&larr; Cancel and return to Selection</a>
+        <a href="{{ url_for('quiz.select_standardized_quiz' if is_standardized else 'quiz.select_quiz') }}" style="color: #95a5a6; text-decoration: none; font-weight: 500; font-size: 0.95em;">&larr; Cancel and return to Selection</a>
     </div>
 </div>
 {% endblock %}

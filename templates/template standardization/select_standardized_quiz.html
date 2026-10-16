@@ -1,0 +1,26 @@
+{% extends "select_quiz.html" %}
+{% block title %}Standardized Quizzes - PANCE Quiz App{% endblock %}
+{% block content %}
+<h2>Standardized Quizzes</h2>
+<p style="color: #666; font-size: 1.05em; margin-bottom: 25px;">
+    Choose a category to set up a quiz. These sets currently contain sample questions for testing, not a complete exam.
+</p>
+<div class="quiz-grid">
+    {% for category, questions in standardized_quizzes.items() %}
+    <a class="quiz-card" href="{{ url_for('quiz.quiz_mode', quiz_name=standardized_prefix ~ category) }}" style="text-decoration: none;">
+        <div class="card-header-flex">
+            <h3 class="quiz-title">{{ category }}</h3>
+        </div>
+        <div style="font-size: 0.95em; color: #555; margin-top: auto;">
+            <strong>Questions:</strong> {{ questions|length }}
+            <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #eee; text-align: center; font-weight: bold; color: #0d6efd;">
+                {% if questions %}Setup Quiz &rarr;{% else %}Questions coming soon{% endif %}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+<div style="margin-top: 35px;">
+    <a href="{{ url_for('quiz.student_dashboard') }}" class="btn btn-secondary">&larr; Return to Dashboard</a>
+</div>
+{% endblock %}

@@ -187,6 +187,12 @@
                 <p class="card-desc">View and take quizzes or remediations assigned to you by faculty or from your past generations.</p>
             </a>
 
+            <a href="{{ url_for('quiz.select_standardized_quiz') }}" class="student-card card-select">
+                <div class="card-icon">📚</div>
+                <div class="card-title">Standardized Quizzes</div>
+                <p class="card-desc">Practice questions in six standardized clinical categories.</p>
+            </a>
+
             <!-- 3. Quiz Generation Menu -->
             <a href="{{ url_for('quiz.menu') }}" class="student-card card-generate">
                 <div class="card-icon">⚡</div>

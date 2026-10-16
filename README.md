@@ -28,6 +28,30 @@ python -m unittest discover -s tests -p 'test_landing_pages.py' -v
 python -m unittest discover -s tests -p 'test_entitlements.py' -v
 ```
 
+## Standardized student quizzes
+
+The student dashboard links to `/select_standardized_quiz`, with six fixed
+clinical categories. Premium students use the existing quiz setup, four modes,
+question screens, grading, attempt history, and review. As with existing quizzes,
+all available questions are included; the setup shows the available count.
+Empty categories display a message instead of creating an attempt.
+
+Replace the testing samples in `standardized_quizzes.py` with reviewed questions
+from the source document. Each category contains question-bank-format dictionaries
+with five answer choices, a correct-answer letter, an explanation, and organ/task/
+topic metadata. Give each new question a unique `std-` ID (maximum 64 characters).
+Use new IDs for replacement content; existing IDs and persisted rows preserve
+historical answers and reviews. Questions are inserted into the existing bank
+when a student starts a session; standardized membership comes from the module,
+not `user_quizzes` or `quiz_questions_map`. No migration or AI generation is needed.
+The `Standardized:` quiz-name prefix is reserved for this flow.
+
+Run the local SQLite-backed flow regressions (no MySQL or API access):
+
+```bash
+python -m unittest discover -s tests -p 'test_standardized_quizzes.py' -v
+```
+
 ## Blueprint quiz database-first selection
 
 Blueprint forms, fallback generation, and the topic-filling pipeline share the

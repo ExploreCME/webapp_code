@@ -18,6 +18,10 @@ from document_storage import upload_document, list_documents
 # --- IMPORT SHARED UNIQUE CHECK ---
 from shared_utils import is_assignment_name_unique
 from standardizers import TASK_AREAS, TASK_ALIASES, standardize_organ_system, standardize_task_area
+from standardized_quizzes import (
+    STANDARDIZED_PREFIX, STANDARDIZED_QUIZZES,
+    get_standardized_questions, store_standardized_questions,
+)
 
 # ==========================================
 # BLUEPRINT INITIALIZATION
@@ -38,6 +42,8 @@ def get_user_quizzes_db():
 
 def is_quiz_name_unique(cursor, username, quiz_name):
     """Checks if a quiz name is already in use by this user (including pending generation tasks)."""
+    if quiz_name.strip().lower().startswith(STANDARDIZED_PREFIX.strip().lower()):
+        return False
     cursor.execute('''
         SELECT 1 FROM user_quizzes WHERE username = %s AND TRIM(LOWER(quiz_name)) = TRIM(LOWER(%s))
         UNION
@@ -473,6 +479,87 @@ def generation_status():
 # ==========================================
 # ROUTE: SELECT QUIZ PAGE (SCALABLE MYSQL)
 # ==========================================
+@quiz_bp.before_request
+def require_standardized_access():
+    values = request.form if request.method == 'POST' else request.args
+    quiz_name = (request.view_args or {}).get('quiz_name') or values.get('quiz_name', '')
+    attempt_id = values.get('attempt_id') or values.get('resume_attempt_id')
+    question_id = values.get('question_id') or values.get('q')
+    if not quiz_name.startswith(STANDARDIZED_PREFIX) and attempt_id and request.endpoint in (
+        'quiz.question_page', 'quiz.check_answer', 'quiz.quiz_results', 'quiz.review_attempt',
+        'quiz.start_quiz',
+    ):
+        cursor = get_db().cursor()
+        cursor.execute("SELECT quiz_name FROM quiz_attempts WHERE attempt_id = %s", (attempt_id,))
+        attempt = cursor.fetchone()
+        if attempt and (attempt.get('quiz_name') or '').startswith(STANDARDIZED_PREFIX):
+            if quiz_name or request.endpoint not in ('quiz.quiz_results', 'quiz.review_attempt'):
+                return "Invalid standardized quiz name.", 400
+            quiz_name = attempt['quiz_name']
+    if question_id and question_id.startswith('std-') and not quiz_name.startswith(STANDARDIZED_PREFIX):
+        return "Invalid standardized quiz name.", 400
+    if request.endpoint != 'quiz.select_standardized_quiz' and not quiz_name.startswith(STANDARDIZED_PREFIX):
+        return
+    if 'username' not in session or session['username'].startswith('guest_'):
+        return redirect(url_for('paxcel_landing'))
+
+    cursor = get_db().cursor()
+    cursor.execute("SELECT has_paid, is_faculty FROM users WHERE clerk_id = %s", (session['username'],))
+    user = cursor.fetchone()
+    if user and str(user.get('is_faculty')).strip().upper() in ('1', 'Y', 'YES', 'TRUE'):
+        return "Standardized quizzes are available to students only.", 403
+    if not user or user.get('has_paid') != 1:
+        flash("You need premium access to view standardized quizzes.", "error")
+        return redirect(url_for('quiz.dashboard'))
+    if request.endpoint == 'quiz.select_standardized_quiz':
+        return
+
+    questions = get_standardized_questions(quiz_name)
+    if questions is None:
+        return "Standardized category not found.", 404
+    if not questions:
+        flash("No questions are available for this category yet. Please choose another category.", "warning")
+        return redirect(url_for('quiz.select_standardized_quiz'))
+    session.setdefault('standardized_csrf_token', secrets.token_urlsafe(32))
+
+    if request.endpoint in ('quiz.question_page', 'quiz.check_answer') and not attempt_id:
+        return redirect(url_for('quiz.quiz_mode', quiz_name=quiz_name))
+    if attempt_id:
+        cursor.execute(
+            "SELECT mode FROM quiz_attempts WHERE attempt_id = %s AND username = %s AND quiz_name = %s",
+            (attempt_id, session['username'], quiz_name),
+        )
+        attempt = cursor.fetchone()
+        if not attempt:
+            return "Quiz attempt not found.", 404
+        if values.get('mode', attempt['mode']) != attempt['mode']:
+            return "Invalid quiz mode.", 400
+    if question_id and question_id not in {question['id'] for question in questions}:
+        return "Question not found in this category.", 404
+    if request.endpoint == 'quiz.start_quiz':
+        if request.form.get('mode') not in ('test', 'study_no_exp', 'study_exp', 'study_missed'):
+            return "Invalid quiz mode.", 400
+    if request.endpoint in ('quiz.start_quiz', 'quiz.check_answer'):
+        if not secrets.compare_digest(
+            session.get('standardized_csrf_token', ''), request.form.get('standardized_csrf_token', '')
+        ) or not session.get('standardized_csrf_token'):
+            return "Invalid quiz setup token.", 400
+
+
+@quiz_bp.context_processor
+def standardized_quiz_context():
+    values = request.form if request.method == 'POST' else request.args
+    return {'is_standardized': get_standardized_questions(values.get('quiz_name')) is not None}
+
+
+@quiz_bp.route('/select_standardized_quiz')
+def select_standardized_quiz():
+    return render_template(
+        'select_standardized_quiz.html',
+        standardized_quizzes=STANDARDIZED_QUIZZES, standardized_prefix=STANDARDIZED_PREFIX,
+    )
+
+
 @quiz_bp.route('/select_quiz')
 def select_quiz():
     if 'username' not in session:
@@ -1126,7 +1213,10 @@ def question_page():
     cursor = conn.cursor()
     question_ids = []
 
-    if selected_quiz_name:
+    standardized_questions = get_standardized_questions(selected_quiz_name)
+    if standardized_questions is not None:
+        question_ids = [question['id'] for question in standardized_questions]
+    elif selected_quiz_name:
         cursor.execute('''
             SELECT qb.id
             FROM question_bank qb
@@ -1137,6 +1227,7 @@ def question_page():
         ''', (selected_quiz_name,))
         question_ids = [row['id'] for row in cursor.fetchall()]
 
+    if selected_quiz_name:
         if mode == 'study_missed' and question_ids:
             cursor.execute('''
                 SELECT DISTINCT ar.question_id
@@ -1162,7 +1253,12 @@ def question_page():
 
     if not q and selected_quiz_name and question_ids:
         if attempt_id:
-            cursor.execute('''
+            if standardized_questions is not None:
+                cursor.execute('SELECT question_id FROM attempt_responses WHERE attempt_id = %s', (attempt_id,))
+                answered_ids = {row['question_id'] for row in cursor.fetchall()}
+                q = next((qid for qid in question_ids if qid not in answered_ids), question_ids[0])
+            else:
+                cursor.execute('''
                 SELECT qb.id
                 FROM question_bank qb
                 JOIN quiz_questions_map qqm ON qb.id = qqm.question_id
@@ -1170,9 +1266,9 @@ def question_page():
                 LEFT JOIN attempt_responses ar ON qb.id = ar.question_id AND ar.attempt_id = %s
                 WHERE uq.quiz_name = %s AND ar.id IS NULL
                 ORDER BY qqm.map_id ASC LIMIT 1
-            ''', (attempt_id, selected_quiz_name))
-            result = cursor.fetchone()
-            q = result['id'] if result else question_ids[0]
+                ''', (attempt_id, selected_quiz_name))
+                result = cursor.fetchone()
+                q = result['id'] if result else question_ids[0]
         else:
             q = question_ids[0]
 
@@ -1328,6 +1424,9 @@ def quiz_mode():
 
     total_q_res = cursor.fetchone()
     total_questions = total_q_res['total'] if total_q_res else 0
+    standardized_questions = get_standardized_questions(quiz_name)
+    if standardized_questions is not None:
+        total_questions = len(standardized_questions)
 
     forced_mode = None
     if assign_row and assign_row.get('required_mode') and assign_row['required_mode'] != 'any':
@@ -1372,7 +1471,11 @@ def quiz_mode():
                 'total': total_questions
             })
 
-    return render_template('quiz_mode.html', quiz_name=quiz_name, incomplete_attempts=incomplete_attempts, forced_mode=forced_mode)
+    return render_template(
+        'quiz_mode.html', quiz_name=quiz_name, incomplete_attempts=incomplete_attempts,
+        forced_mode=forced_mode, is_standardized=standardized_questions is not None,
+        total_questions=total_questions,
+    )
 
 # Helper function to determine where a user left off in a remediation
 def _get_remediation_resume_url(cursor, attempt_id, quiz_name):
@@ -1478,6 +1581,9 @@ def start_quiz():
 
             total_q_res = cursor.fetchone()
             total_questions = total_q_res['total'] if total_q_res else 0
+            standardized_questions = get_standardized_questions(quiz_name)
+            if standardized_questions is not None:
+                total_questions = len(standardized_questions)
 
             cursor.execute('''
                 SELECT qa.attempt_id, COUNT(ar.id) as answered
@@ -1514,6 +1620,10 @@ def start_quiz():
             return redirect(url_for('quiz.quiz_mode', quiz_name=quiz_name))
 
     # All validations passed. Now build or resume the attempt.
+    standardized_questions = get_standardized_questions(quiz_name)
+    if standardized_questions is not None:
+        store_standardized_questions(cursor, standardized_questions)
+
     if is_remediation:
         if resume_attempt_id:
             url = _get_remediation_resume_url(cursor, resume_attempt_id, quiz_name)
@@ -1604,6 +1714,8 @@ def quiz_results():
     attempt_data = cursor.fetchone()
     if not attempt_data:
         return redirect(url_for('quiz.select_quiz'))
+    if (attempt_data.get('quiz_name') or '').startswith(STANDARDIZED_PREFIX):
+        quiz_name = attempt_data['quiz_name']
 
     attempt = dict(attempt_data)
     if attempt.get('start_time'):
@@ -1642,7 +1754,11 @@ def quiz_results():
                 'percentage': round((m_cor / m_ans) * 100, 1) if m_ans > 0 else 0
             })
 
-    return render_template('quiz_results.html', attempt=attempt, quiz_name=quiz_name, is_remediation=is_remediation, module_breakdown=module_breakdown)
+    return render_template(
+        'quiz_results.html', attempt=attempt, quiz_name=quiz_name,
+        is_remediation=is_remediation, module_breakdown=module_breakdown,
+        is_standardized=get_standardized_questions(quiz_name) is not None,
+    )
 
 @quiz_bp.route('/review_attempt')
 def review_attempt():
