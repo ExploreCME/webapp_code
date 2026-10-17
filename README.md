@@ -102,6 +102,11 @@ For optional fixture-only before/after HTML exports, set
 This requires baseline commit `ac39dc755ff9b7106f2ce797ad3029161e8fae26`
 in local git history; ordinary tests do not. Exports remove scripts and are
 inert screenshot inputs, not live authentication or payment verification.
+Committed [desktop](tests/visual/rnxcel-parity-desktop.png) and
+[mobile](tests/visual/rnxcel-parity-mobile.png) comparison sheets show PAXcel
+alongside RNXcel before/after, using nonclinical fixtures. Captures used installed
+Chromium at 1440×1000 and 390×844 with external networking blocked; the sheets
+are selected viewport evidence, not a live Clerk/MySQL check or pixel-baseline CI.
 The extraction touches protected PAXcel templates `index.html`, `student_dashboard.html`,
 `quiz_results.html` and `review_attempt.html` in the template directory above.
 The existing guardrail requires explicit reviewer approval via
