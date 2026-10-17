@@ -115,8 +115,12 @@ class SharedShellPresentationTests(unittest.TestCase):
                         snapshots.append({
                             "state": [premium, faculty, app, logged_in],
                             "markup": Markup(rendered).tokens,
-                            "scripts": re.findall(r"<script\b[^>]*>.*?</script>", rendered, re.S),
-                            "styles": re.findall(r"<style\b[^>]*>.*?</style>", rendered, re.S),
+                            "scripts": re.findall(
+                                r"<script\b[^>]*>.*?</script[^>]*>", rendered, re.S | re.I,
+                            ),
+                            "styles": re.findall(
+                                r"<style\b[^>]*>.*?</style[^>]*>", rendered, re.S | re.I,
+                            ),
                             "exact_shell": rendered if template == "base.html" else None,
                         })
             digest = hashlib.sha256(json.dumps(

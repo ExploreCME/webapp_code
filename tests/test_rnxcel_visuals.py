@@ -76,7 +76,7 @@ class RNXcelVisualTests(unittest.TestCase):
                     continue
                 html = environment.get_template(template).render(context)
                 # Evidence is inert: no Clerk initialization, fetches, or writes.
-                html = re.sub(r"<script\b[^>]*>.*?</script\s*>", "", html,
+                html = re.sub(r"<script\b[^>]*>.*?</script[^>]*>", "", html,
                               flags=re.IGNORECASE | re.DOTALL)
                 (self.output / f"{name}-{revision}.html").write_text(html, encoding="utf-8")
 
@@ -123,9 +123,10 @@ class RNXcelVisualTests(unittest.TestCase):
         self.assertEqual(dashboard["available"], 8)
         self.assertEqual(len(dashboard["history"]), 2)
         for version in versions:
+            count = 6 if "stages" in version else 1
             _, context = self.screen(
                 f"setup-populated-{version['type']}",
-                f"/rnxcel/practice?experience={version['type']}",
+                f"/rnxcel/practice?experience={version['type']}&count={count}",
             )
             self.assertGreater(context["available"], 0)
             self.assertGreater(context["start_count"], 0)
