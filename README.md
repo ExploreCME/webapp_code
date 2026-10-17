@@ -2,6 +2,31 @@
 
 This repository contains the web application and supporting services for the ExploreCME platform.
 
+## PAXcel change guardrail (CI)
+
+The `PAXcel guardrail` workflow (`.github/workflows/paxcel-guardrail.yml`) runs
+on every pull request and compares the PR's changed files (including deletions
+and renames) with the protected PAXcel paths in `PROTECTED_PATHS` in
+`scripts/paxcel_guardrail.py` — core PAXcel routes (`display_database.py`,
+`flask_app.py`), quiz/dashboard templates, and PAXcel regression tests.
+RNXcel-only files are not protected.
+
+- No protected file changed: the check passes.
+- A protected file changed and the PR has the label `paxcel-change-approved`:
+  the check passes and logs the approved files.
+- A protected file changed without that label: the check fails and lists the
+  files. To approve an intentional PAXcel change, add the label
+  `paxcel-change-approved` to the PR; the check re-runs automatically (removing
+  the label re-runs it too).
+
+Edit `PROTECTED_PATHS` (exact repository paths) to change coverage. To make the
+check blocking, mark `PAXcel guardrail (label paxcel-change-approved)` as a
+required status check in branch protection. Test the script with:
+
+```bash
+python -m unittest discover -s tests -p 'test_paxcel_guardrail.py' -v
+```
+
 ## Public landing pages and product logos
 
 The ExploreCME home page (`/`) and RNXcel/MDXcel coming-soon pages omit the
