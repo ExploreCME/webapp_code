@@ -639,5 +639,8 @@ app.register_blueprint(stats_bp)
 from faculty_routes import faculty_bp
 app.register_blueprint(faculty_bp)
 
+from student_reports import student_reports_bp
+app.register_blueprint(student_reports_bp)
+
 from preview_app import preview_bp
 app.register_blueprint(preview_bp)

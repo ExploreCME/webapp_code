@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Student Report{% endblock %}
+{% block content %}
+<style>
+  .report-section { margin: 2rem 0; padding: 1rem; border: 1px solid #cbd5e1; }
+  .report-section table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+  .report-section th, .report-section td { text-align: left; padding: .5rem; border: 1px solid #cbd5e1; }
+  @media print { .report-section + .report-section { break-before: page; page-break-before: always; } .report-actions { display: none; } }
+</style>
+<h1>Student Report</h1>
+<p>{{ explanation }}</p>
+<p class="report-actions">
+  <a href="{{ url_for('student_reports.reports') }}">Report Options</a> |
+  <a href="{{ url_for('student_reports.report', download=True, report_type=report_type, category=category, attempt_filter=attempt_filter) }}">Download PDF</a>
+</p>
+{% for section in sections %}
+<section class="report-section">
+  <h2>{{ section.title }}</h2>
+  <p>{{ score_label }}: <strong>{{ percentage(section.student.percentage) }}</strong>
+    ({{ section.student.correct }} / {{ section.student.eligible }} correct / eligible)</p>
+  {% if section.platform is defined %}
+  <p>Platform percentage correct: <strong>{{ percentage(section.platform.percentage) }}</strong>
+    ({{ section.platform.correct }} / {{ section.platform.eligible }} correct / eligible)</p>
+  <p>Catalog questions: {{ section.question_count }}.
+    Selected completed attempts: {{ section.attempts | length }} / {{ section.available_completed_attempts }} available.
+    Platform completed attempts: {{ section.platform_attempt_count }}.</p>
+  {% if section.question_count == 0 %}<p>No questions in this published version.</p>{% endif %}
+  {% if not section.attempts %}<p>No completed attempts for this version.</p>{% endif %}
+  <ul>{% for attempt in section.attempts %}<li>Attempt started: {{ attempt.start_time }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% for group in section.groups %}
+  <h3>{{ group.title }}</h3>
+  <table>
+    <thead><tr><th scope="col">Dimension</th><th scope="col">Your correct / eligible</th><th scope="col">Your percentage correct</th>
+      {% if section.platform is defined %}<th scope="col">Platform correct / eligible</th><th scope="col">Platform percentage correct</th>{% endif %}
+    </tr></thead>
+    <tbody>{% for row in group.rows %}<tr>
+      <th scope="row">{{ row.label }}</th><td>{{ row.student.correct }} / {{ row.student.eligible }}</td><td>{{ percentage(row.student.percentage) }}</td>
+      {% if row.platform is defined %}<td>{{ row.platform.correct }} / {{ row.platform.eligible }}</td><td>{{ percentage(row.platform.percentage) }}</td>{% endif %}
+    </tr>{% endfor %}</tbody>
+  </table>
+  {% endfor %}
+</section>
+{% else %}<p>No published versions available. Complete a published standardized quiz to see comparisons.</p>{% endfor %}
+{% endblock %}

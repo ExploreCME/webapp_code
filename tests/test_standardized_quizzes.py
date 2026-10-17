@@ -8,6 +8,7 @@ from flask import Flask, render_template, session
 from pymysql.err import DataError, OperationalError, ProgrammingError
 
 import flask_app
+from student_reports import student_reports_bp
 from standardized_quizzes import STANDARDIZED_PREFIX, STANDARDIZED_QUIZZES, store_standardized_questions
 
 
@@ -119,6 +120,7 @@ class StandardizedQuizTests(unittest.TestCase):
         self.app = Flask(__name__)
         self.app.config.update(TESTING=True, SECRET_KEY="standardized-test-only")
         self.app.register_blueprint(flask_app.quiz_bp)
+        self.app.register_blueprint(student_reports_bp)
         self.app.add_url_rule("/", "paxcel_landing", lambda: "Sign in")
         self.app.add_url_rule("/statistics", "stats.my_statistics", lambda: "Statistics")
         self.client = self.app.test_client()
@@ -152,7 +154,7 @@ class StandardizedQuizTests(unittest.TestCase):
             "user_choice": choice, "standardized_csrf_token": self.token(),
         })
 
-    def test_dashboard_link_and_six_category_tiles(self):
+    def test_dashboard_link_and_seven_category_tiles(self):
         with self.app.test_request_context():
             session["username"] = "student"
             dashboard = render_template("student_dashboard.html", is_premium=True)
@@ -163,18 +165,21 @@ class StandardizedQuizTests(unittest.TestCase):
         self.assertIn("Manage Subscription", header)
         self.assertEqual(dashboard.count('href="/select_standardized_quiz"'), 1)
         self.assertIn('href="/select_standardized_quiz"', dashboard)
+        self.assertIn("Standardized Assessment", dashboard)
+        self.assertNotIn("Standardized Quizzes", dashboard)
+        self.assertIn('href="/student_reports"', dashboard)
         response = self.client.get("/select_standardized_quiz")
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
-        self.assertEqual(page.count('class="quiz-card"'), 6)
+        self.assertEqual(page.count('class="quiz-card"'), 7)
         self.assertEqual(list(STANDARDIZED_QUIZZES), [
             "Emergency Medicine", "Family Medicine", "Internal Medicine",
-            "Pediatrics", "Behavioral Health", "Women's Health",
+            "Pediatrics", "Behavioral Health", "Women's Health", "Surgery",
         ])
         for category in STANDARDIZED_QUIZZES:
             self.assertIn(category.replace("'", "&#39;"), page)
         self.assertIn(".quiz-grid", page)
-        self.assertEqual(page.count("View Versions"), 6)
+        self.assertEqual(page.count("View Versions"), 7)
         self.assertIn("/standardized_quizzes/Emergency%20Medicine", page)
 
     def test_missing_versions_table_keeps_category_and_sample_selection_working(self):
@@ -210,9 +215,15 @@ class StandardizedQuizTests(unittest.TestCase):
             dashboard = client.get("/student_dashboard")
             self.assertEqual(dashboard.status_code, 200)
             self.assertEqual(dashboard.text.count('href="/select_standardized_quiz"'), 1)
+            self.assertIn("Standardized Assessment", dashboard.text)
+            self.assertIn('href="/student_reports"', dashboard.text)
+            reports = client.get("/student_reports")
+            self.assertEqual(reports.status_code, 200)
+            self.assertIn("Overall Usage", reports.text)
+            self.assertIn("Standardized Assessment", reports.text)
             response = client.get("/select_standardized_quiz")
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.text.count("View Versions"), 6)
+            self.assertEqual(response.text.count("View Versions"), 7)
             self.assertEqual(client.get(
                 "/standardized_quizzes/Emergency%20Medicine"
             ).status_code, 200)
@@ -236,6 +247,33 @@ class StandardizedQuizTests(unittest.TestCase):
         self.assertNotIn("Try Sample Practice", response.text)
         self.assertEqual(self.start(quiz_name=STANDARDIZED_PREFIX + name).status_code, 302)
 
+    def test_surgery_empty_state_and_published_version_flow(self):
+        self.assertEqual(list(STANDARDIZED_QUIZZES)[6], "Surgery")
+        self.assertEqual(STANDARDIZED_QUIZZES["Surgery"], [])
+        response = self.client.get("/standardized_quizzes/Surgery")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("No generated versions are available yet", response.text)
+        self.assertNotIn("Try Sample Practice", response.text)
+
+        questions = STANDARDIZED_QUIZZES["Emergency Medicine"]
+        store_standardized_questions(self.db, questions)
+        name = "Surgery version 1"
+        self.db.connection.execute(
+            "INSERT INTO standardized_quiz_versions VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+            (name, "Surgery", json.dumps([q["id"] for q in questions])),
+        )
+        self.db.commit()
+        response = self.client.get("/standardized_quizzes/Surgery")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(name, response.text)
+        self.assertNotIn("No generated versions", response.text)
+        self.quiz_name = STANDARDIZED_PREFIX + name
+        response = self.start()
+        self.assertEqual(response.status_code, 302)
+        attempt_id = parse_qs(urlparse(response.location).query)["attempt_id"][0]
+        result = self.answer(attempt_id, question=questions[0]["id"])
+        self.assertIn("100.0%", self.client.get(result.location).text)
+
     def test_catalog_does_not_swallow_other_database_errors(self):
         for error in (
             ProgrammingError(1142, "SELECT denied"),
@@ -257,6 +295,14 @@ class StandardizedQuizTests(unittest.TestCase):
         for category, questions in STANDARDIZED_QUIZZES.items():
             with self.subTest(category=category):
                 self.quiz_name = STANDARDIZED_PREFIX + category
+                if not questions:
+                    page = self.client.get("/standardized_quizzes/" + category)
+                    self.assertEqual(page.status_code, 200)
+                    self.assertIn("No generated versions are available yet", page.text)
+                    self.assertNotIn("Try Sample Practice", page.text)
+                    setup = self.client.get("/quiz_mode", query_string={"quiz_name": self.quiz_name})
+                    self.assertIn("/select_standardized_quiz", setup.location)
+                    continue
                 response = self.start()
                 self.assertEqual(response.status_code, 302)
                 attempt_id = parse_qs(urlparse(response.location).query)["attempt_id"][0]

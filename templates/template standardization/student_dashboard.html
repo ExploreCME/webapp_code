@@ -189,8 +189,14 @@
 
             <a href="{{ url_for('quiz.select_standardized_quiz') }}" class="student-card card-select">
                 <div class="card-icon">📚</div>
-                <div class="card-title">Standardized Quizzes</div>
-                <p class="card-desc">Practice questions in six standardized clinical categories.</p>
+                <div class="card-title">Standardized Assessment</div>
+                <p class="card-desc">Explore assessments in seven standardized clinical categories.</p>
+            </a>
+
+            <a href="{{ url_for('student_reports.reports') }}" class="student-card card-stats">
+                <div class="card-icon">📊</div>
+                <div class="card-title">Reports</div>
+                <p class="card-desc">Review your overall usage and compare standardized assessment performance.</p>
             </a>
 
             <!-- 3. Quiz Generation Menu -->
