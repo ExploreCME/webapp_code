@@ -1,0 +1,37 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}Practice | RNXcel{% endblock %}
+{% block nursing_content %}
+<h1>Nursing practice</h1>
+<p>Item {{ attempt.current_index + 1 }} of {{ attempt.total_items }} · {{ attempt.current_index }} answers saved</p>
+<p class="rn-muted">Submitted answers are saved. Return to <a href="{{ url_for('rnxcel.attempts') }}">your attempts</a> to resume.</p>
+{% if item.case_title %}<h2>{{ item.case_title }}</h2>{% endif %}
+{% if item.stage_index is defined %}<p class="rn-eyebrow">Case stage {{ item.stage_index + 1 }} of {{ item.stage_count }}</p>{% endif %}
+{% if item.exhibits %}
+<section aria-labelledby="rn-exhibits">
+    <h2 id="rn-exhibits">Available case information</h2>
+    {% for exhibit in item.exhibits %}
+    <article class="rn-card">
+        <h3>{{ exhibit.timestamp }}</h3>
+        <p class="rn-text">{{ exhibit.text }}</p>
+    </article>
+    {% endfor %}
+</section>
+{% endif %}
+<form class="rn-card" method="post" action="{{ url_for('rnxcel.answer', attempt_id=attempt.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="index" value="{{ attempt.current_index }}">
+    <h2 class="rn-text">{{ item.stem }}</h2>
+    <fieldset aria-describedby="rn-selection-help">
+        <legend>{% if item.type == 'select-all-that-apply' %}Select all that apply{% else %}Select one answer{% endif %}</legend>
+        <p id="rn-selection-help">{% if item.type == 'select-all-that-apply' %}Choose at least one answer. Your selection will be checked when submitted.{% else %}Choose the single best answer.{% endif %}</p>
+        <p class="rn-muted">{% if item.type == 'select-all-that-apply' %}Scoring: correct selections minus incorrect selections, floored at 0. Possible points equal the number of keyed correct answers; that count is withheld until completion.{% else %}Scoring: 1 point for a correct answer, 0 points for an incorrect answer.{% endif %}</p>
+        {% for option in item.options %}
+        <label class="rn-option" for="rn-option-{{ loop.index }}">
+            <input id="rn-option-{{ loop.index }}" type="{% if item.type == 'select-all-that-apply' %}checkbox{% else %}radio{% endif %}" name="selection" value="{{ option.id }}"{% if item.type != 'select-all-that-apply' %} required{% endif %}>
+            <span>{{ option.text }}</span>
+        </label>
+        {% endfor %}
+    </fieldset>
+    <button class="btn btn-primary" type="submit">{% if attempt.current_index + 1 == attempt.total_items %}Submit and finish{% else %}Submit and continue{% endif %}</button>
+</form>
+{% endblock %}

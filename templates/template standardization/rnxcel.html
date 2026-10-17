@@ -1,54 +1,50 @@
-{% extends "base.html" %}
-{% set show_app_header = false %}
-
+{% extends "rnxcel_base.html" %}
 {% block title %}RNXcel | NCLEX-RN Platform{% endblock %}
-{% block description %}RNXcel is ExploreCME's nursing platform for NCLEX-RN preparation. Nursing content is not available yet.{% endblock %}
-{% block container_class %}container-large{% endblock %}
-{% block flash_messages %}{% endblock %}
-
-{% block content %}
-<main>
-    <img src="{{ url_for('static', filename='images/rnxcel_logo.png') }}" alt="RNXcel logo" style="height: 100px; max-width: 100%; object-fit: contain;">
-    <h1>RNXcel</h1>
-    <p>NCLEX-RN preparation for nursing students</p>
-    <p>Platform foundation &middot; Content not yet available</p>
-    <p>RNXcel is a separate nursing experience. PAXcel questions, progress, and subscriptions are not used here.</p>
-    <nav aria-label="RNXcel navigation">
-        <a href="{{ url_for('rnxcel.landing') }}">RNXcel home</a>
-        &middot; <a href="{{ url_for('explorecme_home') }}">Back to ExploreCME</a>
-    </nav>
-
-    {% if experience %}
-    <section aria-labelledby="experience-title">
-        <h2 id="experience-title">{{ experience.label }}</h2>
-        <p>{{ experience.description }}</p>
-        <p role="status">No available content yet. This practice experience is not active.</p>
-    </section>
-    {% else %}
-    <section aria-labelledby="content-title">
-        <h2 id="content-title">Nursing content</h2>
-        <p role="status">No available content yet. No nursing questions or case studies have been loaded.</p>
-    </section>
-    {% endif %}
-
-    <section aria-labelledby="categories-title">
-        <h2 id="categories-title">NCLEX-RN categories</h2>
-        <ul>
-            {% for category in categories %}
-            <li>{{ category.label }}</li>
-            {% else %}
-            <li>No categories available yet.</li>
-            {% endfor %}
-        </ul>
-    </section>
-
-    <section aria-labelledby="formats-title">
-        <h2 id="formats-title">Planned practice experiences</h2>
-        <ul>
-            {% for item in experiences %}
-            <li><a href="{{ url_for('rnxcel.practice', item_type=item.slug) }}">{{ item.label }}</a> &mdash; Not available yet</li>
-            {% endfor %}
-        </ul>
-    </section>
-</main>
+{% block nursing_content %}
+<header class="rn-card rn-hero">
+    <img class="rn-logo" src="{{ url_for('static', filename='images/rnxcel_logo.png') }}" alt="RNXcel logo" width="300" height="100">
+    <h1>Nursing practice, with purpose.</h1>
+    <p>RNXcel supports NCLEX-RN preparation using the 2026 exam profile and 2026–2029 blueprint.</p>
+    <p>Explore nursing-only objectives, choose a practice session, and return to your saved attempts.</p>
+    <div class="rn-actions">
+        <a class="btn btn-primary" href="{{ url_for('rnxcel.setup') }}">Set up practice</a>
+        <a class="btn btn-secondary" href="{{ url_for('rnxcel.dashboard') }}">Open dashboard</a>
+    </div>
+</header>
+{% if experience %}
+<section class="rn-card" aria-labelledby="experience-title">
+    <h2 id="experience-title">{{ experience.label }}</h2>
+    <p>{{ experience.description }}</p>
+    <a href="{{ url_for('rnxcel.setup', experience=experience.slug) }}">Check available practice</a>
+</section>
+{% endif %}
+<div class="rn-notice" role="status">No available content yet. The bundled catalog is empty; <a href="{{ url_for('rnxcel.setup') }}">sign in to check any separately published nursing content</a>.</div>
+<section aria-labelledby="formats-title">
+    <h2 id="formats-title">Practice experiences</h2>
+    <div class="rn-grid">
+        {% for item in experiences %}
+        <article class="rn-card">
+            <h3><a href="{{ url_for('rnxcel.practice', item_type=item.slug) }}">{{ item.label }}</a></h3>
+            <p>{{ item.description }}</p>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+<section aria-labelledby="categories-title">
+    <h2 id="categories-title">NCLEX-RN categories</h2>
+    <p class="rn-muted">Proposed editorial bank target weights, not exact exam percentages or guaranteed session quotas. Objectives are editorial learning clusters, not an exhaustive official list.</p>
+    <div class="rn-table-wrap">
+        <table>
+            <caption>Proposed nursing content allocation</caption>
+            <thead><tr><th scope="col">Category</th><th scope="col">Editorial target weight</th></tr></thead>
+            <tbody>
+                {% for category in categories %}
+                <tr><th scope="row"><a href="{{ url_for('rnxcel.setup', category=category.id) }}">{{ category.label }}</a></th><td>{{ category.target_weight }}%</td></tr>
+                {% else %}
+                <tr><td colspan="2">No categories available yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
 {% endblock %}

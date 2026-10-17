@@ -1,0 +1,13 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}Unable to continue | RNXcel{% endblock %}
+{% block nursing_content %}
+<div class="rn-card">
+    <p class="rn-eyebrow">RNXcel · {{ status }}</p>
+    <h1>Unable to continue</h1>
+    <p role="alert">{{ message }}</p>
+    <div class="rn-actions">
+        <a class="btn btn-primary" href="{{ url_for('rnxcel.setup') }}">Try practice setup</a>
+        <a class="btn btn-secondary" href="{{ url_for('rnxcel.dashboard') }}">Return to dashboard</a>
+    </div>
+</div>
+{% endblock %}

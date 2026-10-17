@@ -1,0 +1,65 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}Practice setup | RNXcel{% endblock %}
+{% block nursing_content %}
+<h1>Set up nursing practice</h1>
+<p>Choose published nursing content. Update availability before starting a session.</p>
+{% if filters.get('case_version') %}
+<div class="rn-notice" role="status">
+    <strong>Selected case:</strong> {{ filters.get('case_version') }}.
+    <a href="{{ url_for('rnxcel.setup', experience='unfolding-case-study', count=6) }}">Clear case selection</a>
+</div>
+{% endif %}
+<form action="{{ url_for('rnxcel.setup') }}" method="get" class="rn-card">
+    {% if filters.get('case_version') %}<input type="hidden" name="case_version" value="{{ filters.get('case_version') }}">{% endif %}
+    <div class="rn-grid">
+        <label for="rn-category">Category
+            <select id="rn-category" name="category">
+                <option value="">All categories</option>
+                {% for category in categories %}<option value="{{ category.id }}"{% if filters.get('category') == category.id %} selected{% endif %}>{{ category.label }}</option>{% endfor %}
+            </select>
+        </label>
+        <label for="rn-objective">Objective
+            <select id="rn-objective" name="objective">
+                <option value="">All objectives</option>
+                {% for id, label in objectives.items() %}<option value="{{ id }}"{% if filters.get('objective') == id %} selected{% endif %}>{{ id }} — {{ label }}</option>{% endfor %}
+            </select>
+        </label>
+        <label for="rn-experience">Experience
+            <select id="rn-experience" name="experience">
+                <option value="">All experiences</option>
+                {% for experience in experiences %}<option value="{{ experience.slug }}"{% if filters.get('experience') == experience.slug %} selected{% endif %}>{{ experience.label }}</option>{% endfor %}
+            </select>
+        </label>
+        {% for name, label, choices in [('population', 'Population', populations), ('setting', 'Setting', settings), ('clinical_judgment', 'Clinical judgment', clinical_judgment)] %}
+        <label for="rn-{{ name }}">{{ label }}
+            <select id="rn-{{ name }}" name="{{ name }}">
+                <option value="">All {{ label|lower }}</option>
+                {% for choice in choices %}<option value="{{ choice }}"{% if filters.get(name) == choice %} selected{% endif %}>{{ choice|replace('-', ' ')|capitalize }}</option>{% endfor %}
+            </select>
+        </label>
+        {% endfor %}
+        <label for="rn-count">Scored items
+            <input id="rn-count" type="number" name="count" min="1" max="50" required value="{{ filters.get('count', 10) }}" aria-describedby="rn-count-help">
+        </label>
+        <label for="rn-mode">Mode
+            <select id="rn-mode" name="mode"><option value="practice" selected>Practice</option></select>
+        </label>
+    </div>
+    <p id="rn-count-help" class="rn-muted">Choose 1–50 scored items. Cases are indivisible groups of six scored items; your request must fit the available count exactly. A case cannot be shortened to fill a session.</p>
+    <button type="submit" class="btn btn-secondary">Update availability</button>
+</form>
+<section class="rn-card" aria-labelledby="rn-availability">
+    <h2 id="rn-availability">Available for these filters</h2>
+    <p><strong>{{ available }}</strong> scored items across <strong>{{ container_count }}</strong> content containers. Each case contains six scored items.</p>
+    {% if start_count == 0 %}<p role="status">No session fits this request. Change the filters or count; no content will be substituted or generated.</p>{% else %}<p>Ready to start {{ start_count }} scored items.</p>{% endif %}
+    <form action="{{ url_for('rnxcel.start') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="case_version" value="{{ filters.get('case_version', '') }}">
+        {% for name in ['category', 'objective', 'experience', 'population', 'setting', 'clinical_judgment', 'count'] %}
+        <input type="hidden" name="{{ name }}" value="{{ filters.get(name, '') }}">
+        {% endfor %}
+        <input type="hidden" name="mode" value="practice">
+        <button type="submit" class="btn btn-primary"{% if start_count == 0 %} disabled{% endif %}>Start practice</button>
+    </form>
+</section>
+{% endblock %}
