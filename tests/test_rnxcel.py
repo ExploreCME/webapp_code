@@ -88,6 +88,21 @@ class RNXcelRouteTests(unittest.TestCase):
         self.assertEqual(before.data, after.data)
         self.assertEqual(display_database.fetch_data_for_dashboard.call_count, 2)
 
+    def test_paxcel_flash_messages_are_not_displayed_or_consumed_by_rnxcel(self):
+        message = "PAXcel-only quiz feedback"
+        with self.client.session_transaction() as session:
+            session["_flashes"] = [("info", message)]
+        for path in self.paths:
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200)
+            self.assertNotIn(message, response.text)
+            self.assertNotIn("Set-Cookie", response.headers)
+            with self.client.session_transaction() as session:
+                self.assertEqual(session["_flashes"], [("info", message)])
+        self.assertIn(message, self.client.get("/paxcel").text)
+        with self.client.session_transaction() as session:
+            self.assertNotIn("_flashes", session)
+
     def test_unknown_experiences_do_not_fall_back_to_paxcel(self):
         for item_type in ("paxcel", "single_answer", "unknown"):
             response = self.client.get(f"/rnxcel/practice/{item_type}")
