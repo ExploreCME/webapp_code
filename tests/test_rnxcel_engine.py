@@ -19,12 +19,12 @@ def authored(version_id="version-1", sata=False):
         "correct_option_ids": ["a", "b"] if sata else ["a"],
         "rationale": "Private fixture explanation",
         "scoring": "plus-minus" if sata else "single",
+        "official_activity_reviewed": True,
         "tags": {
             "population": ["adult"], "setting": ["acute-care"],
             "specialty": [], "organ_topics": [], "nursing_tasks": ["symbol-selection"],
             "clinical_judgment": ["recognize-cues"],
             "official_activity_refs": ["Fixture-only reference"],
-            "official_activity_reviewed": True,
             "private": ["tag-secret"],
         },
         "provenance": {"private": "provenance-secret"},
@@ -132,22 +132,22 @@ class EngineTests(unittest.TestCase):
     def test_official_activity_mappings_require_explicit_editorial_review(self):
         for review_flag in (None, False, 1, "true"):
             value = authored()
-            value["tags"]["official_activity_reviewed"] = review_flag
+            value["official_activity_reviewed"] = review_flag
             with self.subTest(flag=review_flag), self.assertRaises(ValueError):
                 engine.validate_version(value)
         value = authored()
-        del value["tags"]["official_activity_reviewed"]
+        del value["official_activity_reviewed"]
         with self.assertRaises(ValueError):
             engine.validate_version(value)
         value["tags"]["official_activity_refs"] = []
         engine.validate_version(value)
         del value["tags"]["official_activity_refs"]
         engine.validate_version(value)
-        value["tags"]["official_activity_reviewed"] = False
+        value["official_activity_reviewed"] = False
         engine.validate_version(value)
         value = authored()
-        del value["tags"]["official_activity_reviewed"]
-        value["official_activity_reviewed"] = True
+        del value["official_activity_reviewed"]
+        value["tags"]["official_activity_reviewed"] = True
         with self.assertRaises(ValueError):
             engine.validate_version(value)
 

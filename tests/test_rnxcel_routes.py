@@ -7,7 +7,7 @@ from pathlib import Path
 import sqlite3
 import unittest
 from unittest.mock import MagicMock, patch
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 from uuid import uuid4
 
 from flask import g, template_rendered
@@ -89,6 +89,7 @@ class NursingForms(HTMLParser):
     def __init__(self, html):
         super().__init__()
         self.forms = []
+        self.links = []
         self.current = None
         self.feed(html)
 
@@ -99,6 +100,8 @@ class NursingForms(HTMLParser):
             self.forms.append(self.current)
         elif tag == "input" and self.current is not None and attrs.get("type") == "hidden":
             self.current["fields"].add(attrs["name"], attrs.get("value", ""))
+        elif tag == "a" and attrs.get("href"):
+            self.links.append(attrs["href"])
 
     def handle_endtag(self, tag):
         if tag == "form":
@@ -338,6 +341,7 @@ class RNXcelEndToEndTests(unittest.TestCase):
                     self.assertIn(item["stem"], response.text)
                     self.assertIsNone(self.context()["attempt"]["earned"])
                     self.assertIsNone(self.context()["attempt"]["possible"])
+                    self.assertNotIn("scoring", self.context()["item"])
                     self.assert_no_feedback(response, versions)
                     for suffix in ("/results", "/review"):
                         premature = self.client.get(path + suffix, follow_redirects=True)
@@ -355,8 +359,22 @@ class RNXcelEndToEndTests(unittest.TestCase):
                 self.assertEqual(self.context()["attempt"]["possible"], expected)
                 review_response = self.client.get(path + "/review")
                 self.assertEqual(review_response.status_code, 200)
+                for projection in self.context()["review_items"]:
+                    self.assertNotIn("scoring", projection)
                 for item in items:
                     self.assertIn(item["rationale"], review_response.text)
+                if "stages" in version:
+                    self.assertIn(version["title"], review_response.text)
+                    for index, stage in enumerate(version["stages"]):
+                        expected_releases = len(version["stages"]) - index
+                        for exhibit in stage["exhibits"]:
+                            self.assertEqual(
+                                review_response.text.count(exhibit["text"]), expected_releases,
+                            )
+                            self.assertEqual(
+                                review_response.text.count(exhibit["timestamp"]), expected_releases,
+                            )
+                        self.assertIn(f"Case stage {index + 1} of 6", review_response.text)
                 self.assertEqual(self.client.get(path).status_code, 302)
 
     def test_case_releases_only_current_and_prior_timestamped_exhibits(self):
@@ -379,9 +397,10 @@ class RNXcelEndToEndTests(unittest.TestCase):
             if index < 5:
                 for key in ("stage", "index", "stage_index"):
                     self.assertEqual(self.client.get(path, query_string={key: index + 1}).status_code, 400)
-                skip = self.answer(path, index + 1, ["tile-a"])
-                self.assertEqual(skip.status_code, 409)
-                self.assertEqual(self.saved(path)["current_index"], index)
+                for selections in (["tile-a"], ["not-yet-released-option"], []):
+                    skip = self.answer(path, index + 1, selections)
+                    self.assertEqual(skip.status_code, 409)
+                    self.assertEqual(self.saved(path)["current_index"], index)
             self.assertEqual(
                 self.answer(path, index, stage["item"]["correct_option_ids"]).status_code, 303,
             )
@@ -540,6 +559,63 @@ class RNXcelEndToEndTests(unittest.TestCase):
             "next": safe, "agree": "yes", "csrf_token": self.csrf(),
         })
         self.assertEqual(response.location, safe)
+
+    def test_safe_return_rebuilds_setup_filters_and_discards_fragments(self):
+        case = authored_case()
+        self.publish(case)
+        filters = {
+            "category": "MOC", "objective": "MOC-01",
+            "experience": "unfolding-case-study", "population": "adult",
+            "setting": "acute-care", "clinical_judgment": "recognize-cues",
+            "count": "6", "mode": "practice", "case_version": case["version_id"],
+        }
+        target = "/rnxcel/practice?" + urlencode(filters) + "#ignored-fragment"
+        response = self.client.get("/rnxcel/sign-in", query_string={"next": target})
+        self.assertEqual(response.status_code, 200)
+        destination = self.context()["return_to"]
+        parsed = urlsplit(destination)
+        self.assertEqual(parsed.path, "/rnxcel/practice")
+        self.assertEqual(parse_qs(parsed.query), {key: [value] for key, value in filters.items()})
+        self.assertEqual(parsed.fragment, "")
+        self.assertEqual(parsed.netloc, "")
+        submitted = self.client.post("/rnxcel/consent", data={
+            "next": target, "agree": "yes", "csrf_token": self.csrf(),
+        })
+        self.assertEqual(submitted.status_code, 303)
+        self.assertEqual(submitted.location, destination)
+        setup = self.client.get(submitted.location)
+        self.assertEqual(setup.status_code, 200)
+        self.assertEqual(self.context()["available"], 6)
+        self.assertEqual(self.context()["start_count"], 6)
+        self.assertEqual(self.context()["filters"]["case_version"], case["version_id"])
+
+    def test_safe_return_rejects_url_options_unknown_routes_and_unapproved_queries(self):
+        targets = (
+            "/rnxcel/practice?_external=true",
+            "/rnxcel/practice?_scheme=https",
+            "/rnxcel/practice?_external=true&_scheme=https",
+            "/rnxcel/practice?_anchor=anything",
+            "/rnxcel/practice?_method=POST",
+            "/rnxcel/practice?arbitrary=anything",
+            "/rnxcel/practice?next=//evil.invalid",
+            "/rnxcel/practice?count=1&count=6",
+            "/rnxcel/practice?case_version=first&case_version=second",
+            "/rnxcel/dashboard?count=6",
+            "/rnxcel/does-not-exist",
+            "/rnxcel/does-not-exist?count=6",
+            "/rnxcel/attempts/00000000-0000-0000-0000-000000000000/answer",
+        )
+        token = self.csrf()
+        for target in targets:
+            with self.subTest(target=target):
+                response = self.client.get("/rnxcel/sign-in", query_string={"next": target})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(self.context()["return_to"], "/rnxcel/dashboard")
+                response = self.client.post("/rnxcel/consent", data={
+                    "next": target, "agree": "yes", "csrf_token": token,
+                })
+                self.assertEqual(response.status_code, 303)
+                self.assertEqual(response.location, "/rnxcel/dashboard")
 
     def test_consent_is_separate_persistent_and_not_satisfied_by_pa_eula(self):
         self.login("owner-b", consent=False)
@@ -729,6 +805,106 @@ class RNXcelEndToEndTests(unittest.TestCase):
             }).status_code, 400)
         self.start("unfolding-case-study", 6)
 
+    def test_library_selected_case_survives_forms_and_starts_exact_snapshot(self):
+        other = authored_case()
+        selected = authored_case()
+        selected["version_id"] = "z-selected-case-v2"
+        selected["title"] = "NONCLINICAL selected toy case"
+        for index, stage in enumerate(selected["stages"]):
+            stage["item"]["stem"] = f"NONCLINICAL SELECTED CASE: toy task {index}."
+        self.publish(other, selected)
+        library = self.client.get("/rnxcel/cases")
+        self.assertEqual(library.status_code, 200)
+        matching_links = [
+            link for link in NursingForms(library.text).links
+            if parse_qs(urlsplit(link).query).get("case_version") == [selected["version_id"]]
+        ]
+        self.assertEqual(len(matching_links), 1)
+        query = parse_qs(urlsplit(matching_links[0]).query)
+        self.assertEqual(query["experience"], ["unfolding-case-study"])
+        self.assertEqual(query["count"], ["6"])
+        setup = self.client.get(matching_links[0])
+        self.assertEqual(setup.status_code, 200)
+        self.assertEqual(self.context()["available"], 6)
+        self.assertEqual(self.context()["container_count"], 1)
+        self.assertEqual(self.context()["start_count"], 6)
+        refresh_fields = self.form(setup, "/rnxcel/practice")
+        self.assertEqual(refresh_fields["case_version"], selected["version_id"])
+        refresh_fields.update({"experience": "unfolding-case-study", "count": "6"})
+        refreshed = self.client.get("/rnxcel/practice", query_string=refresh_fields)
+        self.assertEqual(refreshed.status_code, 200)
+        start_fields = self.form(refreshed, "/rnxcel/attempts")
+        self.assertEqual(start_fields["case_version"], selected["version_id"])
+        self.assertEqual(start_fields["count"], "6")
+        started = self.client.post("/rnxcel/attempts", data=start_fields)
+        self.assertEqual(started.status_code, 303)
+        path = urlsplit(started.location).path
+        self.assertEqual(self.saved(path)["snapshot"], [selected])
+        player = self.client.get(path)
+        self.assertEqual(player.status_code, 200)
+        self.assertIn(selected["stages"][0]["item"]["stem"], player.text)
+        self.assertNotIn(other["stages"][0]["item"]["stem"], player.text)
+
+    def test_selected_case_rejects_unknown_retired_draft_and_noncase_ids(self):
+        case = authored_case()
+        self.publish(case, authored_item("standalone-not-a-case"))
+        with self.database() as connection:
+            for status in ("retired", "draft"):
+                unavailable = authored_case()
+                unavailable["version_id"] = "case-" + status
+                connection.execute(
+                    "INSERT INTO rnxcel_item_versions "
+                    "(version_id, publication_status, exam_profile, authored_json) "
+                    "VALUES (?, ?, ?, ?)",
+                    (unavailable["version_id"], status, EXAM_PROFILE, json.dumps(unavailable)),
+                )
+        token = self.csrf()
+        for case_version in ("unknown-case", "case-retired", "case-draft", "standalone-not-a-case"):
+            with self.subTest(case_version=case_version):
+                filters = {
+                    "case_version": case_version,
+                    "experience": "unfolding-case-study", "count": "6",
+                }
+                self.assertEqual(
+                    self.client.get("/rnxcel/practice", query_string=filters).status_code, 400,
+                )
+                self.assertEqual(self.client.post("/rnxcel/attempts", data={
+                    **filters, "csrf_token": token,
+                }).status_code, 400)
+        with self.app.app_context():
+            self.assertEqual(self.store.history("owner-a"), [])
+
+    def test_selected_case_still_obeys_other_filters_and_publication_at_start(self):
+        selected = authored_case()
+        other = authored_case()
+        other["version_id"] = "other-case"
+        for stage in other["stages"]:
+            stage["item"]["tags"]["population"] = ["pediatric"]
+        self.publish(selected, other)
+        filters = {
+            "case_version": selected["version_id"],
+            "experience": "unfolding-case-study", "count": "6", "population": "pediatric",
+        }
+        response = self.client.get("/rnxcel/practice", query_string=filters)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.context()["available"], 0)
+        self.assertEqual(self.context()["start_count"], 0)
+        self.assertEqual(self.client.post("/rnxcel/attempts", data={
+            **filters, "csrf_token": self.csrf(),
+        }).status_code, 400)
+        filters["population"] = "adult"
+        response = self.client.get("/rnxcel/practice", query_string=filters)
+        self.assertEqual(response.status_code, 200)
+        fields = self.form(response, "/rnxcel/attempts")
+        with self.database() as connection:
+            connection.execute(
+                "UPDATE rnxcel_item_versions SET publication_status = 'retired' "
+                "WHERE version_id = ?", (selected["version_id"],),
+            )
+        self.assertEqual(self.client.post("/rnxcel/attempts", data=fields).status_code, 400)
+        with self.app.app_context():
+            self.assertEqual(self.store.history("owner-a"), [])
+
     def test_progress_reports_only_completed_actual_points_not_norms_or_partial_work(self):
         self.publish(
             authored_item("score-single"),
@@ -795,6 +971,31 @@ class RNXcelEndToEndTests(unittest.TestCase):
                 self.assertEqual(session[key], value)
             self.assertEqual(set(session) - set(original), {"rnxcel_csrf"})
 
+    def test_nursing_pages_do_not_inherit_hidden_pa_modals_or_external_feedback(self):
+        self.publish(authored_item("no-pa-controls"))
+        path = self.start()
+        endpoints = (
+            "/rnxcel", "/rnxcel/sign-in", "/rnxcel/consent",
+            "/rnxcel/dashboard", "/rnxcel/practice", "/rnxcel/cases",
+            "/rnxcel/attempts", "/rnxcel/progress", path,
+        )
+        responses = [self.client.get(endpoint) for endpoint in endpoints]
+        self.assertEqual(self.answer(path, 0, ["tile-a"]).status_code, 303)
+        responses.extend([
+            self.client.get(path + "/results"), self.client.get(path + "/review"),
+            self.client.get("/rnxcel/practice", query_string={"count": "invalid"}),
+        ])
+        for response in responses:
+            with self.subTest(status=response.status_code, template=response.request.path):
+                self.assertIn(response.status_code, (200, 400))
+                for forbidden in (
+                    'id="pricingModal"', 'id="aboutModal"', 'id="feedbackModal"',
+                    'id="formbricksModal"', "ExploreCME_pricing.png",
+                    "https://app.formbricks.com", 'href="/student_dashboard"',
+                    'href="/faculty_dashboard"', 'action="/create-customer-portal-session"',
+                ):
+                    self.assertNotIn(forbidden, response.text)
+
     def test_nursing_never_calls_pa_generation_models_reporting_or_normalization(self):
         import on_demand_generator
         import Question_writing_and_verification_optomized as pa_authoring
@@ -843,6 +1044,8 @@ class RNXcelEndToEndTests(unittest.TestCase):
             before = self.client.get("/paxcel")
             self.assertEqual(before.status_code, 200)
             self.assertIn("9876", before.text)
+            for modal in ("pricingModal", "aboutModal", "feedbackModal", "formbricksModal"):
+                self.assertIn(f'id="{modal}"', before.text)
             initial_hooks = refresh.call_count, pa_counts.call_count
             self.publish(authored_item("isolated-count"))
             path = self.start()

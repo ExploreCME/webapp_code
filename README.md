@@ -91,7 +91,7 @@ For a standalone version the private object contains:
 - `correct_option_ids`, `rationale`, explicit `scoring` (`single` or `plus-minus`);
 - `tags`: separate string lists `population`, `setting`, `specialty`,
   `organ_topics`, `nursing_tasks`, `clinical_judgment`; optional reviewed
-  `official_activity_refs` (requiring `tags.official_activity_reviewed: true`);
+  `official_activity_refs` (requiring top-level `official_activity_reviewed: true`);
 - optional private version-level `provenance` object for editorial source/review metadata.
 
 A case version has `version_id`, `exam_profile`,
@@ -173,6 +173,17 @@ authentication/consent/CSRF and PAXcel isolation. No clinical-content generation
 live payment, production DB mutation or deployment is part of verification.
 An editorial publishing UI, timed/adaptive modes, additional NGN formats,
 subscription enforcement and official exam calibration are not implemented.
+
+Implementation verification: the dependency-ready baseline passed 241 tests;
+the expanded suite passed 321 tests, including test-only case selection and
+all three practice experiences. Local HTTP checks returned 200 for the nursing
+landing, empty dashboard/setup and nonclinical fixture players; desktop/mobile
+screenshots were captured outside the repository. Secret scanning was clean.
+Live MySQL initialization was blocked by sandbox filesystem permissions, so
+SQL behavior is covered by isolated SQLite and mocked MySQL transaction tests,
+not a live hosting migration. Live Clerk/Stripe and deployment were not exercised.
+The final PR-wide automated review/security validation attempt was declined by
+the tool's time limit; it is not reported as a completed final scan.
 
 ## Standardized student quizzes
 

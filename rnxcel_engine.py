@@ -84,10 +84,10 @@ def _item(item):
             raise ValueError(f"Invalid {dimension} tag")
     if "official_activity_refs" in tags:
         _strings(tags["official_activity_refs"], "official_activity_refs")
-        if tags["official_activity_refs"] and tags.get("official_activity_reviewed") is not True:
+        if tags["official_activity_refs"] and item.get("official_activity_reviewed") is not True:
             raise ValueError("Official activity references require editorial review")
-    if ("official_activity_reviewed" in tags
-            and type(tags["official_activity_reviewed"]) is not bool):
+    if ("official_activity_reviewed" in item
+            and type(item["official_activity_reviewed"]) is not bool):
         raise ValueError("official_activity_reviewed must be a boolean")
     _provenance(item)
     if "exhibits" in item:
