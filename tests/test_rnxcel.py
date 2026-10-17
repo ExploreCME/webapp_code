@@ -40,6 +40,7 @@ class RNXcelRouteTests(unittest.TestCase):
                 self.assertIn('href="/"', html)
                 for category in RNXCEL_CATEGORIES:
                     self.assertIn(category.label, html)
+                    self.assertIn(f'href="/rnxcel/practice?category={category.id}"', html)
                 for marker in (
                     "@clerk/clerk-js", "clerkPublishableKey", '<nav class="navbar">',
                     'href="/student_dashboard"', 'href="/faculty_dashboard"',

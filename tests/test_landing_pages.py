@@ -133,11 +133,10 @@ class LandingPageTests(unittest.TestCase):
                 self.assertIn(f'src="{image_url}"', home)
                 path = "/paxcel" if product == "paxcel" else f"/coming-soon/{product}"
                 html = self.get_html(path, follow_redirects=product == "rnxcel")
+                self.assertIn(f'src="{image_url}"', html)
                 if product == "rnxcel":
                     self.assertIn('class="rn-brand"', html)
                     self.assertIn("RNXcel", html)
-                else:
-                    self.assertIn(f'src="{image_url}"', html)
         for image_url in (
             "/static/FullLogo.png",
             "/static/images/paxcel_logo.png",
