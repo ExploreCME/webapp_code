@@ -1,0 +1,8 @@
+                    <label class="choice-label {{ state_class }}"{% if input_id is defined %} for="{{ input_id }}"{% endif %}>
+                        <input type="{{ input_type | default('radio') }}" name="{{ input_name | default('user_choice') }}" value="{{ letter }}" class="choice-input"{% if input_id is defined %} id="{{ input_id }}"{% endif %}{% if input_required | default(false) %} required{% endif %} 
+                               {% if is_selected %}checked{% endif %} 
+                               {% if answered %}disabled{% endif %}>
+                        
+                        <span class="radio-indicator"></span>
+                        <span class="choice-text">{% if show_letter | default(true) %}<strong>{{ letter }}.</strong> {% endif %}{{ text }}</span>
+                    </label>

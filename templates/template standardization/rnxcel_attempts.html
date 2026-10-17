@@ -1,22 +1,33 @@
 {% extends "rnxcel_base.html" %}
+{% from "shared_report_table.html" import report_table %}
+{% from "shared_report_results.html" import practice_percentage %}
 {% block title %}Attempts | RNXcel{% endblock %}
 {% block nursing_content %}
 <h1>Your nursing attempts</h1>
 <p>Resume saved sessions or review completed practice.</p>
+<p class="rn-muted">Practice points only, not an NCLEX score or a pass prediction.</p>
+<div class="rn-table-wrap">
+{% call report_table(['Date & Time', 'Status', 'Items saved', 'Practice points', 'Action']) %}
 {% for attempt in history %}
-<article class="rn-card">
-    <h2>Attempt {{ attempt.id }}</h2>
-    <p class="rn-muted">Started {{ attempt.created_at }}</p>
-    <p>{{ attempt.status|replace('_', ' ')|capitalize }} · {{ attempt.current_index }} of {{ attempt.total_items }} items saved</p>
+<tr>
+    <td>{{ attempt.created_at }}<br><small>Attempt {{ attempt.id }}</small></td>
+    <td>{{ attempt.status|replace('_', ' ')|capitalize }}</td>
+    <td>{{ attempt.current_index }} of {{ attempt.total_items }}</td>
+    <td>{% if attempt.status in ['complete', 'completed'] %}
+        <b>{{ attempt.earned }} / {{ attempt.possible }}</b> ({{ practice_percentage(attempt.earned, attempt.possible) }}%)
+        {% else %}Not complete{% endif %}</td>
+    <td>
     {% if attempt.status in ['complete', 'completed'] %}
-    <p>Points earned: {{ attempt.earned }} / {{ attempt.possible }}</p>
     <a class="btn btn-secondary" href="{{ url_for('rnxcel.results', attempt_id=attempt.id) }}">Results and review</a>
     {% else %}
     <a class="btn btn-primary" href="{{ url_for('rnxcel.play', attempt_id=attempt.id) }}">Resume practice</a>
     {% endif %}
-</article>
+    </td>
+</tr>
 {% else %}
-<div class="rn-notice" role="status">No attempts yet. Start a session when published nursing content is available.</div>
+<tr><td colspan="5">No attempts yet. Start a session when published nursing content is available.</td></tr>
 {% endfor %}
+{% endcall %}
+</div>
 <a href="{{ url_for('rnxcel.setup') }}">Set up a new session</a>
 {% endblock %}

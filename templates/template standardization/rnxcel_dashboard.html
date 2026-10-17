@@ -1,31 +1,39 @@
 {% extends "rnxcel_base.html" %}
 {% block title %}Dashboard | RNXcel{% endblock %}
 {% block nursing_content %}
-<h1>Your nursing dashboard</h1>
-<p>Practice and progress stay within RNXcel.</p>
-<div class="rn-grid">
-    <article class="rn-card"><p class="rn-stat">{{ available }}</p><h2>Available scored items</h2><p>Published nursing content, including individual case stages.</p></article>
-    <article class="rn-card"><p class="rn-stat">{{ case_count }}</p><h2>Available cases</h2><p>Six scored items per unfolding case.</p></article>
+{% from "shared_dashboard/dashboard.html" import dashboard, tile with context %}
+{% call(panel) dashboard() %}
+{% if panel == 'main' %}
+<div class="dashboard-header">
+    <h2>Your nursing dashboard</h2>
+    <p>Practice questions, explore unfolding cases, and review your saved nursing progress.</p>
 </div>
-<div class="rn-actions">
-    <a class="btn btn-primary" href="{{ url_for('rnxcel.setup') }}">Set up practice</a>
-    <a class="btn btn-secondary" href="{{ url_for('rnxcel.library') }}">Browse cases</a>
-    <a href="{{ url_for('rnxcel.progress') }}">View progress</a>
+<div class="student-grid">
+    {{ tile(url_for('rnxcel.setup'), 'card-select', '📝', 'Practice Questions', 'Choose nursing objectives and build a practice session from published content.') }}
+    {{ tile(url_for('rnxcel.library'), 'card-generate', '📚', 'Unfolding Case Studies', 'Work through nursing cases with six scored stages and evolving exhibits.') }}
+    {{ tile(url_for('rnxcel.attempts'), 'card-select', '🗂️', 'Attempt History', 'Resume saved sessions or review results from completed nursing attempts.') }}
+    {{ tile(url_for('rnxcel.progress'), 'card-stats', '📈', 'My Progress', 'Review your recorded nursing performance without pass predictions.') }}
 </div>
 {% if available == 0 %}<p class="rn-notice" role="status">No available content yet. No nursing questions or case studies are currently published.</p>{% endif %}
-<section aria-labelledby="rn-recent">
-    <h2 id="rn-recent">Recent attempts</h2>
+{% else %}
+<div class="panel-header"><h3>Available nursing content</h3></div>
+<p><strong>{{ available }}</strong> available scored items, including individual case stages.</p>
+<p><strong>{{ case_count }}</strong> available cases. Six scored items per unfolding case.</p>
+<div class="panel-header"><h3 id="rn-recent">Recent attempts</h3></div>
+<ul class="assignment-list" aria-labelledby="rn-recent">
     {% for attempt in history %}
-    <article class="rn-card">
-        <h3>Attempt {{ attempt.id }}</h3>
+    <li class="assignment-item">
+        <span class="item-title">Attempt {{ attempt.id }}</span>
         <p>{{ attempt.status|replace('_', ' ')|capitalize }} · {{ attempt.current_index }} of {{ attempt.total_items }} items saved</p>
         {% if attempt.status in ['complete', 'completed'] %}
         <a href="{{ url_for('rnxcel.results', attempt_id=attempt.id) }}">View results</a>
         {% else %}
         <a href="{{ url_for('rnxcel.play', attempt_id=attempt.id) }}">Resume practice</a>
         {% endif %}
-    </article>
-    {% else %}<p>No attempts yet. Your saved nursing sessions will appear here.</p>{% endfor %}
-    <a href="{{ url_for('rnxcel.attempts') }}">View all attempts</a>
-</section>
+    </li>
+    {% else %}<li>No attempts yet. Your saved nursing sessions will appear here.</li>{% endfor %}
+</ul>
+<a class="btn btn-primary btn-sm" href="{{ url_for('rnxcel.attempts') }}">View all attempts</a>
+{% endif %}
+{% endcall %}
 {% endblock %}

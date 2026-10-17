@@ -1,14 +1,19 @@
 {% extends "rnxcel_base.html" %}
+{% from "shared_report_results.html" import results_card, practice_percentage %}
+{% from "shared_report_answers.html" import answer_option, explanation %}
 {% block title %}Practice results | RNXcel{% endblock %}
+{% block nursing_head %}
+{% with report_scope='.rnxcel ' %}{% include "shared_report_results_styles.html" %}{% endwith %}
+{% endblock %}
 {% block nursing_content %}
 <h1>Practice results</h1>
 {% if attempt.status in ['complete', 'completed'] %}
-<div class="rn-card rn-hero">
-    <h2>Session completed</h2>
-    <p>{{ attempt.total_items }} scored items</p>
-    <p class="rn-stat">{{ attempt.earned }} / {{ attempt.possible }}</p>
+{% call results_card('Session completed', attempt.total_items ~ ' scored items',
+    practice_percentage(attempt.earned, attempt.possible),
+    [(attempt.earned, 'Points earned', ''), (attempt.possible, 'Points possible', '')], wrapper='div') %}
+    <p>Practice points percentage: earned / possible.</p>
     <p>Points earned in this practice session. This is not an NCLEX score or a pass prediction.</p>
-</div>
+{% endcall %}
 {% if review_items is not none and review_items is defined %}
 <section aria-labelledby="rn-review">
     <h2 id="rn-review">Completed item review</h2>
@@ -29,14 +34,13 @@
         {% endfor %}
         {% endif %}
         <p class="rn-text">{{ item.stem }}</p>
-        <ul>
+        <ul style="list-style-type: none; padding-left: 0; margin-bottom: 15px;">
             {% for option in item.options %}
-            <li>{{ option.text }}{% if option.id in item.selections %} <strong>— Your selection</strong>{% endif %}{% if option.id in item.correct_option_ids %} <strong>— Correct answer</strong>{% endif %}</li>
+            {{ answer_option(option.id, option.text, option.id in item.selections, option.id in item.correct_option_ids, show_letter=false) }}
             {% endfor %}
         </ul>
         <p>Points earned: {{ item.earned }} / {{ item.possible }}</p>
-        <h3>Rationale</h3>
-        <p class="rn-text">{{ item.rationale }}</p>
+        {{ explanation(item.rationale, label='Rationale', multiline=true) }}
         <p class="rn-muted">Category: {% for category in categories %}{% if category.id == item.category_id %}{{ category.label }}{% endif %}{% endfor %} ({{ item.category_id }})<br>Objective: {{ objectives.get(item.objective_id, item.objective_id) }}</p>
     </article>
     {% else %}<p>No review items are available for this session.</p>{% endfor %}

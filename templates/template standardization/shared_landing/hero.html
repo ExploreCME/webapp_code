@@ -1,0 +1,28 @@
+{% macro hero(logo='images/paxcel_logo.png', logo_alt='PAXcel Logo - Where Knowledge Evolves', headline=none, description=none) %}
+<div style="text-align: center; padding: 40px 20px;">
+
+    <div style="text-align: left; margin-bottom: 10px;">
+        <a href="{{ url_for('explorecme_home') }}" style="color: #7f8c8d; font-size: 0.9em; text-decoration: none;">&larr; ExploreCME Home</a>
+    </div>
+
+   <!-- Logo Section -->
+    <div style="margin-bottom: 30px;">
+        <h2 style="color: #2c3e50; display: inline-flex; align-items: center; justify-content: center; gap: 15px; margin: 0;">
+            <!-- SEO Update: Better alt text for crawlers -->
+            <img src="{{ url_for('static', filename=logo) }}" alt="{{ logo_alt }}" style="height: 120px; width: auto;">
+            <strong>Where Knowledge Evolves</strong>
+        </h2>
+    </div>
+
+    <!-- Main Headline -->
+    <h1 style="font-size: 3em; color: #1a4b57; margin-bottom: 20px; line-height: 1.2;">
+        {% if headline is none %}Master the PANCE with <br> Confidence{% else %}{{ headline }}{% endif %}
+    </h1>
+
+    <!-- Subheadline -->
+    <p style="font-size: 1.2em; color: #444; max-width: 650px; margin: 0 auto 30px auto; line-height: 1.6;">
+        {% if description is none %}A powerful, personalized quiz application designed for <strong>Physician Assistant Students</strong>, helping you track your progress and pass with high scores.{% else %}{{ description }}{% endif %}
+    </p>
+{{ caller() }}
+</div>
+{% endmacro %}
