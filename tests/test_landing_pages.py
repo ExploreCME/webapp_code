@@ -48,7 +48,7 @@ class LandingPageTests(unittest.TestCase):
         html = self.get_html("/")
         self.assertIn("FullLogo.png", html)
         self.assertIn("$9.99", html)
-        for target in ("/paxcel", "/coming-soon/rnxcel", "/coming-soon/mdxcel"):
+        for target in ("/paxcel", "/rnxcel/", "/coming-soon/mdxcel"):
             self.assertIn(f'href="{target}"', html)
 
     def test_coming_soon_pages(self):

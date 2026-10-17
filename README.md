@@ -28,6 +28,37 @@ python -m unittest discover -s tests -p 'test_landing_pages.py' -v
 python -m unittest discover -s tests -p 'test_entitlements.py' -v
 ```
 
+## RNXcel foundation
+
+The homepage links to `/rnxcel`, a public NCLEX-RN shell with its own blueprint
+and navigation. `/coming-soon/rnxcel` remains available for compatibility.
+PAXcel routes, authentication, dashboards, quiz formats, and storage are unchanged.
+
+`rnxcel_catalog.py` defines the `NCLEX_RN_2026` profile, separate category/item
+collections (both intentionally empty), and draft immutable contracts for:
+
+- Single-best-answer items with stable option IDs and one answer ID.
+- Select-all-that-apply items with multiple answer IDs.
+- Unfolding case studies with ordered stages, stage-specific exhibits, and
+  single-answer or multiple-response items.
+
+The three `/rnxcel/practice/<item_type>` routes use the slugs
+`single-best-answer`, `select-all-that-apply`, and `unfolding-case-study`.
+They render empty states, not working quizzes. There is no nursing content,
+generation, scoring, attempt tracking, analytics, or subscription access yet.
+RNXcel does not read PAXcel data or use/modify PAXcel session entitlements.
+Global maintenance mode still applies.
+
+No database migration is required. These contracts are scaffolding, not a
+publication pipeline: future content work must add validation, isolated
+persistence/access rules, and tested scoring before enabling practice.
+Answer keys must stay server-side; routes currently pass only experience and
+category metadata to templates, never item records or future case exhibits.
+
+```bash
+python -m unittest discover -s tests -p 'test_rnxcel.py' -v
+```
+
 ## Standardized student quizzes
 
 Discover Standardized Quizzes from the student dashboard card, which links to
