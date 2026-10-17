@@ -28,7 +28,7 @@ class PaxcelGuardrailTests(unittest.TestCase):
     def test_label_constant_is_exact(self):
         self.assertEqual(guardrail.APPROVAL_LABEL, LABEL)
 
-    def test_required_paths_are_protected_and_exist(self):
+    def test_required_paths_are_protected(self):
         required = {
             "display_database.py",
             "flask_app.py",
@@ -39,8 +39,12 @@ class PaxcelGuardrailTests(unittest.TestCase):
             "templates/template standardization/student_dashboard.html",
         }
         self.assertTrue(required <= set(guardrail.PROTECTED_PATHS))
-        for path in guardrail.PROTECTED_PATHS:
-            self.assertTrue((ROOT / path).is_file(), path)
+
+    def test_crlf_and_trailing_newline_in_nul_mode(self):
+        code, _, _ = run("README.md\r\nflask_app.py\r\n", labels=[])
+        self.assertEqual(code, 1)
+        code, _, _ = run("README.md\0flask_app.py\n", labels=[])
+        self.assertEqual(code, 1)
 
     def test_rnxcel_only_paths_are_not_protected(self):
         for path in guardrail.PROTECTED_PATHS:

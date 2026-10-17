@@ -85,7 +85,8 @@ def main(argv=None):
         return 2
     raw = sys.stdin.read()
     separator = "\0" if "\0" in raw else "\n"
-    changed = [path.rstrip("\r") for path in raw.split(separator) if path.strip()]
+    changed = [path.strip("\r\n") for path in raw.split(separator)]
+    changed = [path for path in changed if path]
     code, message = evaluate(changed, labels)
     if code:
         print(f"::error title=PAXcel guardrail::Protected PAXcel files changed; "
