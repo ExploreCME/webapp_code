@@ -1,0 +1,18 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}Case library | RNXcel{% endblock %}
+{% block nursing_content %}
+<h1>Nursing case library</h1>
+<p>Browse published unfolding case studies. Exhibits are released stage by stage during practice; answers and rationales are available only after completion.</p>
+<div class="rn-grid">
+    {% for case in cases %}
+    <article class="rn-card">
+        <h2>{{ case.title }}</h2>
+        <p class="rn-muted">Version {{ case.version_id }} · Six scored items</p>
+        <a href="{{ url_for('rnxcel.setup', experience='unfolding-case-study', case_version=case.version_id, count=6) }}">Practice this case</a>
+    </article>
+    {% else %}
+    <div class="rn-card"><h2>No cases available yet</h2><p>No published nursing case studies are available. This library does not borrow PAXcel content.</p></div>
+    {% endfor %}
+</div>
+<a class="btn btn-secondary" href="{{ url_for('rnxcel.setup') }}">All practice experiences</a>
+{% endblock %}

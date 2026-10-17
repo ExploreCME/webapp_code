@@ -1,0 +1,22 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}Attempts | RNXcel{% endblock %}
+{% block nursing_content %}
+<h1>Your nursing attempts</h1>
+<p>Resume saved sessions or review completed practice.</p>
+{% for attempt in history %}
+<article class="rn-card">
+    <h2>Attempt {{ attempt.id }}</h2>
+    <p class="rn-muted">Started {{ attempt.created_at }}</p>
+    <p>{{ attempt.status|replace('_', ' ')|capitalize }} · {{ attempt.current_index }} of {{ attempt.total_items }} items saved</p>
+    {% if attempt.status in ['complete', 'completed'] %}
+    <p>Points earned: {{ attempt.earned }} / {{ attempt.possible }}</p>
+    <a class="btn btn-secondary" href="{{ url_for('rnxcel.results', attempt_id=attempt.id) }}">Results and review</a>
+    {% else %}
+    <a class="btn btn-primary" href="{{ url_for('rnxcel.play', attempt_id=attempt.id) }}">Resume practice</a>
+    {% endif %}
+</article>
+{% else %}
+<div class="rn-notice" role="status">No attempts yet. Start a session when published nursing content is available.</div>
+{% endfor %}
+<a href="{{ url_for('rnxcel.setup') }}">Set up a new session</a>
+{% endblock %}

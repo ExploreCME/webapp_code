@@ -39,8 +39,8 @@ class LandingPageTests(unittest.TestCase):
         else:
             self.client.delete_cookie("__session")
 
-    def get_html(self, path):
-        response = self.client.get(path)
+    def get_html(self, path, follow_redirects=False):
+        response = self.client.get(path, follow_redirects=follow_redirects)
         self.assertEqual(response.status_code, 200)
         return response.get_data(as_text=True)
 
@@ -52,12 +52,21 @@ class LandingPageTests(unittest.TestCase):
             self.assertIn(f'href="{target}"', html)
 
     def test_coming_soon_pages(self):
-        for product, date in (("rnxcel", "01/01/2027"), ("mdxcel", "06/02/2027")):
-            html = self.get_html(f"/coming-soon/{product}")
-            self.assertIn("Coming Soon", html)
-            self.assertIn(date, html)
-            self.assertIn('href="/"', html)
+        html = self.get_html("/coming-soon/mdxcel")
+        self.assertIn("Coming Soon", html)
+        self.assertIn("06/02/2027", html)
+        self.assertIn('href="/"', html)
         self.assertEqual(self.client.get("/coming-soon/unknown").status_code, 404)
+
+    def test_legacy_nursing_coming_soon_redirects_to_rnxcel_landing(self):
+        for product in ("rnxcel", "RNXcel"):
+            with self.subTest(product=product):
+                response = self.client.get(f"/coming-soon/{product}")
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response.location, "/rnxcel/")
+                html = self.get_html(f"/coming-soon/{product}", follow_redirects=True)
+                self.assertIn("RNXcel", html)
+                self.assertIn("NCLEX-RN", html)
 
     def test_paxcel_route_exists(self):
         rules = {r.rule: r.endpoint for r in display_database.app.url_map.iter_rules()}
@@ -68,7 +77,7 @@ class LandingPageTests(unittest.TestCase):
             self.set_authenticated(authenticated)
             for path in ("/", "/coming-soon/rnxcel", "/coming-soon/mdxcel"):
                 with self.subTest(authenticated=authenticated, path=path):
-                    html = self.get_html(path)
+                    html = self.get_html(path, follow_redirects=path == "/coming-soon/rnxcel")
                     for marker in (
                         '<nav class="navbar">',
                         'id="welcome-message"',
@@ -123,7 +132,11 @@ class LandingPageTests(unittest.TestCase):
                 image_url = f"/static/images/{product}_logo.png"
                 self.assertIn(f'src="{image_url}"', home)
                 path = "/paxcel" if product == "paxcel" else f"/coming-soon/{product}"
-                self.assertIn(f'src="{image_url}"', self.get_html(path))
+                html = self.get_html(path, follow_redirects=product == "rnxcel")
+                self.assertIn(f'src="{image_url}"', html)
+                if product == "rnxcel":
+                    self.assertIn('class="rn-brand"', html)
+                    self.assertIn("RNXcel", html)
         for image_url in (
             "/static/FullLogo.png",
             "/static/images/paxcel_logo.png",

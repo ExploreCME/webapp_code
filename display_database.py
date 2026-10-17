@@ -325,6 +325,8 @@ def explorecme_home():
 @app.route('/coming-soon/<product>')
 @nocache
 def coming_soon(product):
+    if product.lower() == 'rnxcel':
+        return redirect(url_for('rnxcel.landing'))
     info = COMING_SOON_PRODUCTS.get(product.lower())
     if info is None:
         abort(404)
