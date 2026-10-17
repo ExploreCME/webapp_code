@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "shared_report_answers.html" import answer_option, explanation %}
 
 {% block title %}Review Attempt - PANCE Quiz App{% endblock %}
 
@@ -53,39 +54,13 @@
                         {% set is_user_choice = (response.get('user_choice', '') | string | trim | upper == letter) %}
                         {% set is_correct = (response.get('correct_answer', '') | string | trim | upper == letter) %}
                         
-                        <li style="padding: 12px 15px; margin-bottom: 8px; border-radius: 5px; border: 1px solid #ddd;
-                            {% if is_correct %} background-color: #d4edda; border-color: #c3e6cb; 
-                            {% elif is_user_choice %} background-color: #f8d7da; border-color: #f5c6cb;
-                            {% else %} background-color: #fff;
-                            {% endif %}
-                        ">
-                            <strong>{{ letter }}.</strong> {{ choice_text }}
-                            
-                            <!-- Indicators for Correct vs Selected -->
-                            <div style="float: right; font-weight: bold; font-size: 0.9em;">
-                                {% if is_correct %}
-                                    <span style="color: #155724;">✅ Correct Answer</span>
-                                {% endif %}
-                                
-                                {% if is_user_choice %}
-                                    <span style="color: {% if is_correct %}#155724{% else %}#721c24{% endif %}; margin-left: 10px;">
-                                        ⬅️ Your Selection
-                                    </span>
-                                {% endif %}
-                            </div>
-                            <div style="clear: both;"></div>
-                        </li>
+                        {{ answer_option(letter, choice_text, is_user_choice, is_correct) }}
                     {% endif %}
                 {% endfor %}
             </ul>
 
             <!-- Explanation Block (if available) -->
-            {% if response.get('explanation') %}
-                <div style="background-color: #e8f4f8; padding: 15px; border-left: 5px solid #17a2b8; margin-top: 15px; border-radius: 4px;">
-                    <strong style="color: #0c5460;">Explanation:</strong> 
-                    <p style="margin-bottom: 0; margin-top: 5px; line-height: 1.5; color: #333;">{{ response.get('explanation') }}</p>
-                </div>
-            {% endif %}
+            {{ explanation(response.get('explanation')) }}
 
             <div style="text-align: right; margin-top: 15px;">
                 <small style="color: #999;">Submitted at: {{ response.get('submitted_time', '') }}</small>

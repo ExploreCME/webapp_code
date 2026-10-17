@@ -1,57 +1,87 @@
 {% extends "rnxcel_base.html" %}
 {% block title %}Practice setup | RNXcel{% endblock %}
+{% block nursing_head %}
+{% include "shared_setup_styles.html" %}
+<style>
+    .rnxcel .grid-container { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+    .rnxcel .grid-box select { height: auto; min-height: 44px; }
+    .rnxcel .input-clean:focus-visible { outline: 3px solid #008080; outline-offset: 4px; }
+    @media (max-width: 600px) { .rnxcel .card-section { padding: 20px 16px; } }
+</style>
+{% endblock %}
 {% block nursing_content %}
-<h1>Set up nursing practice</h1>
-<p>Choose published nursing content. Update availability before starting a session.</p>
+{% from "shared_setup.html" import header, tracker, panel, actions %}
+{{ header('Set up nursing practice', 'Choose published nursing content. Update availability before starting a session.') }}
+{% call tracker() %}
+    <div class="tracker-stat"><span class="tracker-label">Requested items</span><span class="tracker-value">{{ filters.get('count', 10) }}</span></div>
+    <div class="tracker-stat"><span class="tracker-label">Available items</span><span class="tracker-value">{{ available }}</span></div>
+    <div class="tracker-stat"><span class="tracker-label">Ready to start</span><span class="tracker-value highlight">{{ start_count }}</span></div>
+{% endcall %}
 {% if filters.get('case_version') %}
 <div class="rn-notice" role="status">
     <strong>Selected case:</strong> {{ filters.get('case_version') }}.
     <a href="{{ url_for('rnxcel.setup', experience='unfolding-case-study', count=6) }}">Clear case selection</a>
 </div>
 {% endif %}
-<form action="{{ url_for('rnxcel.setup') }}" method="get" class="rn-card">
+<form action="{{ url_for('rnxcel.setup') }}" method="get">
     {% if filters.get('case_version') %}<input type="hidden" name="case_version" value="{{ filters.get('case_version') }}">{% endif %}
-    <div class="rn-grid">
-        <label for="rn-category">Category
+    {% call panel() %}
+    <h3 class="card-title">1. NCLEX-RN category and objective</h3>
+    <p class="card-subtitle">Choose one category and an optional matching editorial objective. These are filters, not percentage quotas.</p>
+    <div class="grid-container">
+        <div class="grid-box"><label for="rn-category">Category
             <select id="rn-category" name="category">
                 <option value="">All categories</option>
                 {% for category in categories %}<option value="{{ category.id }}"{% if filters.get('category') == category.id %} selected{% endif %}>{{ category.label }}</option>{% endfor %}
             </select>
-        </label>
-        <label for="rn-objective">Objective
+        </label></div>
+        <div class="grid-box"><label for="rn-objective">Objective
             <select id="rn-objective" name="objective">
                 <option value="">All objectives</option>
-                {% for id, label in objectives.items() %}<option value="{{ id }}"{% if filters.get('objective') == id %} selected{% endif %}>{{ id }} — {{ label }}</option>{% endfor %}
+                {% for id, label in objectives.items() %}{% if not filters.get('category') or id.startswith(filters.get('category') + '-') %}<option value="{{ id }}" data-category="{{ id.split('-')[0] }}"{% if filters.get('objective') == id %} selected{% endif %}>{{ id }} — {{ label }}</option>{% endif %}{% endfor %}
             </select>
-        </label>
-        <label for="rn-experience">Experience
+        </label></div>
+    </div>
+    {% endcall %}
+    {% call panel() %}
+    <h3 class="card-title">2. Response format and practice context</h3>
+    <div class="grid-container">
+        <div class="grid-box"><label for="rn-experience">Experience
             <select id="rn-experience" name="experience">
                 <option value="">All experiences</option>
                 {% for experience in experiences %}<option value="{{ experience.slug }}"{% if filters.get('experience') == experience.slug %} selected{% endif %}>{{ experience.label }}</option>{% endfor %}
             </select>
-        </label>
+        </label></div>
         {% for name, label, choices in [('population', 'Population', populations), ('setting', 'Setting', settings), ('clinical_judgment', 'Clinical judgment', clinical_judgment)] %}
-        <label for="rn-{{ name }}">{{ label }}
+        <div class="grid-box"><label for="rn-{{ name }}">{{ label }}
             <select id="rn-{{ name }}" name="{{ name }}">
                 <option value="">All {{ label|lower }}</option>
                 {% for choice in choices %}<option value="{{ choice }}"{% if filters.get(name) == choice %} selected{% endif %}>{{ choice|replace('-', ' ')|capitalize }}</option>{% endfor %}
             </select>
-        </label>
+        </label></div>
         {% endfor %}
-        <label for="rn-count">Scored items
-            <input id="rn-count" type="number" name="count" min="1" max="50" required value="{{ filters.get('count', 10) }}" aria-describedby="rn-count-help">
-        </label>
-        <label for="rn-mode">Mode
+    </div>
+    {% endcall %}
+    {% call panel() %}
+    <h3 class="card-title">3. Practice session</h3>
+    <div class="grid-container">
+        <div class="grid-box"><label for="rn-count">Scored items
+            <input class="input-clean" id="rn-count" type="number" name="count" min="1" max="50" required value="{{ filters.get('count', 10) }}" aria-describedby="rn-count-help">
+        </label></div>
+        <div class="grid-box"><label for="rn-mode">Mode
             <select id="rn-mode" name="mode"><option value="practice" selected>Practice</option></select>
-        </label>
+        </label></div>
     </div>
     <p id="rn-count-help" class="rn-muted">Choose 1–50 scored items. Cases are indivisible groups of six scored items; your request must fit the available count exactly. A case cannot be shortened to fill a session.</p>
     <button type="submit" class="btn btn-secondary">Update availability</button>
+    {% endcall %}
 </form>
-<section class="rn-card" aria-labelledby="rn-availability">
+{% call panel() %}
+<section aria-labelledby="rn-availability">
     <h2 id="rn-availability">Available for these filters</h2>
     <p><strong>{{ available }}</strong> scored items across <strong>{{ container_count }}</strong> content containers. Each case contains six scored items.</p>
     {% if start_count == 0 %}<p role="status">No session fits this request. Change the filters or count; no content will be substituted or generated.</p>{% else %}<p>Ready to start {{ start_count }} scored items.</p>{% endif %}
+    {% call actions() %}
     <form action="{{ url_for('rnxcel.start') }}" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="case_version" value="{{ filters.get('case_version', '') }}">
@@ -61,5 +91,22 @@
         <input type="hidden" name="mode" value="practice">
         <button type="submit" class="btn btn-primary"{% if start_count == 0 %} disabled{% endif %}>Start practice</button>
     </form>
+    {% endcall %}
 </section>
+{% endcall %}
+<script>
+    (() => {
+        const category = document.getElementById('rn-category');
+        const objective = document.getElementById('rn-objective');
+        const objectives = {{ objectives|tojson }};
+        category.addEventListener('change', () => {
+            objective.replaceChildren(new Option('All objectives', ''));
+            Object.entries(objectives).forEach(([id, label]) => {
+                if (!category.value || id.startsWith(category.value + '-')) {
+                    objective.add(new Option(id + ' — ' + label, id));
+                }
+            });
+        });
+    })();
+</script>
 {% endblock %}

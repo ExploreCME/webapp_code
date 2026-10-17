@@ -1,0 +1,26 @@
+{% macro results_card(title, subtitle, percentage, stats, score_class='', wrapper='main') -%}
+<{{ wrapper }} class="results-wrapper">
+    <div class="results-card">
+        <div class="results-header">
+            <h2>{{ title }}</h2>
+            <p>{{ subtitle }}</p>
+        </div>
+        <div class="score-circle {{ score_class }}">
+            <span class="score-percentage">{{ percentage }}%</span>
+        </div>
+        <div class="stats-grid">
+            {% for value, label, style in stats %}
+            <div class="stat-box {{ style }}">
+                <div class="stat-value">{{ value }}</div>
+                <div class="stat-label">{{ label }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {{ caller() }}
+    </div>
+</{{ wrapper }}>
+{%- endmacro %}
+
+{% macro practice_percentage(earned, possible) -%}
+{{ ((earned / possible * 100)|round(1)) if possible else 0 }}
+{%- endmacro %}

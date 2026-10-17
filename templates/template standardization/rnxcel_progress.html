@@ -1,4 +1,6 @@
 {% extends "rnxcel_base.html" %}
+{% from "shared_report_table.html" import report_table %}
+{% from "shared_report_results.html" import practice_percentage %}
 {% block title %}Progress | RNXcel{% endblock %}
 {% block nursing_content %}
 <h1>Nursing practice progress</h1>
@@ -8,15 +10,22 @@
 <section class="rn-card">
     <h2>{{ group|replace('_', ' ')|capitalize }}</h2>
     <div class="rn-table-wrap">
-        <table>
-            <caption>{{ group|replace('_', ' ')|capitalize }} practice breakdown</caption>
-            <thead><tr><th scope="col">Area</th><th scope="col">Points earned</th><th scope="col">Points possible</th><th scope="col">Scored items</th></tr></thead>
-            <tbody>
+        {% call report_table(['Area', 'Points earned', 'Points possible', 'Practice points %', 'Scored items'],
+            group|replace('_', ' ')|capitalize ~ ' practice breakdown') %}
                 {% for row in rows %}
-                <tr><th scope="row">{{ row.label }}</th><td>{{ row.earned }}</td><td>{{ row.possible }}</td><td>{{ row['items'] }}</td></tr>
-                {% else %}<tr><td colspan="4">No completed practice in this group yet.</td></tr>{% endfor %}
-            </tbody>
-        </table>
+                {% set area = namespace(label=row.label) %}
+                {% if group == 'Category' %}
+                    {% for category in categories %}{% if category.id == row.label %}{% set area.label = category.label %}{% endif %}{% endfor %}
+                {% elif group == 'Objective' %}
+                    {% set area.label = objectives.get(row.label, row.label) %}
+                {% elif group == 'Response format' %}
+                    {% for experience in experiences %}{% if experience.slug == row.label %}{% set area.label = experience.label %}{% endif %}{% endfor %}
+                {% elif group == 'Clinical judgment' and row.label in clinical_judgment %}
+                    {% set area.label = row.label|replace('-', ' ')|capitalize %}
+                {% endif %}
+                <tr><th scope="row">{{ area.label }}</th><td>{{ row.earned }}</td><td>{{ row.possible }}</td><td>{{ practice_percentage(row.earned, row.possible) }}%</td><td>{{ row['items'] }}</td></tr>
+                {% else %}<tr><td colspan="5">No completed practice in this group yet.</td></tr>{% endfor %}
+        {% endcall %}
     </div>
 </section>
 {% else %}

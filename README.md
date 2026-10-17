@@ -72,6 +72,41 @@ queries are owner-scoped. No nursing subscription or payment flow is implemented
 **PAXcel `has_paid` is not a nursing entitlement.** All verified users who accept
 the terms can use nursing practice when reviewed content becomes available.
 
+### Shared presentation, separate products
+
+Templates under `templates/template standardization/` share actual Jinja
+presentation components, not nursing copies of PAXcel's CSS:
+
+- `shared_shell/base.html`: application shell and configurable navigation/account blocks.
+- `shared_dashboard/dashboard.html`: main/sidebar layout and action tiles.
+- `shared_landing/hero.html`: branded landing composition.
+- `shared_setup.html` and `shared_setup_styles.html`: section panels, tracker and actions.
+- `shared_player_layout.html` and `shared_player_choice.html`: full-screen panes,
+  progress/header/action blocks and answer controls.
+- `shared_report_*.html`: history/report tables, results card, answer highlighting
+  and explanations.
+
+PAXcel retains its default controls and scripts. Nursing disables PA authentication
+scripts/modals, uses verified nursing identity, and submits only to nursing routes.
+Its progress map is informational: saved answers cannot be edited and later case
+stages cannot be opened. Review reveals rationales only after full completion.
+Nursing percentages represent earned/possible **practice points**, not binary item
+accuracy, exam scores or pass predictions.
+
+Presentation and isolation regressions run with
+`python -m unittest discover -s tests -p 'test_rnxcel*.py' -v`; retain the landing,
+entitlement, blueprint and standardized-quiz suites when changing shared components.
+For optional fixture-only before/after HTML exports, set
+`RNXCEL_VISUAL_OUTPUT=/tmp/rnxcel-visual-output` while running
+`python -m unittest discover -s tests -p 'test_rnxcel_visuals.py' -v`.
+This requires baseline commit `ac39dc755ff9b7106f2ce797ad3029161e8fae26`
+in local git history; ordinary tests do not. Exports remove scripts and are
+inert screenshot inputs, not live authentication or payment verification.
+The extraction touches protected PAXcel templates `index.html`, `student_dashboard.html`,
+`quiz_results.html` and `review_attempt.html` in the template directory above.
+The existing guardrail requires explicit reviewer approval via
+`paxcel-change-approved`; UI parity does not grant that approval.
+
 ### Empty production content and taxonomy
 
 **There are no nursing questions or cases in this repository or migration.**

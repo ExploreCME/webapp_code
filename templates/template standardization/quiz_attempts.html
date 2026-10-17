@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "shared_report_table.html" import report_table %}
 
 {% block title %}Quiz History - {{ quiz_name }}{% endblock %}
 
@@ -31,16 +32,7 @@
     </div>
 
     <!-- The table tags are completely stripped of inline styles since base.html handles them! -->
-    <table>
-        <thead>
-            <tr>
-                <th>Date & Time</th>
-                <th>Mode</th>
-                <th>Score</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
+    {% call report_table(['Date & Time', 'Mode', 'Score', 'Action']) %}
             {% for attempt in attempts %}
             <tr>
                 <td>{{ attempt.start_time }}</td>
@@ -70,8 +62,7 @@
                 </td>
             </tr>
             {% endfor %}
-        </tbody>
-    </table>
+    {% endcall %}
 
     <div style="margin-top: 25px;">
         <a href="{{ url_for('quiz.select_standardized_quiz' if is_standardized else 'quiz.select_quiz') }}" class="btn btn-secondary">&larr; Back to Quiz List</a>

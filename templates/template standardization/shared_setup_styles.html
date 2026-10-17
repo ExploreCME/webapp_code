@@ -1,0 +1,75 @@
+<style>
+    /* =========================================
+       MODERN UI STYLES
+       ========================================= */
+    .setup-header { text-align: center; margin-bottom: 30px; }
+    .setup-header h2 { color: #2c3e50; font-size: 32px; font-weight: 700; margin-bottom: 5px; }
+    .setup-header p { color: #7f8c8d; font-size: 1.1em; }
+
+    /* Modern Card Container */
+    .card-section {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #eaeded;
+        padding: 30px;
+        margin-bottom: 30px;
+    }
+    .card-title {
+        color: #2c3e50;
+        font-size: 1.4em;
+        margin-top: 0;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .card-subtitle { color: #7f8c8d; font-size: 0.95em; margin-bottom: 20px; line-height: 1.5; }
+
+    /* Sticky Tracker Bar */
+    .tracker-bar {
+        position: sticky;
+        top: 15px;
+        background: #2c3e50;
+        color: white;
+        padding: 15px 25px;
+        border-radius: 12px;
+        z-index: 100;
+        margin-bottom: 25px;
+        box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .tracker-stat { display: flex; flex-direction: column; align-items: center; }
+    .tracker-label { font-size: 0.85em; text-transform: uppercase; color: #bdc3c7; letter-spacing: 0.5px; font-weight: 600; }
+    .tracker-value { font-size: 1.4em; font-weight: bold; color: #fff; }
+    .tracker-value.highlight { color: #f1c40f; }
+    .error-msg { color: #ff6b6b; font-size: 0.85em; display: none; font-weight: bold; margin-top: 4px; background: rgba(255,107,107,0.1); padding: 2px 8px; border-radius: 4px; }
+
+    /* Form Elements */
+    .input-clean { width: 100%; padding: 12px 15px; border: 1px solid #dcdde1; border-radius: 8px; font-size: 16px; background: #f9fbfc; transition: border-color 0.2s; box-sizing: border-box; }
+    .input-clean:focus { outline: none; border-color: #3498db; background: #fff; }
+
+    .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .grid-box { border: 1px solid #e2e8f0; padding: 20px; border-radius: 10px; background: #f8fafc; transition: all 0.2s ease; }
+    .grid-box:hover { border-color: #cbd5e0; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+    .grid-box h4 { margin-top: 0; margin-bottom: 15px; color: #34495e; font-size: 1.1em; border-bottom: 2px solid #edf2f7; padding-bottom: 8px; }
+
+    .grid-box select { width: 100%; height: 120px; margin-top: 8px; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e0; background: #fff; }
+    .input-label { font-size: 0.9em; font-weight: 600; color: #4a5568; display: block; margin-bottom: 5px; }
+
+    /* Radio Switch Styles */
+    .source-option { display: flex; align-items: flex-start; padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; margin-bottom: 10px; transition: all 0.2s; }
+    .source-option:hover { border-color: #3498db; background: #f1f8fc; }
+    .source-option input { margin-top: 4px; margin-right: 15px; transform: scale(1.2); }
+    .source-text strong { display: block; color: #2d3748; font-size: 1.05em; margin-bottom: 3px; }
+    .source-text span { color: #718096; font-size: 0.9em; }
+
+    /* Progress Loader */
+    .loader-box { padding: 40px 20px; background: #fff; border-radius: 12px; text-align: center; border: 1px solid #eaeded; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 30px; }
+    .progress-track { width: 100%; max-width: 600px; margin: 25px auto; background-color: #edf2f7; border-radius: 20px; overflow: hidden; height: 24px; position: relative; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); border-radius: 20px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); width: 0%; }
+</style>

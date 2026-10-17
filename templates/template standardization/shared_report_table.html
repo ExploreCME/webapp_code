@@ -1,0 +1,13 @@
+{% macro report_table(headers, caption=none) -%}
+<table>
+    {% if caption %}<caption>{{ caption }}</caption>{% endif %}
+    <thead>
+        <tr>
+            {% for header in headers %}<th>{{ header }}</th>{% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {{ caller() }}
+    </tbody>
+</table>
+{%- endmacro %}

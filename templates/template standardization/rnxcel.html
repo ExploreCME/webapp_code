@@ -1,16 +1,13 @@
 {% extends "rnxcel_base.html" %}
 {% block title %}RNXcel | NCLEX-RN Platform{% endblock %}
 {% block nursing_content %}
-<header class="rn-card rn-hero">
-    <img class="rn-logo" src="{{ url_for('static', filename='images/rnxcel_logo.png') }}" alt="RNXcel logo" width="300" height="100">
-    <h1>Nursing practice, with purpose.</h1>
-    <p>RNXcel supports NCLEX-RN preparation using the 2026 exam profile and 2026–2029 blueprint.</p>
-    <p>Explore nursing-only objectives, choose a practice session, and return to your saved attempts.</p>
-    <div class="rn-actions">
+{% from "shared_landing/hero.html" import hero with context %}
+{% call hero(logo='images/rnxcel_logo.png', logo_alt='RNXcel logo', headline='Nursing practice, with purpose.', description='RNXcel supports NCLEX-RN preparation using the 2026 exam profile and 2026–2029 blueprint. Explore nursing-only objectives, choose a practice session, and return to your saved attempts.') %}
+    <div style="margin-bottom: 40px;">
         <a class="btn btn-primary" href="{{ url_for('rnxcel.setup') }}">Set up practice</a>
         <a class="btn btn-secondary" href="{{ url_for('rnxcel.dashboard') }}">Open dashboard</a>
     </div>
-</header>
+{% endcall %}
 {% if experience %}
 <section class="rn-card" aria-labelledby="experience-title">
     <h2 id="experience-title">{{ experience.label }}</h2>
@@ -18,7 +15,7 @@
     <a href="{{ url_for('rnxcel.setup', experience=experience.slug) }}">Check available practice</a>
 </section>
 {% endif %}
-<div class="rn-notice" role="status">No available content yet. The bundled catalog is empty; <a href="{{ url_for('rnxcel.setup') }}">sign in to check any separately published nursing content</a>.</div>
+<div class="rn-notice" role="status">Published nursing content availability is shown after sign-in. The bundled catalog is empty; no bundled or sample fallback is substituted. <a href="{{ url_for('rnxcel.setup') }}">Sign in to check available nursing content</a>.</div>
 <section aria-labelledby="formats-title">
     <h2 id="formats-title">Practice experiences</h2>
     <div class="rn-grid">

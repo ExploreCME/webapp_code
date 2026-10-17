@@ -1,0 +1,24 @@
+{% macro header(title, description) -%}
+<div class="setup-header">
+    <h2>{{ title }}</h2>
+    <p>{{ description }}</p>
+</div>
+{%- endmacro %}
+
+{% macro tracker() -%}
+<div class="tracker-bar">
+    {{ caller() }}
+</div>
+{%- endmacro %}
+
+{% macro panel() -%}
+<div class="card-section">
+    {{ caller() }}
+</div>
+{%- endmacro %}
+
+{% macro actions() -%}
+<div style="background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 -4px 15px rgba(0,0,0,0.05); position: sticky; bottom: 0; z-index: 99; border-top: 1px solid #eaeded; text-align: center;">
+    {{ caller() }}
+</div>
+{%- endmacro %}

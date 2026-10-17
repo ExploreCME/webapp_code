@@ -1,0 +1,31 @@
+{% macro answer_option(letter, choice_text, is_user_choice, is_correct, show_letter=true) -%}
+<li style="padding: 12px 15px; margin-bottom: 8px; border-radius: 5px; border: 1px solid #ddd;
+    {% if is_correct %} background-color: #d4edda; border-color: #c3e6cb;
+    {% elif is_user_choice %} background-color: #f8d7da; border-color: #f5c6cb;
+    {% else %} background-color: #fff;
+    {% endif %}
+">
+    {% if show_letter %}<strong>{{ letter }}.</strong> {% endif %}{{ choice_text }}
+    <!-- Indicators for Correct vs Selected -->
+    <div style="float: right; font-weight: bold; font-size: 0.9em;">
+        {% if is_correct %}
+            <span style="color: #155724;">✅ Correct Answer</span>
+        {% endif %}
+        {% if is_user_choice %}
+            <span style="color: {% if is_correct %}#155724{% else %}#721c24{% endif %}; margin-left: 10px;">
+                ⬅️ Your Selection
+            </span>
+        {% endif %}
+    </div>
+    <div style="clear: both;"></div>
+</li>
+{%- endmacro %}
+
+{% macro explanation(text, label='Explanation:', multiline=false) -%}
+{% if text %}
+<div style="background-color: #e8f4f8; padding: 15px; border-left: 5px solid #17a2b8; margin-top: 15px; border-radius: 4px;">
+    <strong style="color: #0c5460;">{{ label }}</strong>
+    <p{% if multiline %} class="rn-text"{% endif %} style="margin-bottom: 0; margin-top: 5px; line-height: 1.5; color: #333;">{{ text }}</p>
+</div>
+{% endif %}
+{%- endmacro %}
