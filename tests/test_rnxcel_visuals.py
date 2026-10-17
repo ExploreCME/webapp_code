@@ -21,6 +21,16 @@ ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_PREFIX = "templates/template standardization/"
 
 
+def static_html(html):
+    html = re.sub(r"<script\b[^>]*>.*?</script[^>]*>", "", html,
+                  flags=re.IGNORECASE | re.DOTALL)
+    return re.sub(
+        r"""(\b(?:src|href)\s*=\s*["'])/static/""",
+        lambda match: match[1] + (ROOT / "static").as_uri() + "/",
+        html, flags=re.IGNORECASE,
+    )
+
+
 class RNXcelVisualTests(unittest.TestCase):
     def setUp(self):
         # Compose, rather than inherit, so unittest does not rerun the route suite.
@@ -76,9 +86,27 @@ class RNXcelVisualTests(unittest.TestCase):
                     continue
                 html = environment.get_template(template).render(context)
                 # Evidence is inert: no Clerk initialization, fetches, or writes.
-                html = re.sub(r"<script\b[^>]*>.*?</script[^>]*>", "", html,
-                              flags=re.IGNORECASE | re.DOTALL)
+                html = static_html(html)
                 (self.output / f"{name}-{revision}.html").write_text(html, encoding="utf-8")
+
+    def test_static_exports_strip_malformed_script_end_tags_but_preserve_escaped_text(self):
+        escaped = "&lt;script&gt;NONCLINICAL authored text&lt;/script&gt;"
+        html = (
+            '<p>' + escaped + '</p>'
+            '<ScRiPt src="https://invalid.example/clerk.js">live()</ScRiPt\t\n bar>'
+            '<script>another()</script extra><p>Safe fixture text</p>'
+        )
+        self.assertEqual(
+            static_html(html), f"<p>{escaped}</p><p>Safe fixture text</p>",
+        )
+
+    def test_static_export_assets_resolve_from_file_urls_without_a_server(self):
+        asset = ROOT / "static" / "ExploreCME_pricing.png"
+        self.assertTrue(asset.is_file())
+        self.assertEqual(
+            static_html('<img src="/static/ExploreCME_pricing.png" alt="Fixture">'),
+            f'<img src="{asset.as_uri()}" alt="Fixture">',
+        )
 
     def screen(self, name, path, *markers):
         response = self.client.get(path)
