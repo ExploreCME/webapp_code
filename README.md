@@ -114,6 +114,51 @@ and ordinary blueprint generation excludes standardized question IDs.
 categories with no generated versions show a clearly labeled sample fallback or
 an empty-state message. The `Standardized:` internal quiz-name prefix is reserved.
 
+### Student reports
+
+Student Dashboard → **Reports** offers **Overall Usage** and **Standardized
+Assessment**, with an on-screen preview and PDF download. Reports always use the
+signed-in student's identity; there is no student or class selector.
+
+Overall Usage reuses the faculty report engine's response counts, overall
+percentage, organ-system grouping, and standardized task-area metrics. As in
+the faculty student usage report, this includes practice activity and recorded
+responses from incomplete attempts; unanswered questions are not observations.
+
+Standardized Assessment reports use published catalog versions in the selected
+category, not quiz-name prefix matching or personal quiz maps. Each version has
+its own screen section and starts on a new PDF page. Legacy sample practice is
+not a published assessment version and is excluded from these comparisons.
+Surgery is the seventh built-in category; it has no sample questions and remains
+empty until reviewed versions are published.
+
+There is no persisted completion flag. A completed attempt must contain a
+response for every question in that version's immutable membership. Unanswered
+questions therefore leave an attempt incomplete and exclude it from these
+reports, rather than being counted as incorrect. Stored response correctness is
+used, matching the shared grader; repeated submissions update the unique
+attempt/question response rather than adding observations.
+
+Most recent selects a completed attempt independently for each version, ordered
+by attempt start time descending, then attempt ID descending for ties.
+Aggregate includes all completed attempts
+and shows their average percentage score. Organ Systems and Task Areas include
+every dimension in the version, even when the student has no observations.
+Platform comparisons include all completed attempts for that exact version
+across all users, independently of the student's selected mode. Dimensional
+percentages use summed correct responses divided by eligible responses, not
+averages of user percentages; counts accompany the percentages. Missing data is
+labeled explicitly, not presented as 0%. Platform data is anonymous aggregates
+only, never other students' identities or individual response histories.
+
+Deploy the existing
+`migrations/20261016_add_standardized_quiz_versions.sql` before publishing or
+reporting on versions, along with the application's existing normalized lookup
+columns and unique attempt/question response constraint. No new migration is
+required for reports. Without the catalog table, reports show an empty state
+and the catalog helper logs the migration prerequisite; report and selection
+GET requests never create or modify schema.
+
 Run the generator and SQLite-backed flow regressions without MySQL/API access:
 
 ```bash

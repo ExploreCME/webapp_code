@@ -121,7 +121,7 @@ class ReportEngine:
 
         return reports
 
-    def generate_overall_usage(self, clerk_ids, include_practice=True):
+    def generate_overall_usage(self, clerk_ids, include_practice=True, write_debug=True):
         """Generates overall database usage statistics for a list of students."""
         format_strings = ','.join(['%s'] * len(clerk_ids))
 
@@ -155,22 +155,21 @@ class ReportEngine:
 
         responses = self.m_cursor.fetchall()
 
-        # --- DEBUG FILE WRITING (UPDATED WITH ABSOLUTE PATH) ---
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, 'debug_overall_usage.txt')
+        if write_debug:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            file_path = os.path.join(current_dir, 'debug_overall_usage.txt')
 
-        try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write("Organ System | Task Area | Topic Area\n")
-                f.write("-" * 80 + "\n")
-                for r in responses:
-                    org = str(r.get('organ_system') or "None").strip()
-                    task = str(r.get('task_area') or "None").strip()
-                    topic = str(r.get('topic_area') or "None").strip()
-                    f.write(f"{org} | {task} | {topic}\n")
-        except Exception as e:
-            print(f"Failed to write debug file: {e}")
-        # --------------------------
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write("Organ System | Task Area | Topic Area\n")
+                    f.write("-" * 80 + "\n")
+                    for r in responses:
+                        org = str(r.get('organ_system') or "None").strip()
+                        task = str(r.get('task_area') or "None").strip()
+                        topic = str(r.get('topic_area') or "None").strip()
+                        f.write(f"{org} | {task} | {topic}\n")
+            except Exception as e:
+                print(f"Failed to write debug file: {e}")
 
         # 3. Calculate Stats and Group Miscellaneous
         stats = {'total_attempted': len(responses), 'total_correct': 0, 'organs': {}, 'tasks': {}}

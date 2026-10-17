@@ -110,6 +110,7 @@ STANDARDIZED_QUIZZES = {
             "explanation": "Folic acid supplementation before conception and during early pregnancy reduces neural tube defect risk.",
         },
     ],
+    "Surgery": [],
 }
 
 
