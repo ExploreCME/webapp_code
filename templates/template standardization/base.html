@@ -349,6 +349,7 @@
     <!-- Main Container -->
     <div class="container {% block container_class %}{% endblock %}">
         <!-- Global Flash Messages -->
+        {% block flash_messages %}
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}
@@ -356,6 +357,7 @@
             {% endfor %}
           {% endif %}
         {% endwith %}
+        {% endblock %}
 
         <!-- Child Template Injection -->
         {% block content %}

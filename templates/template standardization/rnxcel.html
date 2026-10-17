@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% set show_app_header = false %}
+
+{% block title %}RNXcel | NCLEX-RN Platform{% endblock %}
+{% block description %}RNXcel is ExploreCME's nursing platform for NCLEX-RN preparation. Nursing content is not available yet.{% endblock %}
+{% block container_class %}container-large{% endblock %}
+{% block flash_messages %}{% endblock %}
+
+{% block content %}
+<main>
+    <img src="{{ url_for('static', filename='images/rnxcel_logo.png') }}" alt="RNXcel logo" style="height: 100px; max-width: 100%; object-fit: contain;">
+    <h1>RNXcel</h1>
+    <p>NCLEX-RN preparation for nursing students</p>
+    <p>Platform foundation &middot; Content not yet available</p>
+    <p>RNXcel is a separate nursing experience. PAXcel questions, progress, and subscriptions are not used here.</p>
+    <nav aria-label="RNXcel navigation">
+        <a href="{{ url_for('rnxcel.landing') }}">RNXcel home</a>
+        &middot; <a href="{{ url_for('explorecme_home') }}">Back to ExploreCME</a>
+    </nav>
+
+    {% if experience %}
+    <section aria-labelledby="experience-title">
+        <h2 id="experience-title">{{ experience.label }}</h2>
+        <p>{{ experience.description }}</p>
+        <p role="status">No available content yet. This practice experience is not active.</p>
+    </section>
+    {% else %}
+    <section aria-labelledby="content-title">
+        <h2 id="content-title">Nursing content</h2>
+        <p role="status">No available content yet. No nursing questions or case studies have been loaded.</p>
+    </section>
+    {% endif %}
+
+    <section aria-labelledby="categories-title">
+        <h2 id="categories-title">NCLEX-RN categories</h2>
+        <ul>
+            {% for category in categories %}
+            <li>{{ category.label }}</li>
+            {% else %}
+            <li>No categories available yet.</li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section aria-labelledby="formats-title">
+        <h2 id="formats-title">Planned practice experiences</h2>
+        <ul>
+            {% for item in experiences %}
+            <li><a href="{{ url_for('rnxcel.practice', item_type=item.slug) }}">{{ item.label }}</a> &mdash; Not available yet</li>
+            {% endfor %}
+        </ul>
+    </section>
+</main>
+{% endblock %}

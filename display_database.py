@@ -188,6 +188,8 @@ def refresh_user_status():
 
 @app.before_request
 def refresh_request_entitlements():
+    if request.blueprint == 'rnxcel':
+        return
     if request.endpoint and request.endpoint.startswith('static'):
         return
     if request.endpoint in ('webhook', 'clerk_webhook', 'logout'):
@@ -211,6 +213,8 @@ def login_required(f):
 @app.context_processor
 def inject_premium_status():
     """Use request-scoped database status, independent of dashboard stats caching."""
+    if request.blueprint == 'rnxcel':
+        return {}
     user_agent = request.headers.get('User-Agent', '').lower()
     is_app = 'median' in user_agent
 
@@ -644,3 +648,6 @@ app.register_blueprint(student_reports_bp)
 
 from preview_app import preview_bp
 app.register_blueprint(preview_bp)
+
+from rnxcel_routes import rnxcel_bp
+app.register_blueprint(rnxcel_bp)
