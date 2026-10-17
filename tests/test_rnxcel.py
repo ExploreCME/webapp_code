@@ -27,11 +27,9 @@ class RNXcelRouteTests(unittest.TestCase):
             patcher = patch.object(display_database, name, replacement)
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.paths = ["/rnxcel", "/rnxcel/"] + [
-            f"/rnxcel/practice/{item.slug}" for item in ITEM_EXPERIENCES
-        ]
+        self.paths = ["/rnxcel", "/rnxcel/"]
 
-    def test_shell_and_all_experiences_render_empty_states(self):
+    def test_public_landing_describes_nursing_without_paxcel_dependencies(self):
         for path in self.paths:
             with self.subTest(path=path):
                 response = self.client.get(path)
@@ -39,15 +37,13 @@ class RNXcelRouteTests(unittest.TestCase):
                 html = response.text
                 self.assertIn("RNXcel", html)
                 self.assertIn("NCLEX-RN", html)
-                self.assertIn("No available content yet.", html)
-                self.assertIn("No categories available yet.", html)
                 self.assertIn('href="/"', html)
-                for item in ITEM_EXPERIENCES:
-                    self.assertIn(f'href="/rnxcel/practice/{item.slug}"', html)
+                for category in RNXCEL_CATEGORIES:
+                    self.assertIn(category.label, html)
                 for marker in (
                     "@clerk/clerk-js", "clerkPublishableKey", '<nav class="navbar">',
                     'href="/student_dashboard"', 'href="/faculty_dashboard"',
-                    'action="/create-customer-portal-session"', "<form", "9876",
+                    'action="/create-customer-portal-session"', "9876",
                 ):
                     self.assertNotIn(marker, html)
         display_database.fetch_data_for_dashboard.assert_not_called()
@@ -103,22 +99,6 @@ class RNXcelRouteTests(unittest.TestCase):
         with self.client.session_transaction() as session:
             self.assertNotIn("_flashes", session)
 
-    def test_unknown_experiences_do_not_fall_back_to_paxcel(self):
-        for item_type in ("paxcel", "single_answer", "unknown"):
-            response = self.client.get(f"/rnxcel/practice/{item_type}")
-            self.assertEqual(response.status_code, 404)
-            self.assertNotIn("Location", response.headers)
-        display_database.fetch_data_for_dashboard.assert_not_called()
-        display_database.get_db_connection.assert_not_called()
-
-    def test_practice_scaffold_cannot_submit_attempts(self):
-        for item in ITEM_EXPERIENCES:
-            response = self.client.post(
-                f"/rnxcel/practice/{item.slug}", json={"answer": "test-option"},
-            )
-            self.assertEqual(response.status_code, 405)
-        display_database.get_db_connection.assert_not_called()
-
     def test_global_maintenance_mode_still_applies(self):
         with patch.object(display_database, "MAINTENANCE_MODE", True):
             response = self.client.get("/rnxcel")
@@ -126,8 +106,12 @@ class RNXcelRouteTests(unittest.TestCase):
 
 
 class RNXcelContractTests(unittest.TestCase):
-    def test_catalog_is_empty_and_experiences_are_explicit(self):
-        self.assertEqual(RNXCEL_CATEGORIES, ())
+    def test_editorial_catalog_has_categories_but_no_seeded_items(self):
+        self.assertEqual(
+            {category.id for category in RNXCEL_CATEGORIES},
+            {"MOC", "SIC", "HPM", "PSI", "BCC", "PPT", "RRP", "PAD"},
+        )
+        self.assertEqual(sum(category.target_weight for category in RNXCEL_CATEGORIES), 100)
         self.assertEqual(RNXCEL_ITEMS, ())
         self.assertEqual(
             {item.slug for item in ITEM_EXPERIENCES},

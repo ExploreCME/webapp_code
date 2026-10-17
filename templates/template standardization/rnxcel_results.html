@@ -1,0 +1,55 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}Practice results | RNXcel{% endblock %}
+{% block nursing_content %}
+<h1>Practice results</h1>
+{% if attempt.status in ['complete', 'completed'] %}
+<div class="rn-card rn-hero">
+    <h2>Session completed</h2>
+    <p>{{ attempt.total_items }} scored items</p>
+    <p class="rn-stat">{{ attempt.earned }} / {{ attempt.possible }}</p>
+    <p>Points earned in this practice session. This is not an NCLEX score or a pass prediction.</p>
+</div>
+{% if review_items is not none and review_items is defined %}
+<section aria-labelledby="rn-review">
+    <h2 id="rn-review">Completed item review</h2>
+    {% for item in review_items %}
+    <article class="rn-card">
+        <h3>Item {{ loop.index }} · {{ item.type|replace('-', ' ')|capitalize }}</h3>
+        {% if item.case_title %}
+        <h3>{{ item.case_title }}</h3>
+        {% if item.stage_index is defined %}<p class="rn-eyebrow">Case stage {{ item.stage_index + 1 }} of {{ item.stage_count }}</p>{% endif %}
+        {% endif %}
+        {% if item.exhibits %}
+        <h3>Case information available for this item</h3>
+        {% for exhibit in item.exhibits %}
+        <div class="rn-notice">
+            <h4>{{ exhibit.timestamp }}</h4>
+            <p class="rn-text">{{ exhibit.text }}</p>
+        </div>
+        {% endfor %}
+        {% endif %}
+        <p class="rn-text">{{ item.stem }}</p>
+        <ul>
+            {% for option in item.options %}
+            <li>{{ option.text }}{% if option.id in item.selections %} <strong>— Your selection</strong>{% endif %}{% if option.id in item.correct_option_ids %} <strong>— Correct answer</strong>{% endif %}</li>
+            {% endfor %}
+        </ul>
+        <p>Points earned: {{ item.earned }} / {{ item.possible }}</p>
+        <h3>Rationale</h3>
+        <p class="rn-text">{{ item.rationale }}</p>
+        <p class="rn-muted">Category: {% for category in categories %}{% if category.id == item.category_id %}{{ category.label }}{% endif %}{% endfor %} ({{ item.category_id }})<br>Objective: {{ objectives.get(item.objective_id, item.objective_id) }}</p>
+    </article>
+    {% else %}<p>No review items are available for this session.</p>{% endfor %}
+</section>
+{% else %}
+<a class="btn btn-primary" href="{{ url_for('rnxcel.review_attempt', attempt_id=attempt.id) }}">Review answers and rationales</a>
+{% endif %}
+{% else %}
+<p class="rn-notice">Complete this attempt before viewing results, answers, or rationales.</p>
+<a class="btn btn-primary" href="{{ url_for('rnxcel.play', attempt_id=attempt.id) }}">Resume attempt</a>
+{% endif %}
+<div class="rn-actions">
+    <a href="{{ url_for('rnxcel.attempts') }}">All attempts</a>
+    <a href="{{ url_for('rnxcel.setup') }}">Set up more practice</a>
+</div>
+{% endblock %}

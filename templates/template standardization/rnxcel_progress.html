@@ -1,0 +1,26 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}Progress | RNXcel{% endblock %}
+{% block nursing_content %}
+<h1>Nursing practice progress</h1>
+<p><strong>{{ completed_count }}</strong> completed attempts. Reports summarize completed practice only.</p>
+<p class="rn-muted">Points and item counts describe your practice history, not readiness for licensure, adaptive ability estimates, or likelihood of passing.</p>
+{% for group, rows in reports.items() %}
+<section class="rn-card">
+    <h2>{{ group|replace('_', ' ')|capitalize }}</h2>
+    <div class="rn-table-wrap">
+        <table>
+            <caption>{{ group|replace('_', ' ')|capitalize }} practice breakdown</caption>
+            <thead><tr><th scope="col">Area</th><th scope="col">Points earned</th><th scope="col">Points possible</th><th scope="col">Scored items</th></tr></thead>
+            <tbody>
+                {% for row in rows %}
+                <tr><th scope="row">{{ row.label }}</th><td>{{ row.earned }}</td><td>{{ row.possible }}</td><td>{{ row['items'] }}</td></tr>
+                {% else %}<tr><td colspan="4">No completed practice in this group yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% else %}
+<p class="rn-notice" role="status">No progress reports yet. Complete a nursing practice session to begin.</p>
+{% endfor %}
+<a class="btn btn-primary" href="{{ url_for('rnxcel.setup') }}">Set up practice</a>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}Terms and consent | RNXcel{% endblock %}
+{% block nursing_content %}
+<h1>Review the terms before practice</h1>
+<p>Please read the current terms below. Nursing practice is educational and does not replace clinical judgment or official examination guidance.</p>
+<div class="rn-terms" role="region" aria-label="Current terms of use" tabindex="0">{% include 'shared_terms.html' %}</div>
+<form action="{{ url_for('rnxcel.consent') }}" method="post" class="rn-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ return_to }}">
+    <label class="rn-option" for="rn-accept">
+        <input id="rn-accept" type="checkbox" name="agree" value="yes" required>
+        <span>I have read and agree to the current terms of use.</span>
+    </label>
+    <button class="btn btn-primary" type="submit">Accept and continue</button>
+</form>
+<a href="{{ url_for('rnxcel.landing') }}">Return without accepting</a>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}Dashboard | RNXcel{% endblock %}
+{% block nursing_content %}
+<h1>Your nursing dashboard</h1>
+<p>Practice and progress stay within RNXcel.</p>
+<div class="rn-grid">
+    <article class="rn-card"><p class="rn-stat">{{ available }}</p><h2>Available scored items</h2><p>Published nursing content, including individual case stages.</p></article>
+    <article class="rn-card"><p class="rn-stat">{{ case_count }}</p><h2>Available cases</h2><p>Six scored items per unfolding case.</p></article>
+</div>
+<div class="rn-actions">
+    <a class="btn btn-primary" href="{{ url_for('rnxcel.setup') }}">Set up practice</a>
+    <a class="btn btn-secondary" href="{{ url_for('rnxcel.library') }}">Browse cases</a>
+    <a href="{{ url_for('rnxcel.progress') }}">View progress</a>
+</div>
+{% if available == 0 %}<p class="rn-notice" role="status">No available content yet. No nursing questions or case studies are currently published.</p>{% endif %}
+<section aria-labelledby="rn-recent">
+    <h2 id="rn-recent">Recent attempts</h2>
+    {% for attempt in history %}
+    <article class="rn-card">
+        <h3>Attempt {{ attempt.id }}</h3>
+        <p>{{ attempt.status|replace('_', ' ')|capitalize }} · {{ attempt.current_index }} of {{ attempt.total_items }} items saved</p>
+        {% if attempt.status in ['complete', 'completed'] %}
+        <a href="{{ url_for('rnxcel.results', attempt_id=attempt.id) }}">View results</a>
+        {% else %}
+        <a href="{{ url_for('rnxcel.play', attempt_id=attempt.id) }}">Resume practice</a>
+        {% endif %}
+    </article>
+    {% else %}<p>No attempts yet. Your saved nursing sessions will appear here.</p>{% endfor %}
+    <a href="{{ url_for('rnxcel.attempts') }}">View all attempts</a>
+</section>
+{% endblock %}

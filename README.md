@@ -28,36 +28,151 @@ python -m unittest discover -s tests -p 'test_landing_pages.py' -v
 python -m unittest discover -s tests -p 'test_entitlements.py' -v
 ```
 
-## RNXcel foundation
+## RNXcel: content-ready NCLEX-RN practice
 
-The homepage links to `/rnxcel`, a public NCLEX-RN shell with its own blueprint
-and navigation. `/coming-soon/rnxcel` remains available for compatibility.
-PAXcel routes, authentication, dashboards, quiz formats, and storage are unchanged.
-
-`rnxcel_catalog.py` defines the `NCLEX_RN_2026` profile, separate category/item
-collections (both intentionally empty), and draft immutable contracts for:
-
-- Single-best-answer items with stable option IDs and one answer ID.
-- Select-all-that-apply items with multiple answer IDs.
-- Unfolding case studies with ordered stages, stage-specific exhibits, and
-  single-answer or multiple-response items.
-
-The three `/rnxcel/practice/<item_type>` routes use the slugs
-`single-best-answer`, `select-all-that-apply`, and `unfolding-case-study`.
-They render empty states, not working quizzes. There is no nursing content,
-generation, scoring, attempt tracking, analytics, or subscription access yet.
-RNXcel does not read PAXcel data or use/modify PAXcel session entitlements.
+The homepage opens the public `/rnxcel` landing. `/coming-soon/rnxcel` redirects
+there; the three existing `/rnxcel/practice/<item_type>` slugs remain compatible.
+The profile is **NCLEX_RN_2026**, blueprint **2026-2029**, RN only.
 Global maintenance mode still applies.
 
-No database migration is required. These contracts are scaffolding, not a
-publication pipeline: future content work must add validation, isolated
-persistence/access rules, and tested scoring before enabling practice.
-Answer keys must stay server-side; routes currently pass only experience and
-category metadata to templates, never item records or future case exhibits.
+Signed-in nursing journeys remain under `/rnxcel`: `/dashboard`, `/practice`
+(setup), `/cases`, `/attempts` (history/resume), attempt results/review and
+`/progress`. Clerk identity is signature-verified on every protected request
+using the existing verifier, independently of PAXcel session identity.
+Nursing consent is stored separately and uses the shared ExploreCME terms.
+Owner-bound nursing CSRF tokens protect mutations; answer/results/review
+queries are owner-scoped. No nursing subscription or payment flow is implemented.
+**PAXcel `has_paid` is not a nursing entitlement.** All verified users who accept
+the terms can use nursing practice when reviewed content becomes available.
+
+### Empty production content and taxonomy
+
+**There are no nursing questions or cases in this repository or migration.**
+Empty installed storage shows zero available items, disabled starts, no attempts
+and no performance metrics. Forged starts with no eligible content are rejected.
+RNXcel never falls back to PA questions, sample banks, generators, or AI calls.
+Synthetic nonclinical fixtures exist only in tests; SQLite/injected fixture
+storage is allowed only with Flask `TESTING=True`, never via a public route.
+
+`rnxcel_catalog.py` is the editable editorial configuration: eight category IDs
+and proposed bank allocation weights totaling 100, plus 64 stable draft
+objective IDs (`MOC-01` through `PAD-08`). These weights are **not exact official
+exam percentages or compulsory per-quiz quotas**. Objective clusters are draft
+editorial groupings, **not official exhaustive NCSBN objectives**. Maternal-newborn,
+pediatric and multisystem content uses secondary population cross-tags.
+Each scored item has exactly one primary category and one primary objective.
+Population, specialty, setting, organ/topic tags, nursing tasks, clinical-judgment
+skills, response format and case delivery are separate dimensions; PA
+standardizers are never used. Optional official activity references must be
+reviewed mappings, not inferred/fabricated references.
+
+Setup validates category/objective, experience, population, setting, clinical
+judgment and 1–50 scored items. Only untimed practice with feedback after
+completion is supported. Counts reflect published eligible nursing versions.
+Cases are indivisible six-item units; every stage must satisfy selected filters.
+Case-library links preserve the selected published case through setup and start.
+If the exact requested item count cannot be filled, start is disabled/rejected.
+Selection is deterministic, without category quotas or adaptive difficulty.
+
+### Engine and private version contract
+
+`rnxcel_engine.validate_version()` validates JSON-authored versions before use;
+`rnxcel_storage.RNXcelStore` reads only published `NCLEX_RN_2026` records.
+There is deliberately no public authoring/import/seed endpoint. Future reviewed
+content must be published through a restricted editorial process, not this app.
+The legacy frozen dataclasses remain available for compatibility; production
+attempts use validated JSON versions, not the empty `RNXCEL_ITEMS` tuple.
+
+For a standalone version the private object contains:
+
+- `version_id`, `exam_profile`, `type` (`single-best-answer` or
+  `select-all-that-apply`), `category_id`, `objective_id`, `stem`;
+- `options`: variable-length list of `{id, text}` with unique stable IDs;
+- `correct_option_ids`, `rationale`, explicit `scoring` (`single` or `plus-minus`);
+- `tags`: separate string lists `population`, `setting`, `specialty`,
+  `organ_topics`, `nursing_tasks`, `clinical_judgment`; optional reviewed
+  `official_activity_refs` (requiring `tags.official_activity_reviewed: true`);
+- optional private version-level `provenance` object for editorial source/review metadata.
+
+A case version has `version_id`, `exam_profile`,
+`type: unfolding-case-study`, `title` and exactly six ordered `stages`.
+Each stage has a unique `id`, `exhibits` (`{timestamp, text}` records) and an
+`item` using the scored-item contract above. The trajectory is predetermined,
+not response-driven branching. The server releases only the current item and
+cumulative exhibits; future items/exhibits, keys and rationales never reach the
+player. Earlier answers cannot be changed. Keys/rationales are available only
+after the whole attempt completes, including all case stages.
+
+Scoring is deterministic: SBA earns 1 for the keyed ID, otherwise 0 (possible 1).
+SATA earns `max(0, selected_correct - selected_incorrect)`, with possible points
+equal to the number of keyed options. At least one selection is required.
+Duplicate/unknown IDs and multiple selections for SBA are rejected. Reordering
+options does not alter keys. This is a documented practice scoring rule,
+**not complete official NCLEX scoring, CAT, psychometric equivalence or pass
+prediction**. Reports aggregate actual completed nursing responses by category,
+objective, response format and clinical judgment; cross-tags can contribute to
+more than one clinical-judgment row.
+
+### Migration, rollout and rollback (existing Render hosting)
+
+Deployment remains `gunicorn -c gunicorn.conf.py display_database:app` as configured
+in `render.yaml`. No hosting, DNS, billing, worker or deployment changes are
+required by this PR. Do not deploy without operator approval.
+
+1. Back up the database. Apply existing PA migrations in their documented order
+   if not already installed; RNXcel has no dependency on their tables.
+2. Apply `migrations/20261017_add_rnxcel.sql` once to the existing MySQL database
+   **before enabling nursing practice**. It creates only `rnxcel_item_versions`,
+   `rnxcel_attempts` and `rnxcel_consents`, with no seeded rows, PA updates,
+   triggers on PA tables, or runtime DDL.
+3. Use the existing `MYSQL_*` pool/TLS configuration and `CLERK_*` issuer,
+   JWKS and publishable key settings. Confirm a strong `FLASK_SECRET_KEY` and
+   HTTPS secure session cookies. The web runtime needs nursing SELECT/INSERT/
+   UPDATE rights, not CREATE/DROP. Protect authored JSON/private snapshots and
+   backups as answer-key-bearing data.
+4. Smoke-test landing, verified sign-in, nursing consent, zero-count setup,
+   history and progress. With no published content, starts must remain disabled.
+   No AI jobs, payment calls or clinical fixtures should be introduced.
+5. Later, an authorized editorial process must validate and review each version,
+   store its source/review provenance, and explicitly publish it. New content
+   revisions receive **new version IDs**; never overwrite published authored
+   objects. Retire a version to prevent new starts. Starts recheck publication
+   under a transaction; existing attempts retain their immutable private
+   snapshots and can resume/review after retirement or removal of source rows.
+
+An installed empty bank is a normal HTTP 200 state. Missing migrations,
+unreadable/corrupt content or operational DB failures fail closed with HTTP 503,
+not fabricated zero counts. Logs distinguish `missing_migration`,
+`content_unavailable` and `database_error`; fix the schema/configuration rather
+than attempting runtime table creation. Invalid published versions are excluded;
+if none of the published versions are usable, storage reports unavailable.
+Writes use transactions and row locks; retries of an identical saved answer are
+idempotent, and conflicting retries cannot double-grade an item.
+
+Rollback: revert the application release first. Leave nursing tables intact to
+preserve history; PAXcel code never queries them. If explicitly decommissioning
+RNXcel, export nursing data and then drop only the three `rnxcel_*` tables.
+Never truncate, rename, or rewrite PA banks, attempts, counters or user records.
+No migration down-step touches PAXcel data.
+
+### Verification
+
+From the repository root, with existing `requirements.txt` installed:
 
 ```bash
-python -m unittest discover -s tests -p 'test_rnxcel.py' -v
+python -m unittest discover -s tests -p 'test_rnxcel*.py' -v
+python -m unittest discover -s tests -p 'test_landing_pages.py' -v
+python -m unittest discover -s tests -p 'test_entitlements.py' -v
+python -m unittest discover -s tests -v
 ```
+
+Tests exercise nonclinical isolated fixtures for both response formats and all
+six case stages, snapshots/resume, invalid and repeated submissions, ownership,
+key hiding, release/skip protection, filters, empty/unavailable storage,
+authentication/consent/CSRF and PAXcel isolation. No clinical-content generation,
+live payment, production DB mutation or deployment is part of verification.
+An editorial publishing UI, timed/adaptive modes, additional NGN formats,
+subscription enforcement and official exam calibration are not implemented.
 
 ## Standardized student quizzes
 

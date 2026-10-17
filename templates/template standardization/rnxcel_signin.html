@@ -1,0 +1,44 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}Sign in | RNXcel{% endblock %}
+{% block nursing_head %}
+{% if clerk_publishable_key %}
+<script
+    async crossorigin="anonymous"
+    data-clerk-publishable-key="{{ clerk_publishable_key }}"
+    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+    type="text/javascript">
+</script>
+<script>
+    window.addEventListener('load', async function () {
+        const message = document.getElementById('rnxcel-signin-status');
+        try {
+            if (!window.Clerk) throw new Error('Sign-in unavailable');
+            await window.Clerk.load();
+            const destination = new URL({{ return_to|tojson }}, window.location.origin);
+            if (destination.origin !== window.location.origin) throw new Error('Invalid destination');
+            if (window.Clerk.user) {
+                message.textContent = 'You are signed in. Continue to your nursing session below.';
+            } else {
+                window.Clerk.mountSignIn(document.getElementById('rnxcel-signin'), {
+                    forceRedirectUrl: destination.href,
+                    signUpForceRedirectUrl: destination.href
+                });
+                message.textContent = 'Sign in securely to save your nursing practice.';
+            }
+        } catch (error) {
+            message.textContent = 'Sign-in could not load. Please reload this page to try again.';
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}
+{% block nursing_content %}
+<h1>Sign in to RNXcel</h1>
+<p>Your nursing attempts and progress remain separate from PAXcel.</p>
+<div class="rn-card">
+    <p id="rnxcel-signin-status" role="status">{% if signed_in %}You are already signed in.{% elif clerk_publishable_key %}Loading secure sign-in…{% else %}Sign-in is currently unavailable. Please try again later.{% endif %}</p>
+    <div id="rnxcel-signin"></div>
+    <noscript><p>JavaScript is required for secure sign-in. Already signed in? Use the continue link.</p></noscript>
+</div>
+<a class="btn btn-primary" href="{{ return_to }}">Continue to RNXcel</a>
+{% endblock %}
