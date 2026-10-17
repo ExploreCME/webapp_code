@@ -8,8 +8,10 @@ The `PAXcel guardrail` workflow (`.github/workflows/paxcel-guardrail.yml`) runs
 on every pull request and compares the PR's changed files (including deletions
 and renames) with the protected PAXcel paths in `PROTECTED_PATHS` in
 `scripts/paxcel_guardrail.py` — core PAXcel routes (`display_database.py`,
-`flask_app.py`), quiz/dashboard templates, and PAXcel regression tests.
-RNXcel-only files are not protected.
+`flask_app.py`), quiz/dashboard templates, PAXcel regression tests, and the
+guardrail's own workflow, script and tests. RNXcel-only files are not
+protected. The rules are taken from the base branch's copy of the script, so a
+PR cannot loosen the check it is evaluated against.
 
 - No protected file changed: the check passes.
 - A protected file changed and the PR has the label `paxcel-change-approved`:

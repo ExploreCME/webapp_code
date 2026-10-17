@@ -32,6 +32,10 @@ PROTECTED_PATHS = (
     "tests/test_entitlements.py",
     "tests/test_blueprint_quiz.py",
     "tests/test_standardized_quizzes.py",
+    # The guardrail itself, so its rules cannot be loosened silently
+    ".github/workflows/paxcel-guardrail.yml",
+    "scripts/paxcel_guardrail.py",
+    "tests/test_paxcel_guardrail.py",
 )
 
 
