@@ -80,6 +80,27 @@ show nursing access guidance (403), and unavailable entitlement storage fails
 closed (503). The landing and sign-in remain public. There is no nursing checkout
 or automatic payment provisioning in this app.
 
+### Temporary local layout preview (development/testing only)
+
+To work on RNXcel layout before provisioning its tables or content, run locally:
+
+```bash
+RNXCEL_DEV_BYPASS=1 MAINTENANCE_MODE=0 flask --app display_database run --debug
+```
+
+Open `/rnxcel/dashboard`. The bypass is **off by default** and requires both
+`RNXCEL_DEV_BYPASS=1` and Flask debug mode or `TESTING=True`. Tests may instead
+set `app.config["RNXCEL_DEV_BYPASS"] = True`; app config overrides the environment.
+Never enable debug/testing or this flag on a production deployment.
+
+Preview requests use the temporary owner `dev-rnxcel`, skip Clerk verification,
+nursing entitlement and consent, and render empty states without querying RNXcel
+storage. No sample content is supplied, starts remain disabled, saved attempts
+return 404, and all nursing writes (including consent) return 405. PAXcel access
+and payment flags are unaffected. Global maintenance mode still applies.
+Unset the flag (or set app config to `False`) to restore normal nursing checks;
+the preview identity does not create an authenticated session or access grant.
+
 The nursing dashboard uses the same action-card/main/sidebar presentation as the
 PAXcel student dashboard. It links to practice setup (custom session building),
 case studies, saved assessments/attempts, progress/statistics, reports and
