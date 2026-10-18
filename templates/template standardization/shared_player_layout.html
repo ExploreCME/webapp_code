@@ -458,6 +458,34 @@
                 }
             });
         }
+
+        // 4. Keep the current question visible in the sidebar map (desktop only).
+        //    Restore the map's previous scroll offset, then scroll only the sidebar
+        //    just enough to reveal the current tile (never the page or question pane).
+        const sidebar = document.querySelector('.quiz-sidebar');
+        if (sidebar && sidebar.clientHeight > 0) {
+            const mapKey = 'quizMapScroll:' + {{ (quiz_name ~ '|' ~ attempt_id) | tojson }};
+            try {
+                const saved = parseInt(sessionStorage.getItem(mapKey), 10);
+                if (!isNaN(saved)) sidebar.scrollTop = saved;
+            } catch (e) {}
+
+            const current = sidebar.querySelector('.grid-current');
+            if (current) {
+                const margin = 12;
+                const box = sidebar.getBoundingClientRect();
+                const tile = current.getBoundingClientRect();
+                if (tile.top < box.top + margin) {
+                    sidebar.scrollTop -= (box.top + margin) - tile.top;
+                } else if (tile.bottom > box.bottom - margin) {
+                    sidebar.scrollTop += tile.bottom - (box.bottom - margin);
+                }
+            }
+
+            window.addEventListener('pagehide', () => {
+                try { sessionStorage.setItem(mapKey, String(sidebar.scrollTop)); } catch (e) {}
+            });
+        }
     });
 
     // Rating Logic
