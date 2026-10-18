@@ -48,6 +48,9 @@
                             <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
                             <input type="hidden" name="mode" value="{{ attempt.mode }}">
                             <input type="hidden" name="resume_attempt_id" value="{{ attempt.attempt_id }}">
+                            {% if is_standardized %}
+                            <input type="hidden" name="standardized_csrf_token" value="{{ session.standardized_csrf_token }}">
+                            {% endif %}
                             <button type="submit" class="btn btn-warning" style="padding: 6px 12px; font-size: 14px;">Resume Attempt</button>
                         </form>
                     {% else %}

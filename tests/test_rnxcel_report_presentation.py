@@ -31,11 +31,12 @@ BASES = {
 # Normalized DOM/CSS from the original PA templates at
 # ac39dc755ff9b7106f2ce797ad3029161e8fae26, rendered with the contexts below.
 # Fixed digests keep these regressions independent of git history after merging.
+# Standardized history includes CSRF tokens in the resume forms.
 PA_RENDER_DIGESTS = {
     "history-False-0": "61961d80d03fad33c8c21b2306d68f43fcb11c50d61973f2c6642a53c2cd3cac",
     "history-False-3": "63403c74d6fab423165f6b79c16fa570a45214ff9a5b2217c77ef06407db6962",
     "history-True-0": "5a94855780c256988384062be386c3d7946aabf853a0dd30afb017bb7a36a099",
-    "history-True-3": "69dc876c6da69540896f7fef70496019861eea895fdd3ab60f0f62d6abfb581f",
+    "history-True-3": "d5c700cbaa974f9f960f97712e7c63eb200f3b56e27ef297c2089f6b844b033c",
     "results-0-False": "d768729ac421ee8148ef940f71833c6a84e80ca4a02db75f3718d543b0058221",
     "results-0-True": "33aad0930be99e901b643cc1dedecdd61b69cfad36fca765a4bc3a7c22acff15",
     "results-59-False": "248c6acbee98e61e6691d5d6ae501b1ca4e6023fb0340b66b80d05f31fe88e3c",
