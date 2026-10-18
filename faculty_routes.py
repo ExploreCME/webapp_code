@@ -478,7 +478,7 @@ def review_list():
 
     return render_template('faculty_review_list.html', quizzes=quizzes)
 
-@faculty_bp.route('/faculty/review/<quiz_name>')
+@faculty_bp.route('/faculty/review/<path:quiz_name>')
 @login_required
 def review_single(quiz_name):
     username = session.get('username')
@@ -531,7 +531,7 @@ def remove_question():
 # ==========================================
 # SEARCH & ADD ADDITIONAL QUESTIONS
 # ==========================================
-@faculty_bp.route('/faculty/review/<quiz_name>/add_questions', methods=['GET', 'POST'])
+@faculty_bp.route('/faculty/review/<path:quiz_name>/add_questions', methods=['GET', 'POST'])
 @login_required
 def search_add_questions(quiz_name):
     username = session.get('username')
@@ -667,7 +667,7 @@ def search_add_questions(quiz_name):
         task_areas=task_areas
     )
 
-@faculty_bp.route('/faculty/review/<quiz_name>/attach_questions', methods=['POST'])
+@faculty_bp.route('/faculty/review/<path:quiz_name>/attach_questions', methods=['POST'])
 @login_required
 def attach_questions_to_quiz(quiz_name):
     username = session.get('username')
