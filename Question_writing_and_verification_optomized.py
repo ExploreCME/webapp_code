@@ -8,7 +8,7 @@ import asyncio
 import uuid
 import random
 import traceback
-from standardizers import standardize_organ_system, standardize_task_area
+from standardizers import TASK_AREAS, standardize_organ_system, standardize_task_area
 from openai import AsyncOpenAI
 from datetime import datetime
 from dotenv import load_dotenv
@@ -401,13 +401,22 @@ async def Question_Verification(conv_manager_verify, q_data, label=None, stats=N
     q_data["correct_answer"] = correct_answer
     return True, q_data
 
+def _resolve_task_area(raw_task, llm_task=None):
+    """Prefer valid requested/model tasks, falling back to a canonical task."""
+    for candidate in (raw_task, llm_task):
+        if not _is_placeholder(candidate):
+            standardized = standardize_task_area(candidate)
+            if standardized in TASK_AREAS:
+                return standardized
+    return random.choice(TASK_AREAS)
+
 def _apply_requested_metadata(q_data, organ_system, task_area, topic_area, label):
     """Return a copy whose organ/task/topic come from the request (LLM labels are fallbacks only)."""
     q_data = dict(q_data)
     llm_organ, llm_task, llm_topic = (q_data.get(key) for key in ("organ_system", "task_area", "topic_area"))
     raw_organ = organ_system if not _is_placeholder(organ_system) else (None if _is_placeholder(llm_organ) else llm_organ)
-    raw_task = task_area if not _is_placeholder(task_area) else (None if _is_placeholder(llm_task) else llm_task)
-    final_organ, final_task = standardize_categories(raw_organ, raw_task)
+    final_organ = standardize_organ_system(raw_organ)
+    final_task = _resolve_task_area(task_area, llm_task)
 
     if not _is_placeholder(topic_area):
         final_topic = topic_area
