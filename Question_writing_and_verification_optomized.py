@@ -152,6 +152,7 @@ MIN_VERIFICATION_CONFIDENCE = 8
 MAX_UNUSABLE_VERIFIER_RESPONSES = 2
 DIFFICULTY_ATTEMPTS = 2
 DEFAULT_TOPIC_AREA = "General Medical Knowledge"
+UNSPECIFIED_TOPIC_AREA = "Unspecified Topic"
 # Stats key for retries; keys starting with "retried_" are diagnostics, not discard reasons.
 RETRIED_VERIFIER_RESPONSES = "retried_verifier_responses"
 _PLACEHOLDER_VALUES = ("", "str", "string", "none", "any")
@@ -410,7 +411,8 @@ def _resolve_task_area(raw_task, llm_task=None):
                 return standardized
     return random.choice(TASK_AREAS)
 
-def _apply_requested_metadata(q_data, organ_system, task_area, topic_area, label):
+def _apply_requested_metadata(q_data, organ_system, task_area, topic_area, label,
+                              topic_area_for_storage=None):
     """Return a copy whose organ/task/topic come from the request (LLM labels are fallbacks only)."""
     q_data = dict(q_data)
     llm_organ, llm_task, llm_topic = (q_data.get(key) for key in ("organ_system", "task_area", "topic_area"))
@@ -418,7 +420,9 @@ def _apply_requested_metadata(q_data, organ_system, task_area, topic_area, label
     final_organ = standardize_organ_system(raw_organ)
     final_task = _resolve_task_area(task_area, llm_task)
 
-    if not _is_placeholder(topic_area):
+    if not _is_placeholder(topic_area_for_storage):
+        final_topic = topic_area_for_storage
+    elif not _is_placeholder(topic_area):
         final_topic = topic_area
     elif not _is_placeholder(llm_topic):
         final_topic = llm_topic
@@ -494,7 +498,9 @@ async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_
                 conv_manager_verify, q_data, label=q_label, stats=stats)
 
             if is_good_question:
-                final_q_data = _apply_requested_metadata(final_q_data, organ_system, task_area, requested_topic, q_label)
+                final_q_data = _apply_requested_metadata(
+                    final_q_data, organ_system, task_area, requested_topic, q_label,
+                    topic_area_for_storage=item_dict.get("topic_area_for_storage"))
                 target_letter = random.choice(['A', 'B', 'C', 'D', 'E'])
                 shuffled_q = shuffle_answer_choices(final_q_data, target_letter, label=q_label)
                 verified_questions.append(shuffled_q)
@@ -659,7 +665,11 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
                     gen_item = {
                         "organ_system": clean_organ,
                         "task_area": clean_task if raw_task else "Formulating the Most Likely Diagnosis",
-                        "topic_area": topic_area if (topic_area and str(topic_area).strip()) else "General Medical Knowledge"
+                        "topic_area": topic_area if (topic_area and str(topic_area).strip()) else None,
+                        "topic_area_for_storage": (
+                            topic_area if (topic_area and str(topic_area).strip())
+                            else UNSPECIFIED_TOPIC_AREA
+                        )
                     }
                     generation_tasks.append(sem_process_topic_batch(sem, gen_item, num_needed, conv_manager, conv_manager_verify))
 

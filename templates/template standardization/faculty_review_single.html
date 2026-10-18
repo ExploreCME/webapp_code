@@ -15,6 +15,7 @@
 {% for q in questions %}
 <div style="border: 1px solid #eef2f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; background-color: #fafafa;">
     <p><strong>Topic:</strong> {{ q['organ_system'] }} - {{ q['topic_area'] }}</p>
+    <p><strong>Task Area:</strong> {{ q['task_area'] }}</p>
     <p><strong>Question:</strong> {{ q['question_stem'] }}</p>
     <ul style="list-style-type: none; padding-left: 0;">
         <li>A) {{ q['answer_choice_A'] }}</li>

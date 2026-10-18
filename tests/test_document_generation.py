@@ -116,6 +116,49 @@ class DocumentGenerationTests(unittest.TestCase):
                 conn.commit.assert_awaited_once()
                 self.assertEqual(generator.get_async_db_connection.await_count, 2)
 
+    def test_missing_document_topic_is_persisted_as_unspecified_not_prompt_fallback(self):
+        generator = self.load("Question_writing_and_verification_optomized")
+        manager = MagicMock()
+        manager.client.close = AsyncMock()
+        conn = MagicMock()
+        cursor = AsyncMock()
+        cursor.fetchall.return_value = []
+        cursor.rowcount = 1
+        conn.cursor.return_value.__aenter__.return_value = cursor
+        conn.commit = AsyncMock()
+        generator.get_async_db_connection = AsyncMock(return_value=conn)
+        generated_item = {}
+
+        async def generate(sem, item, count, *args):
+            generated_item.update(item)
+            return [{
+                "organ_system": item["organ_system"],
+                "task_area": item["task_area"],
+                "topic_area": generator.UNSPECIFIED_TOPIC_AREA,
+                "question_stem": "A clinical vignette",
+                **{f"answer_choice_{letter}": f"Choice {letter}" for letter in "ABCDE"},
+                "correct_answer": "A",
+                "explanation": "Explanation",
+                "difficulty_rating": 5,
+            }]
+
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(generator, "ConversationManager", return_value=manager), \
+                patch.object(generator, "sem_process_topic_batch", side_effect=generate):
+            topics = Path(directory) / "topics.json"
+            topics.write_text(json.dumps({"extracted_topics": [{
+                "organ_system": "Pulmonary System",
+                "task_area": "Clinical Intervention",
+            }]}) + "\n")
+            asyncio.run(generator.generate_questions_from_eor_async(
+                str(topics), "quiz", None, "owner", 1, False, "quiz-id"))
+
+        self.assertIsNone(generated_item["topic_area"])
+        self.assertEqual(generated_item["topic_area_for_storage"], "Unspecified Topic")
+        inserted = cursor.executemany.call_args_list[0].args[1]
+        self.assertEqual(inserted[0][2], "Clinical Intervention")
+        self.assertEqual(inserted[0][3], "Unspecified Topic")
+
 
 if __name__ == "__main__":
     unittest.main()

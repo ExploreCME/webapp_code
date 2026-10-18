@@ -196,6 +196,24 @@ class BatchTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Generator labeled topic_area as 'Anemia of Chronic Disease'", output)
         self.assertIn("Generator labeled organ_system as 'Cardiovascular System'", output)
 
+    async def test_missing_document_topic_uses_prompt_fallback_but_stores_explicit_label(self):
+        item = {
+            **ITEM,
+            "task_area": "General Medical Knowledge",
+            "topic_area": None,
+            "topic_area_for_storage": engine.UNSPECIFIED_TOPIC_AREA,
+        }
+        generated = {"questions": [question(
+            task_area="Clinical Intervention", topic_area="General Medical Knowledge")]}
+        results, _, _ = await self.run_batch(
+            [generated], [verdict()] * 3 + [{"difficulty": 5}], num_needed=1, item=item)
+
+        self.assertIn("General Medical Knowledge", FakeManager([generated]).build_PANCE_batch_prompt(
+            item["organ_system"], engine.DEFAULT_TOPIC_AREA, item["task_area"], 1))
+        self.assertEqual(results[0]["task_area"], "Clinical Intervention")
+        self.assertIn(results[0]["task_area"], engine.TASK_AREAS)
+        self.assertEqual(results[0]["topic_area"], engine.UNSPECIFIED_TOPIC_AREA)
+
     async def test_formatting_only_label_differences_are_not_logged(self):
         generated = {"questions": [question(organ_system="hematologic", task_area="clinical intervention")]}
         results, _, output = await self.run_batch(
