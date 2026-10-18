@@ -577,13 +577,33 @@ def select_standardized_quiz():
 
 @quiz_bp.route('/standardized_quizzes/<path:category>')
 def select_standardized_versions(category):
-    versions = list_standardized_versions(get_db().cursor(), category)
+    cursor = get_db().cursor()
+    versions = list_standardized_versions(cursor, category)
     if category not in STANDARDIZED_QUIZZES and not versions:
         return "Standardized category not found.", 404
+    sample_questions = STANDARDIZED_QUIZZES.get(category, [])
+    sample_quiz_name = STANDARDIZED_PREFIX + category
+    question_counts = {version['quiz_name']: version['count'] for version in versions}
+    if sample_questions:
+        question_counts[sample_quiz_name] = len(sample_questions)
+    resumable_quizzes = set()
+    if question_counts:
+        placeholders = ','.join(['%s'] * len(question_counts))
+        cursor.execute(f'''
+            SELECT qa.quiz_name, COUNT(ar.id) AS answered
+            FROM quiz_attempts qa
+            LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
+            WHERE qa.username = %s AND qa.quiz_name IN ({placeholders})
+            GROUP BY qa.attempt_id, qa.quiz_name
+        ''', (session['username'], *question_counts))
+        resumable_quizzes = {
+            row['quiz_name'] for row in cursor.fetchall()
+            if row['answered'] < question_counts[row['quiz_name']]
+        }
     return render_template(
         'select_standardized_versions.html', category=category, versions=versions,
-        sample_questions=STANDARDIZED_QUIZZES.get(category, []),
-        sample_quiz_name=STANDARDIZED_PREFIX + category,
+        sample_questions=sample_questions, sample_quiz_name=sample_quiz_name,
+        resumable_quizzes=resumable_quizzes,
     )
 
 
@@ -1703,6 +1723,23 @@ def resume_quiz(quiz_name):
     conn = get_db()
     cursor = conn.cursor()
 
+    standardized_questions = get_standardized_questions(quiz_name)
+    if standardized_questions is not None:
+        cursor.execute('''
+            SELECT qa.attempt_id, qa.mode
+            FROM quiz_attempts qa
+            LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
+            WHERE qa.username = %s AND qa.quiz_name = %s
+            GROUP BY qa.attempt_id, qa.mode, qa.start_time
+            HAVING COUNT(ar.id) < %s
+            ORDER BY qa.start_time DESC LIMIT 1
+        ''', (session['username'], quiz_name, len(standardized_questions)))
+        attempt = cursor.fetchone()
+        if attempt:
+            return redirect(url_for('quiz.question_page', quiz_name=quiz_name,
+                                    attempt_id=attempt['attempt_id'], mode=attempt['mode']))
+        return redirect(url_for('quiz.quiz_mode', quiz_name=quiz_name))
+
     is_remediation = False
     cursor.execute("SELECT 1 FROM remediation_assignments WHERE TRIM(LOWER(remediation_name)) = TRIM(LOWER(%s))", (quiz_name,))
     if cursor.fetchone():
@@ -1731,6 +1768,7 @@ def quiz_attempts():
 
     conn = get_db()
     cursor = conn.cursor()
+    standardized_questions = get_standardized_questions(quiz_name)
     cursor.execute('''
         SELECT qa.attempt_id, qa.quiz_name, qa.mode, qa.start_time, COUNT(ar.id) as questions_answered, COALESCE(SUM(ar.is_correct), 0) as correct_answers
         FROM quiz_attempts qa LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
@@ -1743,6 +1781,8 @@ def quiz_attempts():
             attempt['start_time'] = str(attempt['start_time'])
         answered, correct = int(attempt.get('questions_answered') or 0), int(attempt.get('correct_answers') or 0)
         attempt['score_display'] = f"{round((correct / answered) * 100, 1)}% ({correct} Correct, {answered - correct} Incorrect)" if answered > 0 else "No answers recorded"
+        if standardized_questions is not None:
+            attempt['status'] = 'incomplete' if answered < len(standardized_questions) else 'completed'
         attempts.append(attempt)
 
     return render_template('quiz_attempts.html', quiz_name=quiz_name, attempts=attempts)

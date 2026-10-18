@@ -317,8 +317,10 @@ the tool's time limit; it is not reported as a completed final scan.
 
 Discover Standardized Quizzes from the student dashboard card, which links to
 `/select_standardized_quiz`; it is not listed in the global header/navigation.
-Each category opens a list of published versions with setup and attempt-history
-links. **Every signed-in account, including unpaid users and faculty, can take
+Each category opens a list of published versions with setup, attempt-history,
+and Resume Quiz links for unfinished attempts. Resume opens the latest unfinished
+attempt at its next unanswered question; setup and history also let students choose
+a specific unfinished attempt. **Every signed-in account, including unpaid users and faculty, can take
 these quizzes** without assignments or a subscription. Guests cannot access them.
 Setup, four modes, question screens, scoring, results, resume, and review reuse
 the existing quiz engine. Ordinary generated/assigned quizzes retain their existing
