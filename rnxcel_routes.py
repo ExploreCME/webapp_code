@@ -23,7 +23,28 @@ from rnxcel_storage import RNXcelConflict, RNXcelStore, RNXcelUnavailable
 rnxcel_bp = Blueprint("rnxcel", __name__, url_prefix="/rnxcel")
 
 
+def dev_bypass_enabled():
+    """Explicit opt-in for local debug/testing only; never normal runtime."""
+    flag = current_app.config.get("RNXCEL_DEV_BYPASS", os.getenv("RNXCEL_DEV_BYPASS"))
+    return (current_app.debug or current_app.testing) and flag in (True, "1")
+
+
+class _LayoutPreviewStore:
+    """Empty, read-only nursing views without connecting to provisioned storage."""
+
+    def published(self):
+        return []
+
+    def history(self, owner):
+        return []
+
+    def get(self, owner, attempt_id):
+        return None
+
+
 def store():
+    if dev_bypass_enabled():
+        return _LayoutPreviewStore()
     # Test fixtures cannot be enabled by an environment variable or public route.
     if current_app.testing and current_app.config.get("RNXCEL_TEST_STORE") is not None:
         return current_app.config["RNXCEL_TEST_STORE"]
@@ -83,6 +104,11 @@ def csrf():
 
 @rnxcel_bp.before_request
 def nursing_guard():
+    if dev_bypass_enabled():
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            abort(405)
+        g.rnxcel_owner = "dev-rnxcel"
+        return
     if request.endpoint in ("rnxcel.landing", "rnxcel.signin"):
         return
     if request.endpoint == "rnxcel.practice" and request.view_args["item_type"] not in {
