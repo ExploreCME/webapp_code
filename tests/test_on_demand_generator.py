@@ -86,6 +86,73 @@ class OnDemandGenerationTests(unittest.IsolatedAsyncioTestCase):
                 for field in ("organ_system", "task_area", "topic_area"):
                     self.assertEqual(result[field], self.questions[0][field])
 
+    def test_invalid_task_metadata_always_resolves_to_a_canonical_task(self):
+        invalid_tasks = (
+            None, "", " ", "str", "string", "none", " ANY ",
+            "General Medical Knowledge", "unknown category", "Professional Practice",
+        )
+        for requested in invalid_tasks:
+            for llm_task in invalid_tasks:
+                with self.subTest(requested=requested, llm_task=llm_task):
+                    question = {**self.questions[0], "task_area": llm_task}
+                    with patch.object(engine.random, "choice", return_value=TASK_AREAS[4]) as choice:
+                        result = engine._apply_requested_metadata(
+                            question, "any", requested, "any", "test")
+                    choice.assert_called_once_with(TASK_AREAS)
+                    self.assertIn(result["task_area"], TASK_AREAS)
+                    self.assertNotEqual(result["task_area"], "General Medical Knowledge")
+                    self.assertEqual(result["organ_system"], question["organ_system"])
+                    self.assertEqual(result["topic_area"], question["topic_area"])
+                    self.assertEqual(question["task_area"], llm_task)
+
+    def test_valid_requested_or_model_task_is_preserved_before_random_fallback(self):
+        for task in TASK_AREAS:
+            for requested, llm_task in (
+                (task, TASK_AREAS[0]), ("General Medical Knowledge", task),
+                ("any", task), (None, task),
+            ):
+                with self.subTest(requested=requested, llm_task=llm_task):
+                    with patch.object(engine.random, "choice") as choice:
+                        result = engine._apply_requested_metadata(
+                            {**self.questions[0], "task_area": llm_task},
+                            "hematologic", requested, None, "test")
+                    self.assertEqual(result["task_area"], task)
+                    self.assertEqual(result["organ_system"], "Hematologic System")
+                    choice.assert_not_called()
+        self.assertEqual(
+            engine._resolve_task_area("Using Laboratory and Diagnostic Studies"),
+            TASK_AREAS[1],
+        )
+
+    async def test_generic_and_placeholder_tasks_are_canonical_before_bank_insert(self):
+        self.requests[0]["task_area"] = "General Medical Knowledge"
+        self.requests[1]["task_area"] = "any"
+        self.manager.chat_completion = AsyncMock(side_effect=[
+            json.dumps({"questions": [{**question, "task_area": "General Medical Knowledge"}]})
+            for question in self.questions
+        ])
+
+        async def verify(manager, question, **kwargs):
+            return True, question
+
+        async def insert(sql, rows):
+            self.cursor.rowcount = len(rows)
+
+        self.cursor.executemany.side_effect = insert
+        with patch.object(engine, "Question_Verification", side_effect=verify):
+            await self.run_batch()
+
+        inserted = self.cursor.executemany.call_args_list[0].args[1]
+        self.assertEqual(len(inserted), 2)
+        for row in inserted:
+            self.assertIn(row[2], TASK_AREAS)
+            self.assertNotEqual(row[2], "General Medical Knowledge")
+        self.assertCountEqual(
+            [row[1] for row in inserted],
+            [item["organ_system"] for item in self.requests],
+        )
+        self.conn.commit.assert_awaited_once()
+
     async def test_duplicate_generation_cannot_reduce_quiz_count(self):
         async def generate(*args):
             return [dict(self.questions[0])]
