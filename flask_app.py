@@ -1111,7 +1111,7 @@ def build_quiz_batch():
         else:
             # If we run out of exact topic matches, send it to AI Generation!
             original_ta = (item.get('task_area') or '').strip()
-            gen_ta = standardize_task_area(original_ta) if (original_ta and original_ta.lower() != 'any') else random.choice(TASK_AREAS)
+            gen_ta = standardize_task_area(original_ta) if (original_ta and original_ta.lower() != 'any') else 'any'
             original_organ = (item.get('organ_system') or '').strip()
             gen_organ = normalize_organ(original_organ) if (original_organ and original_organ.lower() != 'any') else 'any'
 

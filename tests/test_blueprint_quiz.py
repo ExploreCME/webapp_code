@@ -190,12 +190,14 @@ class BlueprintQuizTests(unittest.TestCase):
         self.assertFalse(any("FROM question_bank" in call.args[0]
                              for call in self.cursor.execute.call_args_list))
 
-    def test_generation_fallback_uses_canonical_tasks_and_wildcard_topic(self):
-        for fallback in TASK_AREAS:
-            with self.subTest(fallback=fallback), \
-                    patch.object(flask_app.random, "choice", return_value=fallback):
-                _, _, tasks = self.batch([self.item(task="any", topic=None)], [])
-                self.assertEqual(tasks[0]["generation_requests"], [self.item(task=fallback)])
+    def test_generation_fallback_preserves_wildcard_organ_task_and_topic(self):
+        _, _, tasks = self.batch(
+            [self.item(organ="any", task="any", topic=None)], [],
+        )
+        self.assertEqual(
+            tasks[0]["generation_requests"],
+            [self.item(organ="any", task="any", topic="any")],
+        )
 
     def test_empty_blueprint_neither_reads_bank_nor_queues_generation(self):
         result, selected, tasks = self.batch([], [])

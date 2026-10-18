@@ -58,6 +58,14 @@ def verdict(answer="B", confidence=9):
 
 
 class ParsingTests(unittest.TestCase):
+    def test_wildcard_generation_prompt_requests_question_specific_categories(self):
+        manager = engine.ConversationManager.__new__(engine.ConversationManager)
+        prompt = manager.build_PANCE_batch_prompt("any", "any", "any", 1)
+        self.assertIn("Infer the best-matching allowed organ system", prompt)
+        self.assertIn("Infer the best-matching allowed task area", prompt)
+        self.assertIn('"organ_system": "string"', prompt)
+        self.assertIn('"task_area": "string"', prompt)
+
     def test_extract_correct_letter_does_not_default_to_a(self):
         q_data = question()
         self.assertIsNone(engine.extract_correct_letter("", q_data))
@@ -195,6 +203,16 @@ class BatchTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats, {})
         self.assertIn("Generator labeled topic_area as 'Anemia of Chronic Disease'", output)
         self.assertIn("Generator labeled organ_system as 'Cardiovascular System'", output)
+
+    async def test_wildcard_metadata_uses_generated_question_categories(self):
+        results, _, _ = await self.run_batch(
+            [{"questions": [question()]}],
+            [verdict()] * 3 + [{"difficulty": 5}],
+            num_needed=1,
+            item={"organ_system": "any", "task_area": "any", "topic_area": "any"},
+        )
+        self.assertEqual(results[0]["organ_system"], ITEM["organ_system"])
+        self.assertEqual(results[0]["task_area"], ITEM["task_area"])
 
     async def test_formatting_only_label_differences_are_not_logged(self):
         generated = {"questions": [question(organ_system="hematologic", task_area="clinical intervention")]}

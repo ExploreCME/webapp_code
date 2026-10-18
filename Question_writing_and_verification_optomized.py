@@ -46,12 +46,22 @@ class ConversationManager:
 
     def build_PANCE_batch_prompt(self, organ_system, topic_area, task_area, num_questions, summary=None):
         summary_instruction = f"\n- **CONTEXT**: Ensure the medical facts align with this study summary:\n{summary}\n" if summary else ""
+        organ_target = (
+            "Infer the best-matching allowed organ system from each question's content; do not output 'any'."
+            if _is_unspecified_category(organ_system) else organ_system
+        )
+        task_target = (
+            "Infer the best-matching allowed task area from each question; do not output 'any'."
+            if _is_unspecified_category(task_area) else task_area
+        )
+        organ_output = "string" if _is_unspecified_category(organ_system) else organ_system
+        task_output = "string" if _is_unspecified_category(task_area) else task_area
 
         return f"""You are an experienced professor in a Physician Assistant program.
 Create EXACTLY {num_questions} distinct PANCE style exam questions.
-Organ System: {organ_system}
+Organ System: {organ_target}
 Target Diagnosis/Topic: {topic_area}
-Task Area: {task_area}
+Task Area: {task_target}
 {summary_instruction}
 
 Follow these strict rules to ensure MAXIMUM VARIETY across the {num_questions} questions:
@@ -71,8 +81,8 @@ Output your response as valid JSON with this exact structure:
 {{
   "questions": [
     {{
-      "organ_system": "{organ_system}",
-      "task_area": "{task_area}",
+      "organ_system": "{organ_output}",
+      "task_area": "{task_output}",
       "topic_area": "{topic_area}",
       "question_stem": "string",
       "answer_choice_A": "string",
@@ -220,6 +230,9 @@ def _snippet(text, limit=200):
 
 def _is_placeholder(value):
     return not value or str(value).strip().lower() in _PLACEHOLDER_VALUES
+
+def _is_unspecified_category(value):
+    return _is_placeholder(value) or str(value).strip().lower() == "any"
 
 def standardize_categories(raw_organ, raw_task):
     return standardize_organ_system(raw_organ), standardize_task_area(raw_task)
@@ -405,8 +418,10 @@ def _apply_requested_metadata(q_data, organ_system, task_area, topic_area, label
     """Return a copy whose organ/task/topic come from the request (LLM labels are fallbacks only)."""
     q_data = dict(q_data)
     llm_organ, llm_task, llm_topic = (q_data.get(key) for key in ("organ_system", "task_area", "topic_area"))
-    raw_organ = organ_system if not _is_placeholder(organ_system) else (None if _is_placeholder(llm_organ) else llm_organ)
-    raw_task = task_area if not _is_placeholder(task_area) else (None if _is_placeholder(llm_task) else llm_task)
+    raw_organ = organ_system if not _is_unspecified_category(organ_system) else (
+        None if _is_unspecified_category(llm_organ) else llm_organ)
+    raw_task = task_area if not _is_unspecified_category(task_area) else (
+        None if _is_unspecified_category(llm_task) else llm_task)
     final_organ, final_task = standardize_categories(raw_organ, raw_task)
 
     if not _is_placeholder(topic_area):
