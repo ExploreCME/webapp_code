@@ -3,6 +3,7 @@
 from hashlib import sha256
 from html.parser import HTMLParser
 from pathlib import Path
+import re
 import unittest
 from urllib.parse import urlencode
 
@@ -31,6 +32,13 @@ def environment():
         "/" + endpoint.replace(".", "/") + "?" + urlencode(sorted(values.items()))
     )
     return env
+
+
+# PAXcel-only sidebar question-map scroll script added after the original snapshots.
+MAP_SCROLL_SCRIPT = re.compile(
+    r"\r?\n\r?\n        // 4\. Keep the current question visible.*?\r?\n        \}(?=\r?\n    \}\);)",
+    re.S,
+)
 
 
 def paxcel_context(**changes):
@@ -129,7 +137,43 @@ class SharedPlayerPresentationTests(unittest.TestCase):
         for scenario, digest in zip(PAXCEL_SCENARIOS, expected):
             with self.subTest(scenario=scenario):
                 html = environment().get_template("index.html").render(paxcel_context(**scenario))
+                html, removed = MAP_SCROLL_SCRIPT.subn("", html)
+                self.assertEqual(removed, 1)
                 self.assertEqual(sha256(html.encode()).hexdigest(), digest)
+
+    def test_paxcel_long_quiz_map_keeps_current_question_visible(self):
+        grid = [
+            dict(status="answered" if number < 99 else "unanswered", is_current=number == 99,
+                 question_id=number, question_number=number)
+            for number in range(1, 121)
+        ]
+        html = environment().get_template("index.html").render(paxcel_context(
+            grid_data=grid, current_question_number=99, total_questions=120,
+        ))
+        tiles = [attrs for attrs in Elements(html).named("a") if "grid-item" in attrs.get("class", "")]
+        self.assertEqual(len(tiles), 120)
+        self.assertEqual([t["title"] for t in tiles], [f"Question {n}" for n in range(1, 121)])
+        current = [t for t in tiles if "grid-current" in t["class"].split()]
+        self.assertEqual([t["title"] for t in current], ["Question 99"])
+        script = MAP_SCROLL_SCRIPT.search(html).group(0)
+        # Only the sidebar map scrolls, and only enough to reveal the current tile.
+        self.assertIn("document.querySelector('.quiz-sidebar')", script)
+        self.assertIn("sidebar.querySelector('.grid-current')", script)
+        self.assertIn("sidebar.clientHeight > 0", script)
+        self.assertIn("sidebar.scrollTop -=", script)
+        self.assertIn("sidebar.scrollTop +=", script)
+        self.assertNotIn("scrollIntoView", script)
+        self.assertNotIn("window.scroll", script)
+        self.assertNotIn("question-pane", script)
+        # Manual map scrolling is restored per quiz attempt before revealing the tile.
+        self.assertIn("'quizMapScroll:' + \"Fixture|attempt-1\"", script)
+        self.assertLess(script.index("sessionStorage.getItem"), script.index(".grid-current"))
+        self.assertIn("sessionStorage.setItem", script)
+
+    def test_nursing_map_has_no_paxcel_scroll_script(self):
+        html = self.nursing()
+        self.assertIsNone(MAP_SCROLL_SCRIPT.search(html))
+        self.assertNotIn("quizMapScroll", html)
 
     def test_paxcel_answer_autoescape_and_trusted_markup_are_preserved(self):
         html = environment().get_template("index.html").render(
