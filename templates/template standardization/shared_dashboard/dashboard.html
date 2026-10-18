@@ -178,21 +178,21 @@
         </div>
 
         <div class="student-grid">
-            <!-- 1. My Statistics -->
-            {{ tile(url_for('stats.my_statistics'), 'card-stats', '📈', 'My Statistics', 'Review your performance history, highest scores, and subject mastery.') }}
+            <!-- 1. Quiz Generation Menu -->
+            {{ tile(url_for('quiz.menu'), 'card-generate', '⚡', 'Generate Quiz', 'Create custom practice quizzes from your study documents or blueprint topics.') }}
 
             <!-- 2. Select Assessment -->
             {{ tile(url_for('quiz.select_quiz'), 'card-select', '📝', 'Select Assessment', 'View and take quizzes or remediations assigned to you by faculty or from your past generations.') }}
 
             {{ tile(url_for('quiz.select_standardized_quiz'), 'card-select', '📚', 'Standardized Assessment', 'Explore assessments in seven standardized clinical categories.') }}
 
-            {{ tile(url_for('student_reports.reports'), 'card-stats', '📊', 'Reports', 'Review your overall usage and compare standardized assessment performance.') }}
-
-            <!-- 3. Quiz Generation Menu -->
-            {{ tile(url_for('quiz.menu'), 'card-generate', '⚡', 'Generate Quiz', 'Create custom practice quizzes from your study documents or blueprint topics.') }}
-
             <!-- 4. Flashcards -->
             {{ tile(url_for('quiz.flashcards_select_organ'), 'card-flashcards', '🗂️', 'Flashcards', 'Review high-yield flashcards categorized by targeted organ systems.') }}
+
+            <!-- 5. My Statistics -->
+            {{ tile(url_for('stats.my_statistics'), 'card-stats', '📈', 'My Statistics', 'Review your performance history, highest scores, and subject mastery.') }}
+
+            {{ tile(url_for('student_reports.reports'), 'card-stats', '📊', 'Reports', 'Review your overall usage and compare standardized assessment performance.') }}
         </div>
         {% endif %}
     </div>
