@@ -55,7 +55,7 @@ def safe_return(value):
     allowed = {
         "rnxcel.landing", "rnxcel.dashboard", "rnxcel.setup", "rnxcel.practice",
         "rnxcel.library", "rnxcel.attempts", "rnxcel.play", "rnxcel.results",
-        "rnxcel.review_attempt", "rnxcel.progress",
+        "rnxcel.review_attempt", "rnxcel.progress", "rnxcel.bank",
     }
     if endpoint not in allowed:
         return url_for("rnxcel.dashboard")
@@ -113,6 +113,8 @@ def nursing_guard():
             or not secrets.compare_digest(state["token"], supplied)
         ):
             abort(400, description="Invalid nursing form token. Reload the page and try again.")
+    if not store().has_entitlement(owner):
+        return page("rnxcel_access.html"), 403
     if request.endpoint != "rnxcel.consent" and not store().has_consent(owner):
         return redirect(url_for("rnxcel.consent", next=safe_return(request.full_path.rstrip("?"))))
 
@@ -289,6 +291,18 @@ def library():
         for version in store().published() if version["type"] == "unfolding-case-study"
     ]
     return page("rnxcel_library.html", cases=cases)
+
+
+@rnxcel_bp.route("/bank")
+def bank():
+    versions = store().published()
+    counts = {
+        category.id: item_count(eligible_versions(
+            versions, validate_filters({"category": category.id}),
+        ))
+        for category in RNXCEL_CATEGORIES
+    }
+    return page("rnxcel_bank.html", counts=counts, available=item_count(versions))
 
 
 @rnxcel_bp.route("/attempts")

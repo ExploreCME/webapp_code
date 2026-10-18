@@ -29,6 +29,16 @@ class RNXcelRouteTests(unittest.TestCase):
             self.addCleanup(patcher.stop)
         self.paths = ["/rnxcel", "/rnxcel/"]
 
+    def test_rnxcel_selection_and_legacy_link_open_the_nursing_landing(self):
+        home = self.client.get("/")
+        self.assertEqual(home.status_code, 200)
+        self.assertIn('href="/rnxcel/"', home.text)
+        for path in ("/rnxcel/", "/coming-soon/rnxcel"):
+            response = self.client.get(path, follow_redirects=True)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("Nursing practice, with purpose.", response.text)
+            self.assertEqual(response.request.path.rstrip("/"), "/rnxcel")
+
     def test_public_landing_describes_nursing_without_paxcel_dependencies(self):
         for path in self.paths:
             with self.subTest(path=path):

@@ -5,7 +5,7 @@
 {% call(panel) dashboard() %}
 {% if panel == 'main' %}
 <div class="dashboard-header">
-    <h2>Your nursing dashboard</h2>
+    <h1>RNXcel student dashboard</h1>
     <p>Practice questions, explore unfolding cases, and review your saved nursing progress.</p>
 </div>
 <div class="student-grid">
@@ -13,6 +13,18 @@
     {{ tile(url_for('rnxcel.library'), 'card-generate', '📚', 'Unfolding Case Studies', 'Work through nursing cases with six scored stages and evolving exhibits.') }}
     {{ tile(url_for('rnxcel.attempts'), 'card-select', '🗂️', 'Attempt History', 'Resume saved sessions or review results from completed nursing attempts.') }}
     {{ tile(url_for('rnxcel.progress'), 'card-stats', '📈', 'My Progress', 'Review your recorded nursing performance without pass predictions.') }}
+    {{ tile(url_for('rnxcel.bank'), 'card-select', '📚', 'NCLEX-RN Category Bank', 'Browse nursing client-needs categories and choose focused practice objectives.') }}
+    {{ tile(url_for('rnxcel.progress'), 'card-stats', '📊', 'Reports', 'Review completed NCLEX-RN practice points by category, objective, response format, and clinical judgment.') }}
+    <div class="student-card card-select" aria-disabled="true">
+        <div class="card-icon" aria-hidden="true">📝</div>
+        <div class="card-title">Standardized Assessments</div>
+        <p class="card-desc">Unavailable: standardized NCLEX-RN assessments and faculty assignments are not implemented.</p>
+    </div>
+    <div class="student-card card-flashcards" aria-disabled="true">
+        <div class="card-icon" aria-hidden="true">🗂️</div>
+        <div class="card-title">Flashcards</div>
+        <p class="card-desc">Unavailable: an RNXcel nursing flashcard bank is not implemented.</p>
+    </div>
 </div>
 {% if available == 0 %}<p class="rn-notice" role="status">No available content yet. No nursing questions or case studies are currently published.</p>{% endif %}
 {% else %}

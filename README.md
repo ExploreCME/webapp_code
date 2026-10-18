@@ -68,9 +68,25 @@ Signed-in nursing journeys remain under `/rnxcel`: `/dashboard`, `/practice`
 using the existing verifier, independently of PAXcel session identity.
 Nursing consent is stored separately and uses the shared ExploreCME terms.
 Owner-bound nursing CSRF tokens protect mutations; answer/results/review
-queries are owner-scoped. No nursing subscription or payment flow is implemented.
-**PAXcel `has_paid` is not a nursing entitlement.** All verified users who accept
-the terms can use nursing practice when reviewed content becomes available.
+queries are owner-scoped. **Auto-redirect to the dashboard is intentionally not
+added**: selecting RNXcel always opens its branded public landing, including for
+signed-in purchasers. Its explicit student-dashboard CTA enters the protected flow.
+
+Dashboard and all nursing practice/report/bank routes require verified sign-in,
+an active, unexpired owner-specific row in `rnxcel_entitlements`, and nursing consent.
+**PAXcel `has_paid` is not a nursing entitlement.** Entitlements are checked on every
+protected request, not cached in the session; missing, revoked or expired grants
+show nursing access guidance (403), and unavailable entitlement storage fails
+closed (503). The landing and sign-in remain public. There is no nursing checkout
+or automatic payment provisioning in this app.
+
+The nursing dashboard uses the same action-card/main/sidebar presentation as the
+PAXcel student dashboard. It links to practice setup (custom session building),
+case studies, saved assessments/attempts, progress/statistics, reports and
+`/rnxcel/bank`. Standardized assessments/faculty assignments and flashcards are
+explicitly unavailable, not links into PA tools. The category bank derives all
+eight labels/IDs from `rnxcel_catalog.py`, counts only eligible published nursing
+items (including indivisible six-stage cases), and links to category-filtered setup.
 
 ### Shared presentation, separate products
 
@@ -192,12 +208,21 @@ required by this PR. Do not deploy without operator approval.
    **before enabling nursing practice**. It creates only `rnxcel_item_versions`,
    `rnxcel_attempts` and `rnxcel_consents`, with no seeded rows, PA updates,
    triggers on PA tables, or runtime DDL.
+   Then apply `migrations/20261018_add_rnxcel_entitlements.sql`. It creates only
+   the separate entitlement table, with no default access grants. Through a
+   restricted operator process, after verifying an RNXcel purchase, insert/update
+   the purchaser's exact verified Clerk subject as `owner_id`, `is_active = 1`,
+   and `expires_at` as a UTC expiry (NULL only for non-expiring access). Set
+   `is_active = 0` for refunds/revocation. Never derive grants from PA payment flags
+   or client/session input; the app exposes no entitlement-write endpoint.
 3. Use the existing `MYSQL_*` pool/TLS configuration and `CLERK_*` issuer,
    JWKS and publishable key settings. Confirm a strong `FLASK_SECRET_KEY` and
    HTTPS secure session cookies. The web runtime needs nursing SELECT/INSERT/
    UPDATE rights, not CREATE/DROP. Protect authored JSON/private snapshots and
    backups as answer-key-bearing data.
-4. Smoke-test landing, verified sign-in, nursing consent, zero-count setup,
+4. Smoke-test landing (no dashboard redirect), verified sign-in, denied access
+   without a grant, an explicitly provisioned nursing purchase, consent, category
+   bank, zero-count setup,
    history and progress. With no published content, starts must remain disabled.
    No AI jobs, payment calls or clinical fixtures should be introduced.
 5. Later, an authorized editorial process must validate and review each version,
@@ -218,7 +243,8 @@ idempotent, and conflicting retries cannot double-grade an item.
 
 Rollback: revert the application release first. Leave nursing tables intact to
 preserve history; PAXcel code never queries them. If explicitly decommissioning
-RNXcel, export nursing data and then drop only the three `rnxcel_*` tables.
+RNXcel, export nursing data and then drop only the four `rnxcel_*` tables,
+including `rnxcel_entitlements`.
 Never truncate, rename, or rewrite PA banks, attempts, counters or user records.
 No migration down-step touches PAXcel data.
 

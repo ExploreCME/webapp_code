@@ -33,6 +33,9 @@ def authored(version_id="version-1", sata=False):
 
 
 SCHEMA = """
+CREATE TABLE rnxcel_entitlements (
+    owner_id TEXT PRIMARY KEY, is_active INTEGER NOT NULL DEFAULT 0, expires_at TEXT
+);
 CREATE TABLE rnxcel_consents (
     owner_id TEXT PRIMARY KEY, accepted_at TEXT NOT NULL
 );
@@ -83,6 +86,53 @@ class StorageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.create("alice", [])
         self.assertEqual(self.store.history("alice"), [])
+
+    def test_entitlement_is_active_unexpired_owner_specific_and_parameterized(self):
+        self.assertFalse(self.store.has_entitlement("alice"))
+        self.keeper.executemany(
+            "INSERT INTO rnxcel_entitlements VALUES (?, ?, ?)",
+            [
+                ("alice", 1, None), ("inactive", 0, None),
+                ("expired", 1, "2000-01-01T00:00:00"),
+                ("future", 1, "2999-01-01T00:00:00"),
+                ("' OR 1=1 --", 1, None),
+            ],
+        )
+        self.keeper.commit()
+        for owner in ("alice", "future", "' OR 1=1 --"):
+            self.assertTrue(self.store.has_entitlement(owner))
+        for owner in ("Alice", "bob", "inactive", "expired", "' OR 1=1 -- "):
+            if owner.endswith(" "):
+                with self.assertRaises(ValueError):
+                    self.store.has_entitlement(owner)
+            else:
+                self.assertFalse(self.store.has_entitlement(owner))
+        self.keeper.execute("UPDATE rnxcel_entitlements SET is_active = 0 WHERE owner_id = 'alice'")
+        self.keeper.commit()
+        self.assertFalse(self.store.has_entitlement("alice"))
+
+    def test_missing_entitlement_migration_fails_closed(self):
+        self.keeper.execute("DROP TABLE rnxcel_entitlements")
+        self.keeper.commit()
+        with self.assertLogs(storage.logger, level="ERROR"), self.assertRaises(
+            storage.RNXcelUnavailable
+        ) as caught:
+            self.store.has_entitlement("alice")
+        self.assertEqual(caught.exception.reason, "missing_migration")
+
+    def test_mysql_entitlement_query_is_bound_and_connection_is_released(self):
+        connection = MagicMock()
+        mysql = storage.RNXcelStore(lambda: connection)
+        with patch.object(mysql, "_query", return_value={"owner_id": "alice"}) as query:
+            self.assertTrue(mysql.has_entitlement("alice"))
+        sql = query.call_args.args[1]
+        owner, now = query.call_args.args[2]
+        self.assertEqual(owner, "alice")
+        self.assertIsNone(now.tzinfo)
+        self.assertIn("owner_id = %s AND is_active = 1", sql)
+        self.assertIn("expires_at > %s", sql)
+        self.assertNotIn("users", sql)
+        connection.close.assert_called_once_with()
 
     def test_nursing_consent_is_owner_isolated_and_idempotent(self):
         self.assertFalse(self.store.has_consent("alice"))

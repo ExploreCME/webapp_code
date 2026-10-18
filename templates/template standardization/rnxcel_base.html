@@ -33,6 +33,9 @@
     .rnxcel .rn-footer { border-top: 1px solid #e2e8f0; margin-top: 36px; padding-top: 20px; font-size: .875rem; color: #526174; }
     .rnxcel :focus-visible { outline: 3px solid #008080; outline-offset: 4px; }
     .rnxcel .btn:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+    .rnxcel .dashboard-header h1 { color: #2c3e50; font-size: 32px; font-weight: 700; margin-bottom: 10px; }
+    .rnxcel .student-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+    .rnxcel .student-card[aria-disabled="true"] { box-shadow: none; transform: none; border-color: #eaeded; }
     @media (max-width: 600px) {
         .rnxcel .rn-card { padding: 20px; }
     }
@@ -44,6 +47,7 @@
 {% block navbar_links %}
     <a href="{{ url_for('rnxcel.dashboard') }}">Dashboard</a>
     <a href="{{ url_for('rnxcel.setup') }}">Practice Questions</a>
+    <a href="{{ url_for('rnxcel.bank') }}">Category Bank</a>
     <a href="{{ url_for('rnxcel.library') }}">Unfolding Case Studies</a>
     <a href="{{ url_for('rnxcel.attempts') }}">Attempt History</a>
     <a href="{{ url_for('rnxcel.progress') }}">My Progress</a>

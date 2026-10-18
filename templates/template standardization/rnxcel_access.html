@@ -1,0 +1,11 @@
+{% extends "rnxcel_base.html" %}
+{% block title %}RNXcel access required{% endblock %}
+{% block nursing_content %}
+<section class="rn-card" aria-labelledby="access-title">
+    <h1 id="access-title">RNXcel access required</h1>
+    <p>You are signed in, but an active RNXcel purchase or entitlement is required to open the nursing student dashboard and NCLEX-RN practice.</p>
+    <p>If you have purchased RNXcel, use the same account used for your purchase. Contact ExploreCME support if your nursing access is missing or has expired.</p>
+    <p>Purchases are not available on this page. No payment has been taken.</p>
+    <a class="btn btn-primary" href="{{ url_for('rnxcel.landing') }}">Back to RNXcel</a>
+</section>
+{% endblock %}
