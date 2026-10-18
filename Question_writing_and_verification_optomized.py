@@ -154,7 +154,7 @@ DIFFICULTY_ATTEMPTS = 2
 DEFAULT_TOPIC_AREA = "General Medical Knowledge"
 # Stats key for retries; keys starting with "retried_" are diagnostics, not discard reasons.
 RETRIED_VERIFIER_RESPONSES = "retried_verifier_responses"
-_PLACEHOLDER_VALUES = ("str", "string")
+_PLACEHOLDER_VALUES = ("", "str", "string", "none", "any")
 _SCORE_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*(%|/\s*100|/\s*10)?")
 
 def clean_json_response(response_text):
