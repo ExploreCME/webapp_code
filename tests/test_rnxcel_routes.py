@@ -17,6 +17,7 @@ with patch("os.makedirs"):
     import display_database
 
 from rnxcel_engine import EXAM_PROFILE, TAG_DIMENSIONS, validate_version
+from rnxcel_catalog import RNXCEL_CATEGORIES
 from rnxcel_storage import RNXcelStore
 
 
@@ -35,6 +36,9 @@ CREATE TABLE rnxcel_attempts (
 );
 CREATE TABLE rnxcel_consents (
     owner_id TEXT PRIMARY KEY, accepted_at TEXT NOT NULL
+);
+CREATE TABLE rnxcel_entitlements (
+    owner_id TEXT PRIMARY KEY, is_active INTEGER NOT NULL DEFAULT 0, expires_at TEXT
 );
 """
 
@@ -170,9 +174,15 @@ class RNXcelEndToEndTests(unittest.TestCase):
             raise ValueError("Invalid signed token")
         return {"sub": token.removeprefix("signed-"), "exp": 9999999999, "iat": 1}
 
-    def login(self, owner="owner-a", consent=True, client=None):
+    def login(self, owner="owner-a", consent=True, client=None, entitled=True):
         client = client or self.client
         client.set_cookie("__session", f"signed-{owner}")
+        if entitled:
+            with self.database() as connection:
+                connection.execute(
+                    "INSERT OR REPLACE INTO rnxcel_entitlements (owner_id, is_active) VALUES (?, 1)",
+                    (owner,),
+                )
         if consent:
             with self.app.app_context():
                 self.store.accept_consent(owner)
@@ -253,6 +263,136 @@ class RNXcelEndToEndTests(unittest.TestCase):
                 " from quiz_results", " from pa_", " into pa_",
             ):
                 self.assertNotIn(forbidden, normalized)
+
+    def test_selection_and_eligible_return_visits_keep_landing_before_dashboard(self):
+        for path in ("/rnxcel", "/rnxcel/"):
+            landing = self.client.get(path)
+            self.assertEqual(landing.status_code, 200)
+            self.assertNotIn("Location", landing.headers)
+            self.assertEqual(self.templates[-1][0], "rnxcel.html")
+            self.assertIn("images/rnxcel_logo.png", landing.text)
+            self.assertIn("Open RNXcel student dashboard", landing.text)
+            self.assertIn("/rnxcel/dashboard", NursingForms(landing.text).links)
+        dashboard = self.client.get("/rnxcel/dashboard")
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertEqual(self.templates[-1][0], "rnxcel_dashboard.html")
+
+    def test_unentitled_users_cannot_bypass_access_with_pa_or_nursing_session_flags(self):
+        with self.database() as connection:
+            connection.execute("DELETE FROM rnxcel_entitlements")
+        with self.client.session_transaction() as session:
+            session.update(
+                username="owner-a", is_premium=True, is_faculty=True,
+                has_paid=True, rnxcel_entitled=True, accepted_eula=True,
+            )
+        for path in (
+            "/rnxcel/dashboard", "/rnxcel/practice", "/rnxcel/bank",
+            "/rnxcel/cases", "/rnxcel/attempts", "/rnxcel/progress", "/rnxcel/consent",
+        ):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 403)
+                self.assertIn("RNXcel access required", response.text)
+                self.assertNotIn("PA student", response.text)
+                self.assertNotIn("create-checkout-session", response.text)
+        self.assertFalse(any(
+            "FROM rnxcel_item_versions" in query or "FROM rnxcel_attempts" in query
+            for query in self.queries
+        ))
+        self.assertEqual(self.client.get("/rnxcel").status_code, 200)
+        self.assertEqual(self.client.get("/rnxcel/sign-in").status_code, 200)
+
+    def test_entitlement_is_owner_scoped_and_revocation_blocks_reads_and_writes(self):
+        self.publish(authored_item("revocation-test"))
+        path = self.start()
+        token = self.csrf()
+        self.login("owner-b", entitled=False)
+        self.assertEqual(self.client.get("/rnxcel/dashboard").status_code, 403)
+        self.login()
+        token = self.csrf()
+        with self.database() as connection:
+            connection.execute("UPDATE rnxcel_entitlements SET is_active = 0")
+        for suffix in ("", "/results", "/review"):
+            self.assertEqual(self.client.get(path + suffix).status_code, 403)
+        self.assertEqual(self.answer(path, 0, ["tile-a"], token=token).status_code, 403)
+        self.assertEqual(self.client.post("/rnxcel/attempts", data={
+            "csrf_token": token, "count": "1",
+        }).status_code, 403)
+        self.assertEqual(self.saved(path)["current_index"], 0)
+        self.assertEqual(self.client.get("/rnxcel").status_code, 200)
+
+    def test_expired_entitlement_and_missing_migration_fail_closed(self):
+        with self.database() as connection:
+            connection.execute(
+                "UPDATE rnxcel_entitlements SET expires_at = '2000-01-01T00:00:00'"
+            )
+        self.assertEqual(self.client.get("/rnxcel/dashboard").status_code, 403)
+        with self.database() as connection:
+            connection.execute("DROP TABLE rnxcel_entitlements")
+        with self.assertLogs(level="WARNING"):
+            response = self.client.get("/rnxcel/dashboard")
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("unavailable", response.text)
+        self.assertEqual(self.client.get("/rnxcel").status_code, 200)
+
+    def test_dashboard_options_and_category_bank_have_only_nursing_routes(self):
+        self.publish(authored_item("bank-single"), authored_case())
+        dashboard = self.client.get("/rnxcel/dashboard")
+        self.assertEqual(dashboard.status_code, 200)
+        for title in (
+            "Practice Questions", "Unfolding Case Studies", "Attempt History",
+            "My Progress", "Reports", "NCLEX-RN Category Bank", "Flashcards",
+            "Standardized Assessments",
+        ):
+            self.assertIn(f'class="card-title">{title}</div>', dashboard.text)
+        self.assertEqual(dashboard.text.count('<div class="student-card card-'), 2)
+        self.assertIn("not implemented", dashboard.text)
+        for link in NursingForms(dashboard.text).links:
+            if link.startswith("/"):
+                self.assertTrue(link == "/" or link.startswith(("/rnxcel", "/static")), link)
+        bank = self.client.get("/rnxcel/bank")
+        self.assertEqual(bank.status_code, 200)
+        self.assertEqual(self.context()["counts"], {
+            category.id: 7 if category.id == "MOC" else 0
+            for category in RNXCEL_CATEGORIES
+        })
+        for category in RNXCEL_CATEGORIES:
+            self.assertIn(f"{category.id} · {category.label}", bank.text)
+            target = f"/rnxcel/practice?category={category.id}"
+            self.assertIn(target, NursingForms(bank.text).links)
+            setup = self.client.get(target)
+            self.assertEqual(setup.status_code, 200)
+            self.assertEqual(self.context()["filters"]["category"], category.id)
+        for forbidden in ("Cardiology", "Pulmonology", "PANCE", "organ_system"):
+            self.assertNotIn(forbidden, bank.text)
+            self.assertNotIn(forbidden, dashboard.text)
+
+    def test_empty_category_bank_preserves_categories_without_fake_content(self):
+        response = self.client.get("/rnxcel/bank")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.context()["available"], 0)
+        self.assertTrue(all(count == 0 for count in self.context()["counts"].values()))
+        self.assertIn("No nursing questions or case studies are currently published", response.text)
+        self.assertEqual(
+            len([link for link in NursingForms(response.text).links if "?category=" in link]), 8,
+        )
+
+    def test_bank_signin_and_consent_preserve_explicit_navigation(self):
+        self.client.delete_cookie("__session")
+        response = self.client.get("/rnxcel/bank")
+        self.assertEqual(urlsplit(response.location).path, "/rnxcel/sign-in")
+        self.assertEqual(parse_qs(urlsplit(response.location).query)["next"], ["/rnxcel/bank"])
+        self.client.get(response.location)
+        self.assertEqual(self.context()["return_to"], "/rnxcel/bank")
+        self.login("owner-b", consent=False)
+        response = self.client.get("/rnxcel/bank")
+        self.assertEqual(urlsplit(response.location).path, "/rnxcel/consent")
+        response = self.client.post("/rnxcel/consent", data={
+            "next": "/rnxcel/bank", "agree": "yes", "csrf_token": self.csrf(),
+        })
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.location, "/rnxcel/bank")
+        self.assertEqual(self.client.get(response.location).status_code, 200)
 
     def test_empty_content_is_successful_but_start_is_disabled_and_post_rejected(self):
         for experience in (
@@ -505,7 +645,7 @@ class RNXcelEndToEndTests(unittest.TestCase):
     def test_missing_or_invalid_verified_identity_cannot_use_pa_session_identity(self):
         protected = (
             "/rnxcel/dashboard", "/rnxcel/practice", "/rnxcel/cases",
-            "/rnxcel/attempts", "/rnxcel/progress", "/rnxcel/consent",
+            "/rnxcel/attempts", "/rnxcel/progress", "/rnxcel/consent", "/rnxcel/bank",
         )
         for token in (None, "bad-signature"):
             if token:

@@ -171,6 +171,13 @@ class SharedShellPresentationTests(unittest.TestCase):
             self.assertIn(logo, html)
             self.assertIn("Where Knowledge Evolves", html)
 
+    def test_nursing_card_grid_can_shrink_below_shared_desktop_minimum(self):
+        html = self.environment().get_template("rnxcel_dashboard.html").render(self.context())
+        self.assertIn(
+            ".rnxcel .student-grid { grid-template-columns: "
+            "repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }", html,
+        )
+
     def test_nursing_has_no_pa_scripts_entitlements_or_marketing(self):
         for template in ("rnxcel.html", "rnxcel_dashboard.html"):
             environment = self.environment()

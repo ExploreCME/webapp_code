@@ -5,9 +5,10 @@
 {% call hero(logo='images/rnxcel_logo.png', logo_alt='RNXcel logo', headline='Nursing practice, with purpose.', description='RNXcel supports NCLEX-RN preparation using the 2026 exam profile and 2026–2029 blueprint. Explore nursing-only objectives, choose a practice session, and return to your saved attempts.') %}
     <div style="margin-bottom: 40px;">
         <a class="btn btn-primary" href="{{ url_for('rnxcel.setup') }}">Set up practice</a>
-        <a class="btn btn-secondary" href="{{ url_for('rnxcel.dashboard') }}">Open dashboard</a>
+        <a class="btn btn-secondary" href="{{ url_for('rnxcel.dashboard') }}">Open RNXcel student dashboard</a>
     </div>
 {% endcall %}
+<p class="rn-notice">Already purchased RNXcel? Open your student dashboard using your purchase account. Sign-in and an active RNXcel entitlement are required; choosing RNXcel always keeps this landing page as your first screen.</p>
 {% if experience %}
 <section class="rn-card" aria-labelledby="experience-title">
     <h2 id="experience-title">{{ experience.label }}</h2>

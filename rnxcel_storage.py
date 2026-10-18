@@ -172,6 +172,17 @@ class RNXcelStore:
             raise ValueError("Invalid attempt ID") from exc
         return attempt_id
 
+    def has_entitlement(self, owner):
+        owner = self._owner(owner)
+        with self._connection() as connection:
+            return self._query(
+                connection,
+                "SELECT owner_id FROM rnxcel_entitlements "
+                "WHERE owner_id = %s AND is_active = 1 "
+                "AND (expires_at IS NULL OR expires_at > %s)",
+                (owner, datetime.now(timezone.utc).replace(tzinfo=None)), one=True,
+            ) is not None
+
     def has_consent(self, owner):
         owner = self._owner(owner)
         with self._connection() as connection:
