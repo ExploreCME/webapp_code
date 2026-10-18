@@ -205,11 +205,11 @@ class BatchTests(unittest.IsolatedAsyncioTestCase):
         }
         generated = {"questions": [question(
             task_area="Clinical Intervention", topic_area="General Medical Knowledge")]}
-        results, _, _ = await self.run_batch(
-            [generated], [verdict()] * 3 + [{"difficulty": 5}], num_needed=1, item=item)
+        generator = FakeManager([generated])
+        results = await engine.process_topic_batch(
+            item, 1, generator, FakeManager([verdict()] * 3 + [{"difficulty": 5}]))
 
-        self.assertIn("General Medical Knowledge", FakeManager([generated]).build_PANCE_batch_prompt(
-            item["organ_system"], engine.DEFAULT_TOPIC_AREA, item["task_area"], 1))
+        self.assertIn(engine.DEFAULT_TOPIC_AREA, generator.prompts[0])
         self.assertEqual(results[0]["task_area"], "Clinical Intervention")
         self.assertIn(results[0]["task_area"], engine.TASK_AREAS)
         self.assertEqual(results[0]["topic_area"], engine.UNSPECIFIED_TOPIC_AREA)

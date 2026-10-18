@@ -110,6 +110,10 @@ class DocumentGenerationTests(unittest.TestCase):
                 mapped = cursor.executemany.call_args_list[1].args[1]
                 self.assertEqual(len(inserted), 11)
                 self.assertEqual(len(mapped), 11)
+                self.assertEqual(
+                    {row[3] for row in inserted},
+                    {"Heart failure", "Asthma", "Diabetes", "Headache"},
+                )
                 if use_existing:
                     limits = [call.args[1][-1] for call in cursor.execute.call_args_list]
                     self.assertEqual(limits, [4, 4, 2, 1])
