@@ -505,6 +505,34 @@ class StandardizedQuizTests(unittest.TestCase):
         self.assertIn(first["question_stem"], page.text)
         self.assertIn("Question <strong>1</strong> of <strong>2</strong>", page.text)
 
+    def test_completed_standardized_missed_subset_is_reviewable_not_resumable(self):
+        first, second = self.publish_version()
+        started = self.start()
+        original_id = parse_qs(urlparse(started.location).query)["attempt_id"][0]
+        self.answer(original_id, choice="B", question=first["id"])
+        self.answer(original_id, question=second["id"])
+        missed = self.start("study_missed")
+        missed_id = parse_qs(urlparse(missed.location).query)["attempt_id"][0]
+        selection_path = "/standardized_quizzes/Emergency%20Medicine"
+        self.assertIn("Resume Quiz", self.client.get(selection_path).text)
+        setup = self.client.get("/quiz_mode", query_string={"quiz_name": self.quiz_name})
+        self.assertIn("0 / 1 completed", setup.text)
+        history = self.client.get("/quiz_attempts", query_string={"quiz_name": self.quiz_name})
+        resumed = self.resume_from_page(history, missed_id)
+        self.assertEqual(resumed.status_code, 302)
+        self.assertIn(first["question_stem"], self.client.get(resumed.location).text)
+        self.answer(missed_id, mode="study_missed", question=first["id"])
+        self.assertNotIn("Resume Quiz", self.client.get(selection_path).text)
+        self.assertNotIn("Resume Quiz", self.client.get(
+            "/quiz_mode", query_string={"quiz_name": self.quiz_name},
+        ).text)
+        history = self.client.get("/quiz_attempts", query_string={"quiz_name": self.quiz_name})
+        self.assertNotIn("Resume Attempt", history.text)
+        self.assertIn(f"/review_attempt?attempt_id={missed_id}", history.text)
+        with self.app.test_request_context():
+            resume_url = url_for("quiz.resume_quiz", quiz_name=self.quiz_name)
+        self.assertIn("/quiz_mode?", self.client.get(resume_url).location)
+
     def test_generated_quiz_resume_remains_unchanged(self):
         sample = STANDARDIZED_QUIZZES["Emergency Medicine"][0]
         questions = [dict(sample, id=f"generated-{i}", question_stem=f"Generated question {i}")

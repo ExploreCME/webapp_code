@@ -52,6 +52,26 @@ def get_standardized_questions(quiz_name):
         g.standardized_questions[quiz_name] = get_catalog_questions(quiz_name, get_db().cursor())
     return g.standardized_questions[quiz_name]
 
+def get_standardized_question_count(quiz_name, mode):
+    questions = get_standardized_questions(quiz_name)
+    if mode != 'study_missed':
+        return len(questions)
+    if not hasattr(g, 'standardized_missed_counts'):
+        g.standardized_missed_counts = {}
+    if quiz_name not in g.standardized_missed_counts:
+        cursor = get_db().cursor()
+        cursor.execute('''
+            SELECT DISTINCT ar.question_id
+            FROM attempt_responses ar
+            JOIN quiz_attempts qa ON ar.attempt_id = qa.attempt_id
+            WHERE qa.username = %s AND qa.quiz_name = %s AND ar.is_correct = 0
+        ''', (session['username'], quiz_name))
+        missed_ids = {row['question_id'] for row in cursor.fetchall()}
+        g.standardized_missed_counts[quiz_name] = sum(
+            question['id'] in missed_ids for question in questions
+        )
+    return g.standardized_missed_counts[quiz_name]
+
 def is_quiz_name_unique(cursor, username, quiz_name):
     """Checks if a quiz name is already in use by this user (including pending generation tasks)."""
     if quiz_name.strip().lower().startswith(STANDARDIZED_PREFIX.strip().lower()):
@@ -590,15 +610,18 @@ def select_standardized_versions(category):
     if question_counts:
         placeholders = ','.join(['%s'] * len(question_counts))
         cursor.execute(f'''
-            SELECT qa.quiz_name, COUNT(ar.id) AS answered
+            SELECT qa.quiz_name, qa.mode, COUNT(ar.id) AS answered
             FROM quiz_attempts qa
             LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
             WHERE qa.username = %s AND qa.quiz_name IN ({placeholders})
-            GROUP BY qa.attempt_id, qa.quiz_name
+            GROUP BY qa.attempt_id, qa.quiz_name, qa.mode
         ''', (session['username'], *question_counts))
         resumable_quizzes = {
             row['quiz_name'] for row in cursor.fetchall()
-            if row['answered'] < question_counts[row['quiz_name']]
+            if row['answered'] < (
+                get_standardized_question_count(row['quiz_name'], row['mode'])
+                if row['mode'] == 'study_missed' else question_counts[row['quiz_name']]
+            )
         }
     return render_template(
         'select_standardized_versions.html', category=category, versions=versions,
@@ -1529,8 +1552,12 @@ def quiz_mode():
     incomplete_attempts = []
     for att in all_attempts:
         answered_count = att['answered_count']
+        attempt_total = (
+            get_standardized_question_count(quiz_name, att['mode'])
+            if standardized_questions is not None else total_questions
+        )
 
-        if answered_count < total_questions:
+        if answered_count < attempt_total:
             # Safely format the date depending on if it's a datetime object or a string from MySQL
             st_str = att['start_time'].strftime('%b %d, %Y') if isinstance(att['start_time'], datetime) else str(att['start_time']).split(' ')[0]
 
@@ -1539,7 +1566,7 @@ def quiz_mode():
                 'mode': att['mode'],
                 'start_time': st_str,
                 'answered': answered_count,
-                'total': total_questions
+                'total': attempt_total
             })
 
     return render_template(
@@ -1726,15 +1753,17 @@ def resume_quiz(quiz_name):
     standardized_questions = get_standardized_questions(quiz_name)
     if standardized_questions is not None:
         cursor.execute('''
-            SELECT qa.attempt_id, qa.mode
+            SELECT qa.attempt_id, qa.mode, COUNT(ar.id) AS answered
             FROM quiz_attempts qa
             LEFT JOIN attempt_responses ar ON qa.attempt_id = ar.attempt_id
             WHERE qa.username = %s AND qa.quiz_name = %s
             GROUP BY qa.attempt_id, qa.mode, qa.start_time
-            HAVING COUNT(ar.id) < %s
-            ORDER BY qa.start_time DESC LIMIT 1
-        ''', (session['username'], quiz_name, len(standardized_questions)))
-        attempt = cursor.fetchone()
+            ORDER BY qa.start_time DESC
+        ''', (session['username'], quiz_name))
+        attempt = next((
+            row for row in cursor.fetchall()
+            if row['answered'] < get_standardized_question_count(quiz_name, row['mode'])
+        ), None)
         if attempt:
             return redirect(url_for('quiz.question_page', quiz_name=quiz_name,
                                     attempt_id=attempt['attempt_id'], mode=attempt['mode']))
@@ -1782,7 +1811,8 @@ def quiz_attempts():
         answered, correct = int(attempt.get('questions_answered') or 0), int(attempt.get('correct_answers') or 0)
         attempt['score_display'] = f"{round((correct / answered) * 100, 1)}% ({correct} Correct, {answered - correct} Incorrect)" if answered > 0 else "No answers recorded"
         if standardized_questions is not None:
-            attempt['status'] = 'incomplete' if answered < len(standardized_questions) else 'completed'
+            total_questions = get_standardized_question_count(quiz_name, attempt['mode'])
+            attempt['status'] = 'incomplete' if answered < total_questions else 'completed'
         attempts.append(attempt)
 
     return render_template('quiz_attempts.html', quiz_name=quiz_name, attempts=attempts)
