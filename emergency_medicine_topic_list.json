@@ -2,7 +2,7 @@
   "title": "Emergency Medicine End of Rotation Exam Topic List",
   "organization": "Physician Assistant Education Association (PAEA)",
   "organ_systems": {
-    "Cardiovascular": [
+    "Cardiovascular System": [
       "Acute/subacute bacterial endocarditis",
       "Angina",
       "Arrhythmias",
@@ -23,7 +23,7 @@
       "Valvular disease (aortic stenosis, aortic regurgitation, mitral stenosis, mitral regurgitation)",
       "Vascular disease (aortic aneurysm/dissection, arterial occlusion/thrombosis, phlebitis)"
     ],
-    "Orthopedics/Rheumatology": [
+    "Musculoskeletal System": [
       "Back strain/sprain",
       "Bursitis/tendonitis",
       "Cauda equina",
@@ -40,7 +40,7 @@
       "Sprains/strains",
       "Swelling/deformity"
     ],
-    "Gastrointestinal/Nutritional": [
+    "Gastrointestinal System/Nutrition": [
       "Abdominal pain",
       "Acute appendicitis",
       "Acute cholecystitis",
@@ -72,7 +72,7 @@
       "Obstruction (small bowel, large bowel, volvulus)",
       "Peptic ulcer disease"
     ],
-    "Pulmonology": [
+    "Pulmonary System": [
       "Acute bronchiolitis",
       "Acute bronchitis",
       "Acute epiglottitis",
@@ -94,12 +94,12 @@
       "Tuberculosis",
       "Wheezing"
     ],
-    "Neurology": [
+    "Neurologic System": [
       "Altered level of consciousness/coma",
       "Bell palsy",
       "Encephalitis",
       "Epidural/subdural hematoma",
-      "Guillain-Barr\u00e9 syndrome",
+      "Guillain-Barré syndrome",
       "Head trauma/concussion/contusion",
       "Headache (migraine, cluster, tension)",
       "Intracerebral hemorrhage",
@@ -119,7 +119,7 @@
       "Vertigo",
       "Weakness/paralysis"
     ],
-    "EENT/Ophthalmology": [
+    "Eyes, Ears, Nose, and Throat": [
       "Acute laryngitis",
       "Acute otitis media",
       "Acute pharyngitis (viral, bacterial)",
@@ -155,9 +155,8 @@
       "Vertigo",
       "Vision loss"
     ],
-    "Urology/Renal": [
+    "Genitourinary System": [
       "Acid/base disorders",
-      "Acute renal failure",
       "Incontinence",
       "Nephrolithiasis",
       "Cystitis",
@@ -166,7 +165,6 @@
       "Fluid and electrolyte disorders",
       "Glomerulonephritis",
       "Hematuria",
-      "Hernias",
       "Orchitis",
       "Prostatitis",
       "Pyelonephritis",
@@ -174,7 +172,10 @@
       "Testicular torsion",
       "Urethritis"
     ],
-    "Dermatology": [
+    "Renal System": [
+      "Acute renal failure"
+    ],
+    "Dermatologic System": [
       "Bullous pemphigoid",
       "Burns",
       "Cellulitis",
@@ -196,7 +197,7 @@
       "Urticaria",
       "Viral exanthems"
     ],
-    "Endocrinology": [
+    "Endocrine System": [
       "Adrenal insufficiency",
       "Cushing disease",
       "Diabetes insipidus",
@@ -211,7 +212,7 @@
       "Thyroiditis",
       "Tremors"
     ],
-    "Obstetrics/Gynecology": [
+    "Reproductive System": [
       "Amenorrhea",
       "Dysfunctional uterine bleeding",
       "Ectopic pregnancy",
@@ -229,7 +230,7 @@
       "Vaginal discharge",
       "Vaginitis"
     ],
-    "Psychiatry/Behavioral Medicine": [
+    "Psychiatry/Behavioral Science": [
       "Anxiety disorders",
       "Bipolar and related disorders",
       "Depressive disorders",
@@ -241,7 +242,7 @@
       "Substance use disorders",
       "Suicide"
     ],
-    "Hematology": [
+    "Hematologic System": [
       "Acute leukemia",
       "Anemia",
       "Aplastic anemia",
