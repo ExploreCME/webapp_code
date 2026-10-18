@@ -167,6 +167,12 @@ async def async_generate_batch(username, quiz_name, generation_requests, quiz_id
     await conv_manager.client.close()
     await conv_manager_verify.client.close()
 
+    if len(successful_questions) != len(generation_requests):
+        raise RuntimeError(
+            f"Generated {len(successful_questions)}/{len(generation_requests)} requested questions")
+    if len({q["question_stem"] for q in successful_questions}) != len(successful_questions):
+        raise RuntimeError("Generation returned duplicate questions")
+
     if successful_questions:
         conn = await get_db_connection()
         try:
@@ -209,28 +215,37 @@ async def async_generate_batch(username, quiz_name, generation_requests, quiz_id
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, 0)
                 ''', insert_data)
 
+                inserted_count = cursor.rowcount
                 print(f"[{datetime.now()}] Bulk Mapping all questions to Quiz ID: {quiz_id}")
                 mapping_data = []
                 for q in successful_questions:
                     question_id_to_map = q["question_id"]
 
-                    if cursor.rowcount < len(successful_questions):
+                    if inserted_count < len(successful_questions):
                         await cursor.execute('SELECT id FROM question_bank WHERE question_stem = %s', (q["question_stem"],))
                         existing_row = await cursor.fetchone()
                         if existing_row:
                             question_id_to_map = existing_row['id']
+                        else:
+                            raise RuntimeError("Generated question could not be resolved in the bank")
 
                     mapping_data.append((quiz_id, question_id_to_map))
 
                 if mapping_data:
+                    if len({question_id for _, question_id in mapping_data}) != len(generation_requests):
+                        raise RuntimeError("Generated questions resolve to duplicate database rows")
                     await cursor.executemany('''
                         INSERT IGNORE INTO quiz_questions_map (quiz_id, question_id)
                         VALUES (%s, %s)
                     ''', mapping_data)
+                    if cursor.rowcount != len(generation_requests):
+                        raise RuntimeError("Not all generated questions were mapped to the quiz")
 
             await conn.commit()
         except Exception as e:
+            await conn.rollback()
             print(f"DEBUG: MySQL Error in bulk on-demand generation: {e}")
+            raise
         finally:
             conn.close()
 

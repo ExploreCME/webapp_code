@@ -17,7 +17,7 @@ from document_storage import upload_document, list_documents
 
 # --- IMPORT SHARED UNIQUE CHECK ---
 from shared_utils import is_assignment_name_unique
-from standardizers import TASK_AREAS, TASK_ALIASES, standardize_organ_system, standardize_task_area
+from standardizers import ORGAN_SYSTEMS, TASK_AREAS, TASK_ALIASES, standardize_organ_system, standardize_task_area
 from standardized_quizzes import (
     STANDARDIZED_PREFIX, STANDARDIZED_QUESTION_PREFIX, STANDARDIZED_QUIZZES,
     get_standardized_questions as get_catalog_questions, store_standardized_questions,
@@ -904,8 +904,8 @@ def custom_quiz():
             topics_val = request.form.getlist(f'organ_topics_{safe_name}')
             if pct_val and pct_val.isdigit() and int(pct_val) > 0:
                 organ_percentages[organ] = int(pct_val)
-                if topics_val:
-                    organ_selected_topics[organ] = topics_val
+            if topics_val:
+                organ_selected_topics[organ] = topics_val
 
         for task in task_areas:
             field_labels = [task] + [alias for alias, canonical in TASK_ALIASES.items() if canonical == task]
@@ -941,6 +941,8 @@ def custom_quiz():
             for o, count in organ_counts.items():
                 organ_pool.extend([o] * count)
             random.shuffle(organ_pool)
+        elif organ_selected_topics:
+            organ_pool = [random.choice(list(organ_selected_topics)) for _ in range(num_questions)]
         else:
             organ_pool = ["any"] * num_questions
 
@@ -1104,6 +1106,16 @@ def build_quiz_batch():
         match_slot(slot, set())
     selected_questions = {slot: question_id for question_id, slot in matched_questions.items()}
 
+    topic_organs = {}
+    if any(slot not in selected_questions
+           and not normalize_category(item.get('organ_system'), normalize_organ)
+           and (item.get('topic_area') or '').strip().lower() not in ('', 'any')
+           for slot, item in enumerate(blueprint)):
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'topics_by_organ_system.json')) as f:
+            for organ, topics in json.load(f).items():
+                for topic in topics:
+                    topic_organs.setdefault(topic.strip().lower(), []).append(organ)
+
     for slot, item in enumerate(blueprint):
         if slot in selected_questions:
             selected_id = selected_questions[slot]
@@ -1113,12 +1125,21 @@ def build_quiz_batch():
             original_ta = (item.get('task_area') or '').strip()
             gen_ta = standardize_task_area(original_ta) if (original_ta and original_ta.lower() != 'any') else random.choice(TASK_AREAS)
             original_organ = (item.get('organ_system') or '').strip()
-            gen_organ = normalize_organ(original_organ) if (original_organ and original_organ.lower() != 'any') else 'any'
+            gen_topic = (item.get('topic_area') or '').strip() or 'any'
+            if original_organ and original_organ.lower() != 'any':
+                gen_organ = normalize_organ(original_organ)
+            elif gen_topic.lower() in topic_organs:
+                gen_organ = random.choice(topic_organs[gen_topic.lower()])
+            elif gen_topic.lower() == 'any':
+                gen_organ = random.choice([organ for organ in ORGAN_SYSTEMS if organ != 'Misc'])
+            else:
+                # Let the generator classify topics outside the supported topic map.
+                gen_organ = 'any'
 
             generation_requests.append({
                 "organ_system": gen_organ,
                 "task_area": gen_ta,
-                "topic_area": (item.get('topic_area') or '').strip() or 'any'
+                "topic_area": gen_topic
             })
 
     if mappings_to_insert:

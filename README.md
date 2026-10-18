@@ -55,6 +55,20 @@ python -m unittest discover -s tests -p 'test_landing_pages.py' -v
 python -m unittest discover -s tests -p 'test_entitlements.py' -v
 ```
 
+## Custom quiz selection
+
+Database-first quizzes randomly select eligible, distinct questions, then generate
+only the shortage. Unselected organ/task fields remain wildcards for retrieval;
+generation chooses supported categories instead of defaulting to Misc/Any.
+Selected organ, task, and topic filters are preserved. Topic-only selections use
+`topics_by_organ_system.json` to resolve their organ; unmapped topics are classified
+by the generator rather than assigned an unrelated random organ.
+
+Generation or mapping shortfalls fail the background task instead of marking an
+undersized quiz complete. Focused coverage:
+`python -m unittest discover -s tests -p 'test_blueprint_quiz.py' -v` and
+`python -m unittest discover -s tests -p 'test_on_demand_generator.py' -v`.
+
 ## RNXcel: content-ready NCLEX-RN practice
 
 The homepage opens the public `/rnxcel` landing. `/coming-soon/rnxcel` redirects

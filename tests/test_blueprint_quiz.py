@@ -6,7 +6,7 @@ from flask import Flask, session
 from jinja2 import ChoiceLoader, DictLoader
 
 import flask_app
-from standardizers import TASK_AREAS, TASK_ALIASES
+from standardizers import ORGAN_SYSTEMS, TASK_AREAS, TASK_ALIASES
 
 
 ORGAN = "Hematologic System"
@@ -190,6 +190,87 @@ class BlueprintQuizTests(unittest.TestCase):
         self.assertFalse(any("FROM question_bank" in call.args[0]
                              for call in self.cursor.execute.call_args_list))
 
+    def test_unfiltered_database_selection_shuffles_all_eligible_rows(self):
+        rows = [
+            self.row("one"), self.row("two"),
+            self.row("three", organ="Pulmonary System", task=TASK_AREAS[2]),
+            self.row("four", organ="Renal System", task=TASK_AREAS[1]),
+        ]
+        shuffled_pools = []
+
+        def shuffle(values):
+            shuffled_pools.append(set(values))
+            values.sort(reverse=True)
+
+        with patch.object(flask_app.random, "shuffle", side_effect=shuffle):
+            result, selected, tasks = self.batch([{}] * 2, rows)
+        self.assertEqual(result["generated"], 0)
+        self.assertEqual(len(selected), 2)
+        self.assertEqual(tasks, [])
+        self.assertEqual(shuffled_pools, [{row["id"] for row in rows}] * 2)
+
+    def test_unfiltered_shortage_uses_all_rows_and_valid_generation_categories(self):
+        rows = [self.row("one"), self.row("two", organ="Pulmonary System")]
+        result, selected, tasks = self.batch([{}] * 5, rows)
+        self.assertCountEqual(selected, ["one", "two"])
+        self.assertEqual(result["generated"], 3)
+        for item in tasks[0]["generation_requests"]:
+            self.assertIn(item["organ_system"], ORGAN_SYSTEMS)
+            self.assertNotEqual(item["organ_system"], "Misc")
+            self.assertIn(item["task_area"], TASK_AREAS)
+
+    def test_create_new_without_filters_randomizes_supported_categories(self):
+        organs = [organ for organ in ORGAN_SYSTEMS if organ != "Misc"]
+        requested = [self.item(organ=wildcard, task=wildcard)
+                     for wildcard in ("any", " ANY ", "", None)]
+        choices = []
+
+        def choose(values):
+            choices.append(tuple(values))
+            return values[-1]
+
+        with patch.object(flask_app.random, "choice", side_effect=choose):
+            result, selected, tasks = self.batch(requested, [], use_existing=False)
+        self.assertEqual(result["generated"], len(requested))
+        self.assertEqual(selected, [])
+        self.assertEqual(tasks[0]["generation_requests"],
+                         [self.item(organ=organs[-1], task=TASK_AREAS[-1])] * len(requested))
+        self.assertEqual(choices.count(tuple(organs)), len(requested))
+        self.assertEqual(choices.count(TASK_AREAS), len(requested))
+
+    def test_topic_only_request_uses_mapped_organ_for_generation(self):
+        result, selected, tasks = self.batch(
+            [self.item(organ="any", topic=" ANEMIA ")] * 2,
+            [self.row("match"), self.row("wrong-topic", topic="Leukemia")],
+        )
+        self.assertEqual(selected, ["match"])
+        self.assertEqual(result["generated"], 1)
+        self.assertEqual(tasks[0]["generation_requests"], [self.item(topic="ANEMIA")])
+
+    def test_task_only_filter_is_preserved_in_retrieval_and_generation(self):
+        result, selected, tasks = self.batch(
+            [self.item(organ="any")] * 3,
+            [self.row("one"), self.row("two", organ="Pulmonary System"),
+             self.row("wrong-task", task=TASK_AREAS[2])],
+        )
+        self.assertCountEqual(selected, ["one", "two"])
+        self.assertEqual(result["generated"], 1)
+        item = tasks[0]["generation_requests"][0]
+        self.assertEqual(item["task_area"], TASK)
+        self.assertIn(item["organ_system"], ORGAN_SYSTEMS)
+        self.assertNotIn(item["organ_system"], ("any", "Misc"))
+
+    def test_unmapped_topic_is_not_constrained_to_an_unrelated_random_organ(self):
+        _, _, tasks = self.batch(
+            [self.item(organ="any", topic="New clinical topic")], [],
+        )
+        self.assertEqual(tasks[0]["generation_requests"],
+                         [self.item(organ="any", topic="New clinical topic")])
+
+    def test_explicit_misc_selection_is_preserved(self):
+        _, _, tasks = self.batch([self.item(organ="Misc")], [])
+        self.assertEqual(tasks[0]["generation_requests"], [self.item(organ="Misc")])
+
     def test_generation_fallback_uses_canonical_tasks_and_wildcard_topic(self):
         for fallback in TASK_AREAS:
             with self.subTest(fallback=fallback), \
@@ -247,6 +328,31 @@ class BlueprintQuizTests(unittest.TestCase):
                 )
                 self.assertEqual(result["generated"], 0 if preference == "yes" else 3)
         self.assertTrue(self.form(LEGACY_TASK, "no", faculty=False)["use_existing"])
+
+    def test_topic_selection_without_organ_percentage_reaches_batch(self):
+        result = self.form(LEGACY_TASK, topic="Anemia", extra={
+            "organ_pct_Hematologic_System": "0",
+        })
+        self.assertEqual(result["blueprint"], [self.item(topic="Anemia")] * 3)
+
+    def test_unfiltered_form_preserves_wildcards_until_database_search(self):
+        for preference in ("yes", "no"):
+            with self.subTest(preference=preference):
+                form_result = self.form(LEGACY_TASK, preference, extra={
+                    "organ_pct_Hematologic_System": "0",
+                    "task_pct_Applying_Basic_Scientific_Concepts": "0",
+                })
+                self.assertEqual(form_result["blueprint"],
+                                 [self.item(organ="any", task="any")] * 3)
+                result, _, tasks = self.batch(
+                    form_result["blueprint"], [self.row("one")],
+                    use_existing=form_result["use_existing"],
+                )
+                self.assertEqual(result["duplicated"], 1 if preference == "yes" else 0)
+                for item in tasks[0]["generation_requests"]:
+                    self.assertIn(item["organ_system"], ORGAN_SYSTEMS)
+                    self.assertNotEqual(item["organ_system"], "Misc")
+                    self.assertIn(item["task_area"], TASK_AREAS)
 
     def test_rendered_form_uses_canonical_fields_and_reuse_progress_contract(self):
         with self.app.test_request_context("/custom_quiz"):
