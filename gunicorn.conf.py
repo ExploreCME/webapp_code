@@ -34,6 +34,6 @@ errorlog = "-"   # Log to stderr
 loglevel = os.environ.get("GUNICORN_LOGLEVEL", "info")
 
 # --- SERVER MECHANICS ---
-# Preload the application code before worker processes are forked.
-# This saves RAM and boots workers faster.
-preload_app = True
+# Load application imports only after the gevent worker patches SSL.
+# Preloading lets urllib3 retain the original SSLContext and causes TLS recursion.
+preload_app = False
