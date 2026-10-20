@@ -12,12 +12,12 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES = ROOT / "templates" / "template standardization"
-# Captured from ac39dc755ff9b7106f2ce797ad3029161e8fae26, before extraction.
+# Originally captured before extraction; refreshed for the guarded Clerk auth bridge.
 # HTML boundary whitespace is normalized; scripts/styles and the shell are exact.
-ORIGINAL_PA_RENDER_DIGESTS = {
-    "base.html": "3dea8109a59f7e15c9c3b3d98360eaa564f48aa6833fb3201bfd14f7746eeec2",
-    "student_dashboard.html": "2e066ea6e648ef5cf877938ee7ccdd5bfeb8039a891cf55971abf5663c963794",
-    "index_for_display.html": "54e1dcd66fdb98dac503e676c320b35e89cee395b11a3b087f9ea417652f3bc5",
+PA_RENDER_DIGESTS = {
+    "base.html": "71b6ee0d1c13208a36a79f86dde8e0ffba9076351139f8d715cb9c461ff93dae",
+    "student_dashboard.html": "7e4c13d2556cd497d270ec953856bc3be462787a6ad0755974934126f0f247f2",
+    "index_for_display.html": "b85d3acbdf62b357c314ba2ceccf0507dc786121d5b18a108aaa0dc84783f828",
 }
 
 
@@ -91,7 +91,7 @@ class SharedShellPresentationTests(unittest.TestCase):
         context.update(overrides)
         return context
 
-    def test_pa_rendering_matches_immutable_original_markup_styles_and_scripts(self):
+    def test_pa_rendering_matches_fixed_markup_styles_and_scripts(self):
         current = self.environment()
         for template in ("base.html", "student_dashboard.html", "index_for_display.html"):
             snapshots = []
@@ -126,7 +126,7 @@ class SharedShellPresentationTests(unittest.TestCase):
             digest = hashlib.sha256(json.dumps(
                 snapshots, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
             ).encode()).hexdigest()
-            self.assertEqual(ORIGINAL_PA_RENDER_DIGESTS[template], digest, template)
+            self.assertEqual(PA_RENDER_DIGESTS[template], digest, template)
 
     def test_shared_macros_preserve_autoescaping(self):
         environment = self.environment()

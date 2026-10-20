@@ -18,6 +18,7 @@ from db_pool import get_db_connection  # <-- Uses the new global pool
 # 1. Use the repo root instead of a PythonAnywhere absolute path
 basedir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
+stripe.api_key = (os.getenv('STRIPE_SECRET_KEY') or '').strip() or None
 
 COMING_SOON_PRODUCTS = {
     'rnxcel': {
@@ -41,6 +42,8 @@ flask_secret_key = os.getenv('FLASK_SECRET_KEY')
 if os.getenv('FLASK_ENV', '').lower() == 'production' and not flask_secret_key:
     raise RuntimeError("FLASK_SECRET_KEY must be set in production.")
 app.secret_key = flask_secret_key or secrets.token_hex(32)
+if not stripe.api_key:
+    app.logger.warning("STRIPE_SECRET_KEY is not configured; individual checkout is unavailable.")
 
 # Session configuration to match your quiz app requirements
 app.config['SESSION_COOKIE_SAMESITE'] = os.getenv('SESSION_COOKIE_SAMESITE', 'None')
@@ -531,6 +534,10 @@ def institutional_access():
 @app.route('/create-checkout-session', methods=['POST'])
 @login_required
 def create_checkout_session():
+    if not stripe.api_key:
+        flash("Checkout is temporarily unavailable. Please try again later.", "error")
+        return redirect(url_for('paxcel_landing'))
+
     try:
         clerk_token = request.cookies.get('__session')
         decoded_token = decode_clerk_token(clerk_token)
@@ -550,8 +557,10 @@ def create_checkout_session():
             success_url=request.host_url + 'payment-success?session_id={CHECKOUT_SESSION_ID}',
             cancel_url=request.host_url,
         )
-    except Exception as e:
-        return str(e), 403
+    except Exception:
+        app.logger.warning("Unable to start individual Stripe checkout.")
+        flash("Checkout is temporarily unavailable. Please try again later.", "error")
+        return redirect(url_for('paxcel_landing'))
 
     return redirect(checkout_session.url, code=303)
 

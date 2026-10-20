@@ -55,6 +55,53 @@ python -m unittest discover -s tests -p 'test_landing_pages.py' -v
 python -m unittest discover -s tests -p 'test_entitlements.py' -v
 ```
 
+## PAXcel payments and sign-in deployment
+
+Set these variables in the **server environment** before starting/redeploying the
+web service:
+
+- `STRIPE_SECRET_KEY`: Stripe server-side secret API key for individual checkout,
+  checkout confirmation, and the customer portal. Never put this key in browser
+  code, Clerk publishable-key settings, or committed files. If absent, the app
+  starts with a warning and individual checkout safely redirects with a message.
+- `STRIPE_WEBHOOK_SECRET`: signing secret for the Stripe endpoint `/webhook`,
+  required for verified subscription/entitlement updates.
+
+Individual checkout currently uses the existing recurring Stripe Price ID
+`price_1U8XG31IrD5jMp4rgoj4dYGg` in `display_database.py` (not an environment
+variable). The key and price must belong to the same Stripe account and mode
+(test/live). Institutional access continues to use the existing Stripe Payment
+Link and does not require a server-side checkout API call.
+
+Keep the existing Clerk server/publishable-key configuration and configure the
+PAXcel Clerk sign-in/sign-up return URL as `/paxcel`. The browser bridge replaces
+stale first-party cookies, then reconciles Clerk identity with Flask's verified
+identity. A 30-second session-storage guard prevents repeated recovery reloads;
+normal token refreshes do not reload an already authenticated page. JWT signature
+and expiration verification remain enabled.
+
+Post-deploy verification (use Stripe test mode in staging):
+
+1. Create a new Clerk account or sign in, returning to `/paxcel`. Confirm
+   **Unlock the Questions** appears without manual refresh. Repeat with an
+   expired `__session` cookie, and confirm sign-out still clears Flask via `/logout`.
+2. Select **Unlock the Questions → Individual Subscription** and confirm Stripe
+   checkout opens. Check webhook delivery and subscription access after payment.
+   With a missing/invalid key in staging, confirm a friendly error rather than
+   raw Stripe diagnostics.
+3. Confirm **Institutional access** still opens the existing Stripe Payment Link.
+
+Focused regressions:
+
+```bash
+python -m unittest discover -s tests -p 'test_auth_bridge.py' -v
+python -m unittest discover -s tests -p 'test_checkout.py' -v
+```
+
+Auth bridge behavior tests use Node's built-in runtime when available (no npm
+dependencies); rendered-script assertions always run. This intentional PAXcel
+change requires the `paxcel-change-approved` PR label before merge.
+
 ## Custom quiz selection
 
 Database-first quizzes randomly select eligible, distinct questions, then generate
