@@ -15,21 +15,28 @@ HARNESS = r"""
 const fs = require("node:fs");
 const vm = require("node:vm");
 const input = JSON.parse(fs.readFileSync(0, "utf8"));
-let load, listener, reloads = 0, cookie = input.cookie || "", now = 100000;
+let load, listener, signOutHandler, prematureLogout = false;
+let reloads = 0, cookie = input.cookie || "", now = 100000;
 const storage = new Map(Object.entries(input.storage || {}));
-const state = id => ({
+const state = id => id === "transition" ? { session: undefined, user: undefined } : ({
     session: id ? { getToken: async () => "fresh-" + id } : null,
     user: id ? { id, firstName: "Student" } : null,
 });
 const clerk = {
     ...state(input.user), load: async () => {},
     addListener: fn => { listener = fn; },
+    signOut: async () => {
+        await listener(state(null));
+        prematureLogout = Boolean(context.window.location.href);
+    },
 };
 const context = {
     Clerk: clerk, console, Date: { now: () => now },
     document: {
         get cookie() { return cookie; }, set cookie(value) { cookie = value; },
-        getElementById: () => null,
+        getElementById: id => id === "sign-out-button" && input.clickSignOut ? {
+            style: {}, addEventListener: (_, fn) => { signOutHandler = fn; },
+        } : null,
     },
     sessionStorage: {
         getItem: key => {
@@ -48,13 +55,14 @@ const context = {
 (async () => {
     vm.runInNewContext(input.script, context);
     await load();
+    if (input.clickSignOut) await signOutHandler({ preventDefault() {} });
     for (const event of input.events || []) {
         Object.assign(clerk, state(event.user));
         await listener(clerk);
         await Promise.resolve();
     }
     console.log(JSON.stringify({
-        reloads, cookie, storage: Object.fromEntries(storage),
+        reloads, cookie, prematureLogout, storage: Object.fromEntries(storage),
         location: context.window.location.href,
     }));
 })().catch(error => { console.error(error); process.exit(1); });
@@ -114,6 +122,12 @@ class AuthBridgeTests(unittest.TestCase):
                 "user": "new-user", "events": [{"user": None}],
             }, 0, "/logout"),
             ("Clerk already signed out", {"flask_user": "old-user"}, {}, 0, "/logout"),
+            ("transitional session", {"flask_user": "new-user"}, {
+                "user": "new-user", "events": [{"user": "transition"}, {"user": "new-user"}],
+            }, 0, ""),
+            ("explicit sign-out finishes first", {"flask_user": "new-user"}, {
+                "user": "new-user", "clickSignOut": True,
+            }, 0, "/logout"),
             ("blocked storage", {}, {"user": "new-user", "storageBlocked": True}, 0, ""),
         )
         for name, render_args, browser_args, reloads, location in scenarios:
@@ -126,6 +140,7 @@ class AuthBridgeTests(unittest.TestCase):
                 state = json.loads(result.stdout)
                 self.assertEqual(state["reloads"], reloads)
                 self.assertEqual(state["location"], location)
+                self.assertFalse(state["prematureLogout"])
                 if browser_args.get("user") and not location:
                     self.assertIn("__session=fresh-new-user;", state["cookie"])
                 if name in ("server recognized user", "listener sign-out", "anonymous"):

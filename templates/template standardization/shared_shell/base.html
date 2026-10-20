@@ -456,14 +456,16 @@
                 const flaskUserId = {{ (g.user_id | default(none)) | tojson }};
                 const reloadGuardKey = "paxcel-auth-reload";
                 let hadClerkSession = false;
+                let signingOut = false;
                 let authRevision = 0;
 
                 async function reconcileAuth({ session: activeSession, user }) {
                     const revision = ++authRevision;
+                    if (activeSession === undefined) return;
                     if (!activeSession) {
                         document.cookie = "__session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
                         try { sessionStorage.removeItem(reloadGuardKey); } catch (_) {}
-                        if (flaskUserId || hadClerkSession) {
+                        if ((flaskUserId || hadClerkSession) && !signingOut) {
                             window.location.href = "/logout";
                         }
                         return;
@@ -540,6 +542,7 @@
                 if (signOutBtn) {
                     signOutBtn.addEventListener("click", async (e) => {
                         e.preventDefault();
+                        signingOut = true;
                         if (Clerk.user) {
                             await Clerk.signOut();
                         }
