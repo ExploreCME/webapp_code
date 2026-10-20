@@ -453,21 +453,48 @@
                 // =========================================
                 // CRITICAL BRIDGE FOR FLASK COOKIE SYNC
                 // =========================================
-                if (Clerk.session) {
-                    const token = await Clerk.session.getToken();
-                    const cookieExists = document.cookie.split('; ').some(c => c.startsWith('__session='));
+                const flaskUserId = {{ (g.user_id | default(none)) | tojson }};
+                const reloadGuardKey = "paxcel-auth-reload";
+                let hadClerkSession = false;
+                let authRevision = 0;
 
-                    // Manually write the cookie as a first-party cookie so browsers don't block it
-                    document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax; Secure`;
-
-                    // If Flask didn't have the cookie when the page loaded, refresh so it can see it!
-                    if (!cookieExists) {
-                        window.location.reload();
+                async function reconcileAuth({ session: activeSession, user }) {
+                    const revision = ++authRevision;
+                    if (!activeSession) {
+                        document.cookie = "__session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                        try { sessionStorage.removeItem(reloadGuardKey); } catch (_) {}
+                        if (flaskUserId || hadClerkSession) {
+                            window.location.href = "/logout";
+                        }
+                        return;
                     }
-                } else {
-                    // If user is logged out, clear the cookie so Flask knows
-                    document.cookie = "__session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+
+                    hadClerkSession = true;
+                    const token = await activeSession.getToken();
+                    if (revision !== authRevision || !token || !user) return;
+
+                    // Always replace stale cookies before reconciling Flask's rendered identity.
+                    document.cookie = `__session=${token}; path=/; max-age=3600; SameSite=Lax; Secure`;
+                    try {
+                        if (flaskUserId === user.id) {
+                            sessionStorage.removeItem(reloadGuardKey);
+                            return;
+                        }
+                        const guard = JSON.parse(sessionStorage.getItem(reloadGuardKey) || "null");
+                        const now = Date.now();
+                        if (guard && guard.userId === user.id && now - guard.at < 30000) return;
+                        sessionStorage.setItem(reloadGuardKey, JSON.stringify({ userId: user.id, at: now }));
+                    } catch (_) {
+                        // Without persistent storage, skip automatic reloads rather than risk a loop.
+                        return;
+                    }
+                    window.location.reload();
                 }
+
+                Clerk.addListener(resources =>
+                    reconcileAuth(resources).catch(() => console.error("Clerk cookie sync failed."))
+                );
+                await reconcileAuth(Clerk);
                 // =========================================
 
                 const signInBtn = document.getElementById("sign-in-button");
