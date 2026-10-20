@@ -121,6 +121,8 @@ class CheckoutTests(unittest.TestCase):
         self.assertIn("price_id=price_1U8XG31IrD5jMp4rgoj4dYGg", output)
         self.assertIn("type=InvalidRequestError code=resource_missing param=line_items[0][price]", output)
         self.assertNotIn("secretvalue", output)
+        with self.client.session_transaction() as session:
+            self.assertNotIn("No such price", str(session["_flashes"]))
 
     def test_institutional_access_does_not_need_api_key(self):
         with patch.object(self.backend.stripe, "api_key", None):
