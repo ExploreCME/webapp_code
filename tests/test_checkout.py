@@ -91,6 +91,39 @@ class CheckoutTests(unittest.TestCase):
                 with self.client.session_transaction() as session:
                     self.assertNotIn("private", str(session["_flashes"]))
 
+    def test_missing_secret_is_logged(self):
+        with patch.object(self.backend.stripe, "api_key", None):
+            with self.assertLogs(self.app.logger, level="ERROR") as logs:
+                self.assert_unavailable(self.client.post("/create-checkout-session"))
+        self.assertIn("STRIPE_SECRET_KEY missing/empty", "\n".join(logs.output))
+
+    def test_token_without_sub_asks_user_to_sign_in_again(self):
+        self.backend.decode_clerk_token.side_effect = [{"sub": "checkout-user"}, {}]
+        with patch.object(self.backend.stripe, "api_key", "test-server-key"):
+            with self.assertLogs(self.app.logger, level="WARNING") as logs:
+                response = self.client.post("/create-checkout-session")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location, "/paxcel")
+        self.assertIn("missing sub", "\n".join(logs.output))
+        with self.client.session_transaction() as session:
+            self.assertIn(("error", "Please sign in again and retry checkout."), session["_flashes"])
+        self.create.assert_not_called()
+
+    def test_stripe_error_diagnostics_are_logged_without_secret(self):
+        self.create.side_effect = self.backend.stripe.error.InvalidRequestError(
+            "No such price", param="line_items[0][price]", code="resource_missing",
+        )
+        with patch.object(self.backend.stripe, "api_key", "sk_live_secretvalue"):
+            with self.assertLogs(self.app.logger, level="INFO") as logs:
+                self.assert_unavailable(self.client.post("/create-checkout-session"))
+        output = "\n".join(logs.output)
+        self.assertIn("livemode_guess=True", output)
+        self.assertIn("price_id=price_1U8XG31IrD5jMp4rgoj4dYGg", output)
+        self.assertIn("type=InvalidRequestError code=resource_missing param=line_items[0][price]", output)
+        self.assertNotIn("secretvalue", output)
+        with self.client.session_transaction() as session:
+            self.assertNotIn("No such price", str(session["_flashes"]))
+
     def test_institutional_access_does_not_need_api_key(self):
         with patch.object(self.backend.stripe, "api_key", None):
             response = self.client.get("/institutional-access")
