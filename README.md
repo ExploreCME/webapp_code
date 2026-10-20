@@ -112,11 +112,18 @@ in the master before worker patching. urllib3 retains the original `SSLContext`;
 its stdlib setters refer to the now-replaced `ssl.SSLContext`, causing recursion.
 This is runtime initialization, not a Stripe price/key or checkout logic error.
 
-**Fix:** `gunicorn.conf.py` sets `preload_app = False`. Gunicorn's gevent worker
-now patches before loading `display_database:app`. Keep the Render start command
+**Fix:** `gunicorn.conf.py` calls `gevent.monkey.patch_all()` before any other
+imports and keeps `preload_app = False`. PR #42's preload setting alone was
+insufficient in this environment: it deferred application imports but did not
+patch during config loading, and deployment overrides such as
+`GUNICORN_CMD_ARGS=--preload` can still load the app before worker patching.
+The early guard protects that override too, before urllib3, `anyio.streams.tls`,
+or `jwt.jwks_client` can retain unpatched SSL references. Keep the Render start command
 `gunicorn -c gunicorn.conf.py display_database:app`; remove any `--preload` from
-deployment overrides or `GUNICORN_CMD_ARGS`. Do not import application/network
-libraries from Gunicorn configuration/hooks or preload them via instrumentation.
+deployment overrides or `GUNICORN_CMD_ARGS` to retain worker-local app loading.
+Keep the patch at the top of the config. Do not import application/network
+libraries before config loading, including via instrumentation; this guard
+cannot repair SSL references captured before the config executes.
 Restart all web workers after deploying; changing config cannot repair an
 already-patched process.
 
@@ -126,8 +133,8 @@ gevent 24.11.1, and Gunicorn 23.0.0. Requests allows urllib3 `>=1.26,<3`; Stripe
 allows requests `>=2.20`. cryptography uses cffi `>=2.0.0` (pinned 2.1.1).
 gevent's greenlet/zope dependencies are resolved transitively, not pinned here.
 pyOpenSSL and eventlet are not application dependencies; the repository has no
-pyOpenSSL injection, custom SSL override, or explicit monkey-patch call.
-Gunicorn's gevent worker supplies the patch. Do not add pyOpenSSL or downgrade
+pyOpenSSL injection or custom SSL override. The config patches early;
+Gunicorn's gevent worker safely repeats the patch. Do not add pyOpenSSL or downgrade
 TLS dependencies as a workaround. Certificate/hostname verification and existing
 PR #41 checkout diagnostics remain unchanged; no new credentials are logged.
 
@@ -138,7 +145,8 @@ python -m pip check
 python -m unittest discover -s tests -p 'test_checkout*.py' -v
 ```
 
-The isolated TLS regression exercises Gunicorn master/worker initialization and
+The isolated TLS regression exercises Gunicorn config/master/worker initialization
+both with default settings and with `GUNICORN_CMD_ARGS=--preload`, and
 the real Stripe → requests → urllib3 HTTPS transport against a local peer with an
 invalid TLS response. It must yield an ordinary Stripe connection error, not SSL
 recursion or a late-patching warning; it never contacts Stripe or creates a
@@ -146,12 +154,15 @@ checkout. After deploying, repeat the staging checkout steps above and confirm
 there are no `MonkeyPatchWarning`/SSL recursion traces. A real Stripe test-mode
 checkout and webhook verification are still required before production sign-off.
 
-**Risk/rollback:** gevent concurrency, worker counts, payment parameters, and
-error handling are unchanged. Without preload, each worker imports the app,
+**Risk/rollback:** patching now affects the master as well as workers, including
+socket, SSL, thread, and subprocess behavior; monitor startup, worker restarts,
+and outbound connections. Gevent concurrency, worker counts, payment parameters,
+and error handling are unchanged. Without preload, each worker imports the app,
 which can increase startup time and memory; monitor Render worker boots/RSS.
-Do not roll back to gevent plus preload. If needed, temporarily deploy a reviewed
-`worker_class = "sync"` configuration with preload still disabled and monitor
-reduced concurrency while investigating. No schema or payment-data migration
+Do not simply remove the early guard or restore gevent plus unpatched preload.
+If needed, temporarily deploy a reviewed `worker_class = "sync"` configuration,
+remove the early monkey patch, keep preload disabled, and restart all processes.
+Monitor reduced concurrency while investigating. No schema or payment-data migration
 needs rollback.
 
 ## Custom quiz selection

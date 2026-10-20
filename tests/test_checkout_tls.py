@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -9,7 +10,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class CheckoutTLSRuntimeTests(unittest.TestCase):
     def test_gevent_worker_initialization_supports_stripe_tls(self):
+        self.assert_stripe_tls_startup(preload=False)
+
+    def test_preload_env_override_supports_stripe_tls(self):
+        self.assert_stripe_tls_startup(preload=True)
+
+    def assert_stripe_tls_startup(self, preload):
         # Isolate monkey-patching from the test runner and other test modules.
+        env = dict(os.environ, GUNICORN_CMD_ARGS="--preload" if preload else "")
         result = subprocess.run(
             [sys.executable, "-c", """
 import os
@@ -22,14 +30,19 @@ sys.argv = ["gunicorn", "-c", "gunicorn.conf.py", "display_database:app"]
 with patch.dict(os.environ, {"FLASK_ENV": "testing"}), patch("os.makedirs"):
     application = WSGIApplication()
     assert application.cfg.worker_class_str == "gevent"
+    assert application.cfg.preload_app == (os.environ["GUNICORN_CMD_ARGS"] == "--preload")
+    # Config loading must patch SSL even before Arbiter can preload the app.
+    from gevent import monkey
+    assert monkey.is_module_patched("ssl")
+    assert "display_database" not in sys.modules
     # Arbiter setup preloads the WSGI app if enabled, before worker patching.
     arbiter = Arbiter(application)
+    assert ("display_database" in sys.modules) == application.cfg.preload_app
     worker = application.cfg.worker_class(
         0, os.getpid(), [], application, 30, application.cfg, arbiter.log,
     )
     worker.patch()
     application.wsgi()
-    assert not application.cfg.preload_app
 
 import ssl
 from gevent import monkey
@@ -72,7 +85,7 @@ finally:
     http_session.close()
     server.stop()
 """],
-            cwd=ROOT, capture_output=True, text=True, timeout=30,
+            cwd=ROOT, env=env, capture_output=True, text=True, timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotIn("MonkeyPatchWarning", result.stderr)
