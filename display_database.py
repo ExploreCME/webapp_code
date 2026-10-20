@@ -535,19 +535,42 @@ def institutional_access():
 @login_required
 def create_checkout_session():
     if not stripe.api_key:
+        app.logger.error(
+            "Checkout blocked: STRIPE_SECRET_KEY missing/empty. host=%s path=%s",
+            request.host,
+            request.path,
+        )
         flash("Checkout is temporarily unavailable. Please try again later.", "error")
         return redirect(url_for('paxcel_landing'))
 
+    price_id = 'price_1U8XG31IrD5jMp4rgoj4dYGg'
     try:
         clerk_token = request.cookies.get('__session')
+        if not clerk_token:
+            app.logger.warning("Checkout blocked: missing __session cookie.")
+            flash("Please sign in again and retry checkout.", "error")
+            return redirect(url_for('paxcel_landing'))
+
         decoded_token = decode_clerk_token(clerk_token)
         user_id = decoded_token.get('sub')
+        if not user_id:
+            app.logger.warning("Checkout blocked: decoded Clerk token missing sub.")
+            flash("Please sign in again and retry checkout.", "error")
+            return redirect(url_for('paxcel_landing'))
+
+        app.logger.info(
+            "Checkout start: user_id=%s key_present=%s livemode_guess=%s price_id=%s",
+            user_id,
+            bool(stripe.api_key),
+            stripe.api_key.startswith('sk_live_'),
+            price_id,
+        )
 
         checkout_session = stripe.checkout.Session.create(
             client_reference_id=user_id,
             line_items=[
                 {
-                    'price': 'price_1U8XG31IrD5jMp4rgoj4dYGg',
+                    'price': price_id,
                     'quantity': 1,
                 },
             ],
@@ -557,8 +580,20 @@ def create_checkout_session():
             success_url=request.host_url + 'payment-success?session_id={CHECKOUT_SESSION_ID}',
             cancel_url=request.host_url,
         )
-    except Exception:
-        app.logger.warning("Unable to start individual Stripe checkout.")
+    except stripe.error.StripeError as e:
+        # Stripe SDK errors (authentication, invalid request, permissions, etc.)
+        app.logger.exception(
+            "Stripe checkout error: type=%s code=%s param=%s user_message=%s",
+            type(e).__name__,
+            getattr(e, 'code', None),
+            getattr(e, 'param', None),
+            getattr(e, 'user_message', None),
+        )
+        flash("Checkout is temporarily unavailable. Please try again later.", "error")
+        return redirect(url_for('paxcel_landing'))
+    except Exception as e:
+        # Non-Stripe errors (token decode, unexpected runtime issues)
+        app.logger.exception("Checkout unexpected error: type=%s", type(e).__name__)
         flash("Checkout is temporarily unavailable. Please try again later.", "error")
         return redirect(url_for('paxcel_landing'))
 
