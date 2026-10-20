@@ -80,7 +80,9 @@ class CheckoutTests(unittest.TestCase):
     def test_misconfigured_secret_and_api_errors_are_safe(self):
         for error in (
             self.backend.stripe.AuthenticationError("private Stripe diagnostic"),
+            self.backend.stripe.APIConnectionError("private TLS connection diagnostic"),
             RuntimeError("private internal diagnostic"),
+            RecursionError("private TLS runtime diagnostic"),
         ):
             with self.subTest(error=type(error).__name__):
                 self.create.side_effect = error

@@ -102,6 +102,58 @@ Auth bridge behavior tests use Node's built-in runtime when available (no npm
 dependencies); rendered-script assertions always run. This intentional PAXcel
 change requires the `paxcel-change-approved` PR label before merge.
 
+### Checkout TLS recursion remediation
+
+The production `APIConnectionError` with `RecursionError` in
+`ssl.SSLContext.minimum_version` is reproducible when requests/urllib3 are
+imported before gevent patches SSL. Gunicorn previously combined
+`worker_class = "gevent"` with `preload_app = True`, loading application imports
+in the master before worker patching. urllib3 retains the original `SSLContext`;
+its stdlib setters refer to the now-replaced `ssl.SSLContext`, causing recursion.
+This is runtime initialization, not a Stripe price/key or checkout logic error.
+
+**Fix:** `gunicorn.conf.py` sets `preload_app = False`. Gunicorn's gevent worker
+now patches before loading `display_database:app`. Keep the Render start command
+`gunicorn -c gunicorn.conf.py display_database:app`; remove any `--preload` from
+deployment overrides or `GUNICORN_CMD_ARGS`. Do not import application/network
+libraries from Gunicorn configuration/hooks or preload them via instrumentation.
+Restart all web workers after deploying; changing config cannot repair an
+already-patched process.
+
+**Dependency audit:** no pins changed. Python 3.11 satisfies the declared Python
+requirements of requests 2.34.2, urllib3 2.7.0, Stripe 15.3.1, cryptography 50.0.2,
+gevent 24.11.1, and Gunicorn 23.0.0. Requests allows urllib3 `>=1.26,<3`; Stripe
+allows requests `>=2.20`. cryptography uses cffi `>=2.0.0` (pinned 2.1.1).
+gevent's greenlet/zope dependencies are resolved transitively, not pinned here.
+pyOpenSSL and eventlet are not application dependencies; the repository has no
+pyOpenSSL injection, custom SSL override, or explicit monkey-patch call.
+Gunicorn's gevent worker supplies the patch. Do not add pyOpenSSL or downgrade
+TLS dependencies as a workaround. Certificate/hostname verification and existing
+PR #41 checkout diagnostics remain unchanged; no new credentials are logged.
+
+Run with the production Python 3.11 environment:
+
+```bash
+python -m pip check
+python -m unittest discover -s tests -p 'test_checkout*.py' -v
+```
+
+The isolated TLS regression exercises Gunicorn master/worker initialization and
+the real Stripe → requests → urllib3 HTTPS transport against a local peer with an
+invalid TLS response. It must yield an ordinary Stripe connection error, not SSL
+recursion or a late-patching warning; it never contacts Stripe or creates a
+checkout. After deploying, repeat the staging checkout steps above and confirm
+there are no `MonkeyPatchWarning`/SSL recursion traces. A real Stripe test-mode
+checkout and webhook verification are still required before production sign-off.
+
+**Risk/rollback:** gevent concurrency, worker counts, payment parameters, and
+error handling are unchanged. Without preload, each worker imports the app,
+which can increase startup time and memory; monitor Render worker boots/RSS.
+Do not roll back to gevent plus preload. If needed, temporarily deploy a reviewed
+`worker_class = "sync"` configuration with preload still disabled and monitor
+reduced concurrency while investigating. No schema or payment-data migration
+needs rollback.
+
 ## Custom quiz selection
 
 Database-first quizzes randomly select eligible, distinct questions, then generate
