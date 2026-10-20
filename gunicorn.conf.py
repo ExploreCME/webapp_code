@@ -1,3 +1,8 @@
+from gevent import monkey
+
+# Patch before any other imports: --preload can override preload_app below.
+monkey.patch_all()
+
 import os
 
 # ==========================================
@@ -34,6 +39,5 @@ errorlog = "-"   # Log to stderr
 loglevel = os.environ.get("GUNICORN_LOGLEVEL", "info")
 
 # --- SERVER MECHANICS ---
-# Load application imports only after the gevent worker patches SSL.
-# Preloading lets urllib3 retain the original SSLContext and causes TLS recursion.
+# Keep app loading in workers by default; the early patch also guards --preload.
 preload_app = False
