@@ -35,6 +35,8 @@ async def get_async_db_connection():
         **{'password': os.getenv('MYSQL_PASSWORD')},
         db=os.getenv('MYSQL_DB'),
         charset='utf8mb4',
+        use_unicode=True,
+        init_command='SET NAMES utf8mb4',
         cursorclass=aiomysql.DictCursor,
         connect_timeout=10,
         ssl=_async_ssl_context(),

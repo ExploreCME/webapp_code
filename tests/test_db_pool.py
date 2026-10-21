@@ -44,6 +44,9 @@ class DbConnectionTests(unittest.TestCase):
         self.assertEqual(asynchronous["port"], 25060)
         self.assertEqual(asynchronous["db"], pooled["database"])
         self.assertEqual(asynchronous["connect_timeout"], 10)
+        self.assertEqual(asynchronous["charset"], "utf8mb4")
+        self.assertIs(asynchronous["use_unicode"], True)
+        self.assertEqual(asynchronous["init_command"], "SET NAMES utf8mb4")
         self.assertIs(asynchronous["cursorclass"], self.modules["aiomysql"].DictCursor)
         self.assertNotIn("autocommit", asynchronous)
         self.assertIsInstance(asynchronous["ssl"], ssl.SSLContext)
@@ -134,6 +137,55 @@ class DbConnectionTests(unittest.TestCase):
         for node in ast.walk(source):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
                 self.assertNotEqual(ast.unparse(node.func), "aiomysql.connect")
+
+    def test_remediation_emoji_insert_uses_unicode_connection_settings(self):
+        conn = MagicMock()
+        cursor = AsyncMock()
+        conn.cursor.return_value.__aenter__.return_value = cursor
+        conn.commit = AsyncMock()
+        conn.rollback = AsyncMock()
+        self.modules["aiomysql"].connect.return_value = conn
+        dependencies = {
+            **self.modules,
+            "openai": MagicMock(),
+            "pydantic": MagicMock(BaseModel=object),
+            "Question_writing_and_verification_optomized": MagicMock(),
+        }
+        summary = "📋 Summary with supplementary Unicode 𐐷"
+        question = "🩺 Question"
+        with patch.dict(sys.modules, dependencies), \
+                patch.dict(os.environ, {**self.env, "MYSQL_SSL_DISABLED": "true"},
+                           clear=True):
+            pool = self.load("db_pool")
+            with patch.dict(sys.modules, {"db_pool": pool}):
+                remediation = self.load("create_remediation_assignment")
+                self.assertIs(remediation.get_async_db_connection,
+                              pool.get_async_db_connection)
+                ids = asyncio.run(remediation.save_to_database(
+                    "owner", [{
+                        "summary": summary,
+                        "questions": [{"question_stem": question}],
+                    }, {"id": "existing-id"}], "remediation"))
+
+        connect = self.modules["aiomysql"].connect
+        connect.assert_awaited_once()
+        self.assertEqual(connect.call_args.kwargs["charset"], "utf8mb4")
+        self.assertIs(connect.call_args.kwargs["use_unicode"], True)
+        self.assertEqual(connect.call_args.kwargs["init_command"], "SET NAMES utf8mb4")
+        self.modules["pymysql"].connect.assert_not_called()
+        self.modules["dbutils.pooled_db"].PooledDB.assert_not_called()
+        self.assertEqual(cursor.executemany.await_count, 2)
+        assignment_sql, assignments = cursor.executemany.await_args_list[0].args
+        question_sql, questions = cursor.executemany.await_args_list[1].args
+        self.assertIn("INSERT INTO remediation_assignments", assignment_sql)
+        self.assertIn("INSERT INTO remediation_questions", question_sql)
+        self.assertEqual(assignments[0][11], summary)
+        self.assertEqual(questions[0][2], question)
+        self.assertEqual(ids, [assignments[0][0], "existing-id"])
+        self.assertEqual(questions[0][1], ids[0])
+        conn.commit.assert_awaited_once_with()
+        conn.rollback.assert_not_awaited()
+        conn.close.assert_called_once_with()
 
 
 if __name__ == "__main__":
