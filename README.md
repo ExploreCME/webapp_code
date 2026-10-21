@@ -792,6 +792,26 @@ python -m unittest discover -s tests -p 'test_quiz_worker.py' -v
 
 The repository includes database migration scripts in `migrations/`.
 
+### Remediation Unicode storage
+
+MySQL/MariaDB must support `utf8mb4` and `utf8mb4_unicode_ci` to store generated
+remediation emoji without stripping characters. Run `python init.db.py` against
+the target database during a maintenance window with **all web/worker writers
+paused**, after backing up and testing on a restored copy. The init path creates
+utf8mb4 remediation tables, adds `diagram_explanation` when missing, and checks
+table/column collations before converting existing remediation tables. It skips
+completed conversions on subsequent runs. Both assignments and questions are
+converted to keep their foreign-key columns compatible; session foreign-key
+checks are restored even if conversion fails. Connection port/TLS policy is
+unchanged.
+
+ALTER privileges and sufficient disk/index capacity are required. Conversion
+can rebuild/lock tables and implicitly commits; failures print a warning rather
+than aborting initialization. Resolve warnings and rerun before resuming writers.
+See `migrations/20261021_remediation_utf8mb4.sql` for index-size precautions and
+table/column collation and orphan verification queries. No migration runs during
+normal web requests.
+
 ### Run the hot-path index migration
 
 Before launch, or when new traffic begins, run the performance migration manually against the production database:

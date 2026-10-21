@@ -6,6 +6,38 @@ from dotenv import load_dotenv
 basedir = '/home/ps51632/mysite/explorecme'
 load_dotenv(os.path.join(basedir, '.env'))
 
+def migrate_remediation_utf8mb4(cursor):
+    try:
+        cursor.execute("""
+            SELECT DISTINCT t.TABLE_NAME
+            FROM information_schema.TABLES AS t
+            JOIN information_schema.COLUMNS AS c
+              ON c.TABLE_SCHEMA = t.TABLE_SCHEMA AND c.TABLE_NAME = t.TABLE_NAME
+            WHERE t.TABLE_SCHEMA = DATABASE()
+              AND t.TABLE_NAME IN ('remediation_assignments', 'remediation_questions')
+              AND (t.TABLE_COLLATION <> 'utf8mb4_unicode_ci'
+                   OR c.COLLATION_NAME <> 'utf8mb4_unicode_ci')
+        """)
+        pending = {row[0] for row in cursor.fetchall()}
+        if not pending:
+            return
+
+        cursor.execute("SELECT @@SESSION.FOREIGN_KEY_CHECKS")
+        previous_fk_checks = cursor.fetchone()[0]
+        try:
+            # Convert both sides of assignment_id -> id without dropping the FK.
+            cursor.execute("SET SESSION FOREIGN_KEY_CHECKS = 0")
+            for table in ('remediation_assignments', 'remediation_questions'):
+                if table in pending:
+                    cursor.execute(
+                        f"ALTER TABLE {table} CONVERT TO CHARACTER SET utf8mb4 "
+                        "COLLATE utf8mb4_unicode_ci"
+                    )
+        finally:
+            cursor.execute("SET SESSION FOREIGN_KEY_CHECKS = %s", (previous_fk_checks,))
+    except pymysql.MySQLError as exc:
+        print(f"⚠️ Remediation utf8mb4 migration incomplete; resolve and rerun init.db.py: {exc}")
+
 def init_mysql():
     print("Initializing MySQL Database (Full Migration)...")
     
@@ -195,10 +227,11 @@ def init_mysql():
             organ_system VARCHAR(255),
             task_area VARCHAR(255),
             topic_area VARCHAR(255),
-            summary TEXT,
-            diagram_code TEXT,
+            summary TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            diagram_code TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+            diagram_explanation TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
             created_date DATETIME
-        )
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
         ''',
         '''
         CREATE TABLE IF NOT EXISTS remediation_questions (
@@ -214,11 +247,13 @@ def init_mysql():
             explanation TEXT,
             difficulty_rating INT,
             FOREIGN KEY(assignment_id) REFERENCES remediation_assignments(id)
-        )
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
         '''
     ]
 
     for sql in tables:
+        if "CREATE TABLE IF NOT EXISTS remediation_questions" in sql:
+            migrate_remediation_utf8mb4(cursor)
         cursor.execute(sql)
 
     # MySQL Migrations (Self-Healing existing databases)
@@ -234,6 +269,15 @@ def init_mysql():
         except pymysql.MySQLError:
             # Column already exists
             pass
+
+    try:
+        cursor.execute(
+            "ALTER TABLE remediation_assignments ADD COLUMN diagram_explanation "
+            "TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )
+    except pymysql.MySQLError as exc:
+        if exc.args[0] != 1060:  # Duplicate column
+            print(f"⚠️ Could not add remediation diagram_explanation: {exc}")
 
     conn.commit()
     conn.close()
