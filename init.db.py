@@ -1,6 +1,7 @@
 import os
 import pymysql
 from dotenv import load_dotenv
+from db_pool import get_db_connection
 
 # Hardcoded absolute path for PythonAnywhere
 basedir = '/home/ps51632/mysite/explorecme'
@@ -50,13 +51,8 @@ def init_mysql():
         print("❌ ERROR: Missing MySQL credentials in .env file.")
         return
 
-    conn = pymysql.connect(
-        host=MYSQL_HOST,
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD,
-        database=MYSQL_DB
-    )
-    cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor(pymysql.cursors.Cursor)
 
     tables = [
         # ==========================================

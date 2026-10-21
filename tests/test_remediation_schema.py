@@ -17,11 +17,15 @@ class MySQLError(Exception):
 class RemediationSchemaTests(unittest.TestCase):
     def setUp(self):
         self.mysql = MagicMock(MySQLError=MySQLError)
-        with patch.dict(sys.modules, {"pymysql": self.mysql, "dotenv": MagicMock()}):
+        self.db_pool = MagicMock()
+        with patch.dict(sys.modules, {
+            "pymysql": self.mysql, "dotenv": MagicMock(), "db_pool": self.db_pool,
+        }):
             spec = importlib.util.spec_from_file_location("init_db", ROOT / "init.db.py")
             self.init = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(self.init)
-        self.cursor = self.mysql.connect.return_value.cursor.return_value
+        self.connection = self.db_pool.get_db_connection.return_value
+        self.cursor = self.connection.cursor.return_value
         self.cursor.fetchone.return_value = (1,)
         self.cursor.fetchall.return_value = [
             ("remediation_assignments",), ("remediation_questions",)]
@@ -87,6 +91,9 @@ class RemediationSchemaTests(unittest.TestCase):
         with patch.dict(os.environ, env), patch("builtins.print"):
             self.init.init_mysql()
 
+        self.db_pool.get_db_connection.assert_called_once_with()
+        self.mysql.connect.assert_not_called()
+        self.connection.cursor.assert_called_once_with(self.mysql.cursors.Cursor)
         statements = [args[0] for args, _ in self.cursor.execute.call_args_list]
         self.assertIn(
             "ALTER TABLE remediation_assignments ADD COLUMN diagram_explanation "
@@ -97,8 +104,8 @@ class RemediationSchemaTests(unittest.TestCase):
         conversions = [i for i, sql in enumerate(statements)
                        if "CONVERT TO CHARACTER SET" in sql]
         self.assertTrue(all(i < child_creation for i in conversions))
-        self.mysql.connect.return_value.commit.assert_called_once_with()
-        self.mysql.connect.return_value.close.assert_called_once_with()
+        self.connection.commit.assert_called_once_with()
+        self.connection.close.assert_called_once_with()
 
     def test_duplicate_explanation_column_is_safe_on_repeated_init(self):
         def execute(sql, *args):
@@ -115,7 +122,7 @@ class RemediationSchemaTests(unittest.TestCase):
 
         self.assertFalse(any("⚠️" in str(args) for args, _ in output.call_args_list))
         self.assertEqual(self.conversions(), [])
-        self.assertEqual(self.mysql.connect.return_value.close.call_count, 2)
+        self.assertEqual(self.connection.close.call_count, 2)
 
     def test_both_schema_definitions_support_utf8mb4(self):
         for path in ("init.db.py", "flask_app.py10011137"):
