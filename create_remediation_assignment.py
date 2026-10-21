@@ -437,6 +437,8 @@ async def save_to_database(username: str, data_list: list, remediation_name: str
         await conn.commit()
     except Exception as e:
         print(f"DEBUG: Error in bulk save_to_database: {e}")
+        await conn.rollback()
+        raise
     finally:
         conn.close()
     return generated_ids
