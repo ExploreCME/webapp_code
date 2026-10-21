@@ -1,4 +1,5 @@
 import asyncio
+import ast
 import importlib.util
 import os
 from pathlib import Path
@@ -89,6 +90,50 @@ class DbConnectionTests(unittest.TestCase):
                 patch("builtins.print"):
             exporter.export_questions()
         conn.close.assert_called_once()
+
+    def test_remediation_uses_shared_helper_for_both_connections(self):
+        conn = MagicMock()
+        conn.commit = AsyncMock()
+        manager = MagicMock()
+        manager.extract_from_file = AsyncMock(return_value=[])
+        manager.client.close = AsyncMock()
+        dependencies = {
+            **self.modules,
+            "openai": MagicMock(),
+            "pydantic": MagicMock(BaseModel=object),
+            "Question_writing_and_verification_optomized": MagicMock(),
+        }
+        with patch.dict(sys.modules, dependencies):
+            pool = self.load("db_pool")
+            with patch.object(pool, "get_async_db_connection",
+                              new=AsyncMock(return_value=conn)) as connect, \
+                    patch.dict(sys.modules, {"db_pool": pool}):
+                remediation = self.load("create_remediation_assignment")
+                self.assertIs(remediation.get_async_db_connection, connect)
+
+                ids = asyncio.run(remediation.save_to_database(
+                    "owner", [{"id": "existing-id"}], "remediation"))
+                self.assertEqual(ids, ["existing-id"])
+                connect.assert_awaited_once_with()
+                conn.commit.assert_awaited_once_with()
+                conn.close.assert_called_once_with()
+
+                connect.reset_mock()
+                conn.close.reset_mock()
+                with patch.object(remediation, "ConversationManager", return_value=manager):
+                    ids = asyncio.run(remediation.background_process_document(
+                        None, "owner", "remediation", uploaded_file_id="file-test"))
+                self.assertEqual(ids, [])
+                connect.assert_awaited_once_with()
+                conn.close.assert_called_once_with()
+                manager.extract_from_file.assert_awaited_once_with("file-test")
+                self.assertEqual(manager.client.close.await_count, 2)
+
+    def test_remediation_has_no_direct_aiomysql_connections(self):
+        source = ast.parse((ROOT / "create_remediation_assignment.py").read_text())
+        for node in ast.walk(source):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                self.assertNotEqual(ast.unparse(node.func), "aiomysql.connect")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@ import os
 import json
 import asyncio
 import uuid
-import aiomysql
 import traceback
 import difflib
 from datetime import datetime
@@ -12,6 +11,7 @@ from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import List, Literal
+from db_pool import get_async_db_connection
 
 # --- IMPORT THE UNIFIED ENGINE FROM YOUR CORE SCRIPT ---
 from Question_writing_and_verification_optomized import (
@@ -376,14 +376,7 @@ async def check_existing_remediation(conn, organ_system: str, task_area: str, to
     return None
 
 async def save_to_database(username: str, data_list: list, remediation_name: str):
-    conn = await aiomysql.connect(
-        host=MYSQL_HOST,
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD,
-        db=MYSQL_DB,
-        charset='utf8mb4',
-        cursorclass=aiomysql.DictCursor
-    )
+    conn = await get_async_db_connection()
     generated_ids = []
     try:
         async with conn.cursor() as cursor:
@@ -460,14 +453,7 @@ async def background_process_document(filepath: str, username: str, remediation_
     uploaded_file = None
     db_conn = None
     try:
-        db_conn = await aiomysql.connect(
-            host=MYSQL_HOST,
-            user=MYSQL_USER,
-            password=MYSQL_PASSWORD,
-            db=MYSQL_DB,
-            charset='utf8mb4',
-            cursorclass=aiomysql.DictCursor
-        )
+        db_conn = await get_async_db_connection()
         if uploaded_file_id is None:
             with open(filepath, "rb") as file_data:
                 uploaded_file = await manager.client.files.create(file=file_data, purpose="user_data")
