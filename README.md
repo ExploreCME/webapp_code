@@ -794,6 +794,11 @@ The repository includes database migration scripts in `migrations/`.
 
 ### Remediation Unicode storage
 
+Async remediation reads/writes use `db_pool.get_async_db_connection()`, which
+sets `charset='utf8mb4'`, `use_unicode=True`, and `SET NAMES utf8mb4` for each
+new connection. This does not convert existing table/column character sets;
+an `Incorrect string value` error still requires checking the deployed schema.
+
 MySQL/MariaDB must support `utf8mb4` and `utf8mb4_unicode_ci` to store generated
 remediation emoji without stripping characters. Run `python init.db.py` against
 the target database during a maintenance window with **all web/worker writers
