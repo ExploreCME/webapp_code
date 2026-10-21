@@ -259,10 +259,11 @@ def get_db():
                 organ_system VARCHAR(255),
                 task_area VARCHAR(255),
                 topic_area VARCHAR(255),
-                summary TEXT,
-                diagram_code TEXT,
+                summary TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+                diagram_code TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+                diagram_explanation TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
                 created_date DATETIME
-            )
+            ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
         ''')
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS remediation_questions (
@@ -278,7 +279,7 @@ def get_db():
                 explanation TEXT,
                 difficulty_rating INT,
                 FOREIGN KEY(assignment_id) REFERENCES remediation_assignments(id)
-            )
+            ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
         ''')
         g.db.commit()
     return g.db
