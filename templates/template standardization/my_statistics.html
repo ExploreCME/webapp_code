@@ -65,7 +65,7 @@
         }
     </style>
 </head>
-<body>
+<body>{% if dev_internal_access_mode %}{% include "internal_access_banner.html" %}{% endif %}
 <div class="container">
     <div class="header-bar">
         <!-- FIXED ROUTING LINK HERE -->

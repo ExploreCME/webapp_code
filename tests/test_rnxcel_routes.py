@@ -1,6 +1,8 @@
 """End-to-end nursing routes using deliberately nonclinical authored fixtures."""
 
 import json
+import os
+import secrets
 from contextlib import ExitStack, contextmanager
 from html.parser import HTMLParser
 from pathlib import Path
@@ -19,6 +21,7 @@ with patch("os.makedirs"):
 from rnxcel_engine import EXAM_PROFILE, TAG_DIMENSIONS, validate_version
 from rnxcel_catalog import RNXCEL_CATEGORIES
 from rnxcel_storage import RNXcelStore
+from internal_access import INTERNAL_OWNER
 
 
 # SQLite translation of the nursing migration, not application schema creation.
@@ -276,6 +279,97 @@ class RNXcelEndToEndTests(unittest.TestCase):
         dashboard = self.client.get("/rnxcel/dashboard")
         self.assertEqual(dashboard.status_code, 200)
         self.assertEqual(self.templates[-1][0], "rnxcel_dashboard.html")
+
+    def enable_internal_access(self):
+        environment = patch.dict(os.environ, {"FLASK_ENV": "development"}, clear=True)
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.internal_token = secrets.token_urlsafe(32)
+        self.app.config.update(
+            DEV_INTERNAL_ACCESS_MODE=True, DEV_INTERNAL_ACCESS_TOKEN=self.internal_token,
+            RNXCEL_DEV_BYPASS=True,
+        )
+        self.client.delete_cookie("__session")
+        self.client.environ_base["HTTP_X_INTERNAL_ACCESS"] = self.internal_token
+
+    def test_internal_access_uses_real_storage_and_keeps_consent_and_csrf(self):
+        self.enable_internal_access()
+        self.publish(authored_item("internal-test"))
+        response = self.client.get("/rnxcel/dashboard")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/rnxcel/consent", response.location)
+        consent = self.client.get("/rnxcel/consent")
+        self.assertIn("Internal Development Access Mode Active (Non-Production)", consent.text)
+        token = self.form(consent, "/rnxcel/consent")["csrf_token"]
+        self.assertEqual(self.client.post(
+            "/rnxcel/consent", data={"agree": "yes"},
+        ).status_code, 400)
+        self.assertEqual(self.client.post(
+            "/rnxcel/consent", data={"agree": "yes", "csrf_token": token},
+        ).status_code, 303)
+        self.assertEqual(self.client.get("/rnxcel/dashboard").status_code, 200)
+        path = self.start()
+        self.assertIsNotNone(self.saved(path, owner=INTERNAL_OWNER))
+        self.assertIsNone(self.saved(path, owner="owner-a"))
+        self.assertEqual(self.answer(path, 0, ["tile-a"]).status_code, 303)
+        self.assertEqual(self.client.get(path + "/results").status_code, 200)
+        self.assertEqual(self.client.get(path + "/review").status_code, 200)
+        self.decoder.assert_not_called()
+        with self.database() as connection:
+            self.assertEqual(connection.execute(
+                "SELECT COUNT(*) FROM rnxcel_entitlements WHERE owner_id = ?",
+                (INTERNAL_OWNER,),
+            ).fetchone()[0], 0)
+        with self.client.session_transaction() as session:
+            for key in ("username", "is_premium", "is_faculty", "has_paid"):
+                self.assertNotIn(key, session)
+
+    def test_internal_access_requires_token_on_every_request(self):
+        self.enable_internal_access()
+        with self.app.app_context():
+            self.store.accept_consent(INTERNAL_OWNER)
+        self.assertEqual(self.client.get("/rnxcel/dashboard").status_code, 200)
+        self.client.environ_base.pop("HTTP_X_INTERNAL_ACCESS")
+        for headers in ({}, {"X-Internal-Access": "invalid"}):
+            with self.subTest(headers=headers):
+                response = self.client.get("/rnxcel/dashboard", headers=headers)
+                self.assertEqual(response.status_code, 302)
+                self.assertIn("/rnxcel/sign-in", response.location)
+        self.app.config.update(DEV_INTERNAL_ACCESS_MODE=False, RNXCEL_DEV_BYPASS=False)
+        self.assertEqual(self.client.get(
+            "/rnxcel/dashboard", headers={"X-Internal-Access": self.internal_token},
+        ).status_code, 302)
+
+    def test_production_disables_internal_and_legacy_preview_access(self):
+        self.enable_internal_access()
+        self.app.config.update(ENV="production", DEBUG=True)
+        self.assertEqual(self.client.get("/rnxcel/dashboard").status_code, 302)
+        self.assertNotIn(
+            "Internal Development Access Mode Active", self.client.get("/rnxcel").text,
+        )
+
+    def test_internal_access_cannot_read_other_owners_attempts(self):
+        self.publish(authored_item("owner-isolation"))
+        existing = self.start()
+        self.enable_internal_access()
+        with self.app.app_context():
+            self.store.accept_consent(INTERNAL_OWNER)
+        self.assertEqual(self.client.get(existing).status_code, 404)
+
+    def test_internal_access_respects_maintenance(self):
+        self.enable_internal_access()
+        with patch.object(display_database, "MAINTENANCE_MODE", True):
+            response = self.client.get("/rnxcel/dashboard")
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("Internal Development Access Mode Active (Non-Production)", response.text)
+
+    def test_internal_access_does_not_enable_paxcel(self):
+        self.enable_internal_access()
+        response = self.client.get("/student_dashboard")
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.location.endswith("/paxcel"))
+        self.hooks["refresh_user_status"].assert_called_once()
+        self.hooks["refresh_user_status"].reset_mock()
 
     def test_unentitled_users_cannot_bypass_access_with_pa_or_nursing_session_flags(self):
         with self.database() as connection:

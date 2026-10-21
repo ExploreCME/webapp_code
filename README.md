@@ -55,6 +55,86 @@ python -m unittest discover -s tests -p 'test_landing_pages.py' -v
 python -m unittest discover -s tests -p 'test_entitlements.py' -v
 ```
 
+## Temporary internal development access (RNXcel)
+
+**Never enable this mode in production.** Use only an authorized, isolated
+development/staging deployment with a non-production database. Production
+(`production` or `prod`, case-insensitive) in **any** of `FLASK_ENV`, `ENV`,
+`APP_ENV`, or `ENVIRONMENT` (environment or Flask config) disables internal
+access, even with debug/testing enabled. Unset or unknown environments fail
+closed; all configured environment labels must be non-production.
+
+Server environment variables:
+
+- `DEV_INTERNAL_ACCESS_MODE`: `true` to opt in; defaults to `false`.
+- `DEV_INTERNAL_ACCESS_TOKEN`: required, nonempty shared internal secret.
+  Generate it with `python -c 'import secrets; print(secrets.token_urlsafe(32))'`.
+  Keep it in a secret manager or your local shell, never in source control,
+  URLs, browser storage, or frontend code.
+- `FLASK_ENV=development` (or `staging`, `testing`, `test`, `dev`, `local`);
+  remove conflicting production environment labels only on the isolated dev
+  deployment. Debug mode is not required.
+- `MAINTENANCE_MODE=false` to make the app available; this feature does not
+  bypass maintenance.
+- For local HTTP only, `SESSION_COOKIE_SECURE=false` and
+  `SESSION_COOKIE_SAMESITE=Lax` allow the existing consent/CSRF session to work.
+  Keep secure cookies enabled on HTTPS deployments.
+
+Local setup, after installing `requirements.txt` and provisioning the existing
+RNXcel migrations and published nursing content:
+
+```bash
+export FLASK_ENV=development DEV_INTERNAL_ACCESS_MODE=true MAINTENANCE_MODE=false
+export SESSION_COOKIE_SECURE=false SESSION_COOKIE_SAMESITE=Lax
+read -rsp "Internal access token: " DEV_INTERNAL_ACCESS_TOKEN; echo
+export DEV_INTERNAL_ACCESS_TOKEN
+flask --app display_database run --host 127.0.0.1
+```
+
+Send `X-Internal-Access: <your secret>` on **every** RNXcel request. For example:
+
+```bash
+curl -i -H "X-Internal-Access: ${DEV_INTERNAL_ACCESS_TOKEN}" \
+  http://127.0.0.1:5000/rnxcel/dashboard
+```
+
+For interactive testing, use a trusted local header-injection client configured
+only for this exact development origin and `/rnxcel` paths, including navigation
+and form submissions. Never forward the header to another origin. Use HTTPS
+for remote internal testing and restrict deployment network access.
+
+Approved requests use the dedicated `dev-internal-rnxcel` owner, not a Clerk
+account; testers sharing the token share that owner's development progress.
+Existing nursing consent, CSRF, ownership checks, and real RNXcel storage remain
+active. The initial dashboard request redirects to consent until accepted.
+No paid flags, signed-in identity, or entitlements are persisted; removing the
+header or disabling the mode immediately restores normal sign-in/purchase
+requirements. Missing/invalid credentials follow normal authentication; already
+authorized regular users retain their normal access. PAXcel, faculty, billing,
+and administration authorization are unchanged. This mode takes precedence over
+the empty, read-only `RNXCEL_DEV_BYPASS` layout preview.
+
+Startup emits a warning; rendered pages show
+**Internal Development Access Mode Active (Non-Production)** while enabled.
+Each approved RNXcel request emits a JSON `internal_access_granted` log with UTC
+timestamp, route, method, and directly connected client IP (not untrusted
+forwarding headers), never the secret or query string. Audit events use WARNING
+level so they are emitted by Flask's default logging configuration.
+Responses are private/no-store and vary by the internal credential header.
+After testing, unset the token, set `DEV_INTERNAL_ACCESS_MODE=false`, and restart
+all workers. Keep the mode disabled and the token unset in production.
+
+Focused tests (from the repository root):
+
+```bash
+python -m unittest discover -s tests -p 'test_internal_access.py' -v
+python -m unittest discover -s tests -p 'test_rnxcel_routes.py' -v
+python -m unittest discover -s tests -p 'test_rnxcel_dev_bypass.py' -v
+```
+
+The shared Flask startup integration intentionally touches a protected PAXcel
+file and requires the `paxcel-change-approved` reviewer label before merge.
+
 ## PAXcel payments and sign-in deployment
 
 Set these variables in the **server environment** before starting/redeploying the
