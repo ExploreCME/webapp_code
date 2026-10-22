@@ -11,6 +11,7 @@ import jwt
 # NEW: Performance & Security Imports
 from flask_caching import Cache
 from jwt import PyJWKClient
+from internal_access import init_internal_access
 
 # --- PERFORMANCE IMPORTS ---
 from db_pool import get_db_connection  # <-- Uses the new global pool
@@ -42,6 +43,7 @@ flask_secret_key = os.getenv('FLASK_SECRET_KEY')
 if os.getenv('FLASK_ENV', '').lower() == 'production' and not flask_secret_key:
     raise RuntimeError("FLASK_SECRET_KEY must be set in production.")
 app.secret_key = flask_secret_key or secrets.token_hex(32)
+init_internal_access(app)
 if not stripe.api_key:
     app.logger.warning("STRIPE_SECRET_KEY is not configured; individual checkout is unavailable.")
 

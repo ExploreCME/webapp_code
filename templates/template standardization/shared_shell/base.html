@@ -298,7 +298,7 @@
         }
     </style>
 </head>
-<body oncopy="return false" oncut="return false" onpaste="return false" oncontextmenu="return false" onselectstart="return false" ondragstart="return false">
+<body oncopy="return false" oncut="return false" onpaste="return false" oncontextmenu="return false" onselectstart="return false" ondragstart="return false">{% if dev_internal_access_mode %}{% include "internal_access_banner.html" %}{% endif %}
 
     {% block app_header %}{% if show_app_header | default(true) %}
     <!-- Unified Navigation Bar with Clerk Integration -->

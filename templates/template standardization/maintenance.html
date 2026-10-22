@@ -24,7 +24,7 @@
         p { color: #475569; font-size: 18px; line-height: 1.6; }
     </style>
 </head>
-<body>
+<body>{% if dev_internal_access_mode %}{% include "internal_access_banner.html" %}{% endif %}
     <div class="container">
         <h1>🛠️ Upgrading Architecture</h1>
         <p>Due to overwhelming demand, ExploreCME is currently upgrading its server architecture to ensure a faster, more reliable experience.</p>

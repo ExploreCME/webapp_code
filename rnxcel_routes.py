@@ -18,6 +18,7 @@ from rnxcel_catalog import (
 )
 from rnxcel_engine import flatten, learner_item, review
 from rnxcel_storage import RNXcelConflict, RNXcelStore, RNXcelUnavailable
+from internal_access import INTERNAL_OWNER, approved_request, enabled, is_production
 
 
 rnxcel_bp = Blueprint("rnxcel", __name__, url_prefix="/rnxcel")
@@ -26,7 +27,10 @@ rnxcel_bp = Blueprint("rnxcel", __name__, url_prefix="/rnxcel")
 def dev_bypass_enabled():
     """Explicit opt-in for local debug/testing only; never normal runtime."""
     flag = current_app.config.get("RNXCEL_DEV_BYPASS", os.getenv("RNXCEL_DEV_BYPASS"))
-    return (current_app.debug or current_app.testing) and flag in (True, "1")
+    return (
+        not is_production(current_app) and not enabled()
+        and (current_app.debug or current_app.testing) and flag in (True, "1")
+    )
 
 
 class _LayoutPreviewStore:
@@ -118,16 +122,20 @@ def nursing_guard():
     # Import lazily to reuse verified JWKS decoding without circular registration.
     from display_database import decode_clerk_token
 
-    try:
-        token = request.cookies.get("__session")
-        owner = decode_clerk_token(token).get("sub") if token else None
-        if (
-            not isinstance(owner, str) or not owner.strip() or owner != owner.strip()
-            or len(owner) > 255 or any(ord(char) < 32 for char in owner)
-        ):
+    internal = approved_request()
+    if internal:
+        owner = INTERNAL_OWNER
+    else:
+        try:
+            token = request.cookies.get("__session")
+            owner = decode_clerk_token(token).get("sub") if token else None
+            if (
+                not isinstance(owner, str) or not owner.strip() or owner != owner.strip()
+                or len(owner) > 255 or any(ord(char) < 32 for char in owner)
+            ):
+                owner = None
+        except Exception:
             owner = None
-    except Exception:
-        owner = None
     if not owner:
         return redirect(url_for("rnxcel.signin", next=safe_return(request.full_path.rstrip("?"))))
     g.rnxcel_owner = owner
@@ -139,7 +147,7 @@ def nursing_guard():
             or not secrets.compare_digest(state["token"], supplied)
         ):
             abort(400, description="Invalid nursing form token. Reload the page and try again.")
-    if not store().has_entitlement(owner):
+    if not internal and not store().has_entitlement(owner):
         return page("rnxcel_access.html"), 403
     if request.endpoint != "rnxcel.consent" and not store().has_consent(owner):
         return redirect(url_for("rnxcel.consent", next=safe_return(request.full_path.rstrip("?"))))
