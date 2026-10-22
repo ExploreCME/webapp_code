@@ -4,6 +4,7 @@ from pathlib import Path
 import random
 import unittest
 
+from fill_database_topics import ORGAN_SYSTEMS
 import generate_standardized_quizzes as generator
 
 
@@ -47,7 +48,7 @@ class TopicListCompatibilityTests(unittest.TestCase):
                 raw = json.loads(path.read_text(encoding="utf-8"))
                 topics = generator.load_topics(path)
                 self.assertEqual(set(raw), set(topics))
-                self.assertTrue(set(raw).issubset(generator.ORGAN_SYSTEMS))
+                self.assertTrue(set(raw).issubset(ORGAN_SYSTEMS))
                 self.assertTrue(all(topics.values()))
                 self.assertFalse({"title", "organization", "publication_year", "organ_systems"} & set(raw))
 
