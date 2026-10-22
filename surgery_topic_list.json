@@ -1,4 +1,140 @@
 {
+  "Cardiovascular System": [
+    "Acute arterial occlusion",
+    "Aortic aneurysm",
+    "Aortic dissection",
+    "Chronic arterial insufficiency",
+    "Chronic venous insufficiency",
+    "Coronary artery disease",
+    "Carotid artery stenosis",
+    "Intestinal ischemia",
+    "Valvular heart disease",
+    "Varicose veins",
+    "Advanced cardiac life support",
+    "Arteriovenous fistula placement",
+    "Central line placement",
+    "Permacath/port placement",
+    "Vascular access",
+    "Perioperative risk assessment and complications for cardiovascular",
+    "Shock",
+    "Perioperative risk assessment and complications for trauma/acute care",
+    "Intravenous line placement"
+  ],
+  "Dermatologic System": [
+    "Burns",
+    "Cellulitis",
+    "Dermatologic neoplasms",
+    "Epidermal inclusion cyst",
+    "Hidradenitis suppurativa",
+    "Lipoma",
+    "Pressure ulcer",
+    "Aspiration of seroma/hematoma",
+    "Incision and drainage of abscess",
+    "Skin biopsy",
+    "Skin graft and flap",
+    "Suturing",
+    "Perioperative risk assessment and complications for dermatologic"
+  ],
+  "Endocrine System": [
+    "Adrenal disorders",
+    "Endocrine neoplasms",
+    "Parathyroid disorders",
+    "Pituitary disorders",
+    "Thyroid disorders",
+    "Fine needle biopsy",
+    "Perioperative risk assessment and complications for endocrine"
+  ],
+  "Gastrointestinal System/Nutrition": [
+    "Anal disorders",
+    "Appendicitis",
+    "Bowel obstruction",
+    "Cholecystitis/cholelithiasis",
+    "Diverticulitis",
+    "Gastrointestinal bleeding",
+    "Hiatal hernia",
+    "Ileus",
+    "Inflammatory bowel disease",
+    "Malignancy of the gastrointestinal tract",
+    "Obesity",
+    "Pancreatitis",
+    "Peritonitis",
+    "Toxic megacolon",
+    "Abdominal drains",
+    "Colonoscopy",
+    "Endoscopic retrograde cholangiopancreatography",
+    "Endoscopy",
+    "Ileostomy",
+    "Nasogastric tubes",
+    "Parenteral nutrition",
+    "Percutaneous endoscopic gastronomy tube",
+    "Perioperative risk assessment and complications for gastrointestinal",
+    "Acute abdomen"
+  ],
+  "Genitourinary System": [
+    "Benign prostatic hyperplasia",
+    "Paraphimosis/phimosis",
+    "Testicular torsion",
+    "Urethral stricture",
+    "Urinary catheterization",
+    "Perioperative risk assessment and complications for renal/genitourinary"
+  ],
+  "Hematologic System": [
+    "Transfusion"
+  ],
+  "Musculoskeletal System": [
+    "Compartment syndrome",
+    "Compound fractures"
+  ],
+  "Neurologic System": [
+    "Alteration in consciousness",
+    "Carpal tunnel syndrome",
+    "Epidural hematoma",
+    "Neurologic neoplasms",
+    "Subarachnoid hemorrhage",
+    "Lumbar puncture",
+    "Perioperative risk assessment and complications for neurologic/neurosurgery",
+    "Acute pain",
+    "Chronic pain",
+    "Local and regional anesthesia",
+    "Perioperative risk assessment and complications for pain medicine/anesthesia"
+  ],
+  "Psychiatry/Behavioral Science": [
+    "Substance use disorder"
+  ],
+  "Pulmonary System": [
+    "Chylothorax",
+    "Empyema",
+    "Hemothorax",
+    "Lung malignancy",
+    "Mediastinal disorders",
+    "Pleural effusion",
+    "Pneumothorax",
+    "Pulmonary nodule",
+    "Chest tube",
+    "Thoracentesis",
+    "Perioperative risk assessment and complications for pulmonary/thoracic surgery",
+    "Endotracheal intubation"
+  ],
+  "Renal System": [
+    "Renal vascular disease",
+    "Nephrolithiasis",
+    "Urologic/renal neoplasms",
+    "Lithotripsy"
+  ],
+  "Reproductive System": [
+    "Breast abscess",
+    "Benign breast disease",
+    "Carcinoma of the female breast",
+    "Carcinoma of the male breast",
+    "Disorders of the augmented breast",
+    "Fat necrosis",
+    "Mastitis",
+    "Phyllodes tumor",
+    "Biopsy",
+    "Perioperative risk assessment and complications for breast surgery",
+    "Vasectomy"
+  ]
+}
   "title": "Surgery End of Rotation Exam Topic List",
   "organization": "Physician Assistant Education Association (PAEA)",
   "publication_year": 2023,

@@ -1,74 +1,54 @@
 {
-  "title": "Psychiatry & Behavioral Health End of Rotation Exam Topic List",
-  "organization": "Physician Assistant Education Association (PAEA)",
-  "organ_systems": {
-    "Depressive Disorders; Bipolar and Related Disorders": [
-      "Bipolar I disorder",
-      "Bipolar II disorder",
-      "Cyclothymic disorder",
-      "Major depressive disorder",
-      "Persistent depressive disorder (dysthymia)"
-    ],
-    "Anxiety Disorders; Trauma- and Stress-Related Disorders": [
-      "Generalized anxiety disorder",
-      "Panic disorder",
-      "Phobic disorders",
-      "Post-traumatic stress disorder",
-      "Specific phobias"
-    ],
-    "Substance-Related Disorders": [
-      "Alcohol-related disorders",
-      "Cannabis-related disorders",
-      "Hallucinogen-related disorders",
-      "Inhalant-related disorders",
-      "Opioid-related disorders",
-      "Sedative-, hypnotic-, or anxiolytic-related disorders",
-      "Stimulant-related disorders",
-      "Tobacco-related disorders"
-    ],
-    "Schizophrenia Spectrum and Other Psychotic Disorders": [
-      "Delusional disorder",
-      "Schizoaffective disorder",
-      "Schizophrenia",
-      "Schizophreniform disorder"
-    ],
-    "Disruptive, Impulse-Control and Conduct Disorders; Neurodevelopmental Disorders": [
-      "Attention-deficit/hyperactivity disorder",
-      "Autism spectrum disorder",
-      "Conduct disorder",
-      "Oppositional defiant disorder"
-    ],
-    "Personality Disorders; Obsessive-Compulsive and Related Disorders": [
-      "Antisocial personality disorder",
-      "Avoidant personality disorder",
-      "Body dysmorphic disorder",
-      "Borderline personality disorder",
-      "Dependent personality disorder",
-      "Histrionic personality disorder",
-      "Narcissistic personality disorder",
-      "Obsessive-compulsive disorder",
-      "Obsessive-compulsive personality disorder",
-      "Paranoid personality disorder",
-      "Schizoid personality disorder",
-      "Schizotypal personality disorder"
-    ],
-    "Somatic Symptom and Related Disorders; Nonadherence to Medical Treatment": [
-      "Factitious disorder",
-      "Illness anxiety disorder",
-      "Somatic symptom disorder"
-    ],
-    "Feeding or Eating Disorders": [
-      "Anorexia nervosa",
-      "Bulimia nervosa"
-    ],
-    "Paraphilic Disorders; Sexual Dysfunctions": [
-      "Exhibitionistic disorder",
-      "Female sexual interest/arousal disorder",
-      "Fetishistic disorder",
-      "Male hypoactive sexual desire disorder",
-      "Pedophilic disorder",
-      "Sexual masochism disorder",
-      "Voyeuristic disorder"
-    ]
-  }
+  "Psychiatry/Behavioral Science": [
+    "Bipolar I disorder",
+    "Bipolar II disorder",
+    "Cyclothymic disorder",
+    "Major depressive disorder",
+    "Persistent depressive disorder (dysthymia)",
+    "Generalized anxiety disorder",
+    "Panic disorder",
+    "Phobic disorders",
+    "Post-traumatic stress disorder",
+    "Specific phobias",
+    "Alcohol-related disorders",
+    "Cannabis-related disorders",
+    "Hallucinogen-related disorders",
+    "Inhalant-related disorders",
+    "Opioid-related disorders",
+    "Sedative-, hypnotic-, or anxiolytic-related disorders",
+    "Stimulant-related disorders",
+    "Tobacco-related disorders",
+    "Delusional disorder",
+    "Schizoaffective disorder",
+    "Schizophrenia",
+    "Schizophreniform disorder",
+    "Attention-deficit/hyperactivity disorder",
+    "Autism spectrum disorder",
+    "Conduct disorder",
+    "Oppositional defiant disorder",
+    "Antisocial personality disorder",
+    "Avoidant personality disorder",
+    "Body dysmorphic disorder",
+    "Borderline personality disorder",
+    "Dependent personality disorder",
+    "Histrionic personality disorder",
+    "Narcissistic personality disorder",
+    "Obsessive-compulsive disorder",
+    "Obsessive-compulsive personality disorder",
+    "Paranoid personality disorder",
+    "Schizoid personality disorder",
+    "Schizotypal personality disorder",
+    "Factitious disorder",
+    "Illness anxiety disorder",
+    "Somatic symptom disorder",
+    "Anorexia nervosa",
+    "Bulimia nervosa",
+    "Exhibitionistic disorder",
+    "Female sexual interest/arousal disorder",
+    "Fetishistic disorder",
+    "Male hypoactive sexual desire disorder",
+    "Pedophilic disorder",
+    "Sexual masochism disorder",
+    "Voyeuristic disorder"
+  ]
 }
