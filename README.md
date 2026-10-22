@@ -511,6 +511,21 @@ and ordinary blueprint generation excludes standardized question IDs.
 categories with no generated versions show a clearly labeled sample fallback or
 an empty-state message. The `Standardized:` internal quiz-name prefix is reserved.
 
+To remove a published version (for example from the Render Shell), run from the
+project directory:
+
+```bash
+python delete_standardized_assessment.py
+```
+
+Enter the assessment name (`Emergency Medicine`) and version number (`1`), not
+the combined title. The script locks the exact, case-sensitive
+`<name> version <N>` row, previews its category and question count, and deletes
+it only after you type `DELETE <name> version <N>`. Only the
+`standardized_quiz_versions` row is removed; `question_bank` content and student
+attempts are retained, but the version disappears from selection and
+catalog-based reports. Take a database backup first if you may need to restore it.
+
 ### Student reports
 
 Student Dashboard → **Reports** offers **Overall Usage** and **Standardized
