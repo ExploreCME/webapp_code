@@ -117,7 +117,7 @@ def main(argv=None):
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument("--quiz-name", help='e.g. "Family Medicine" (prompted when omitted)')
     cli.add_argument("--version", type=int, help="Version number 1-3 (prompted when omitted)")
-    cli.add_argument("--output", type=Path, help="PDF path (default: ./<quiz>_version_<n>.pdf)")
+    cli.add_argument("--output", type=Path, help="PDF path (default: ~/Downloads/<quiz>_version_<n>.pdf)")
     cli.add_argument("--list", action="store_true", help="List published versions and exit")
     args = cli.parse_args(argv)
 
@@ -139,7 +139,8 @@ def main(argv=None):
                 version = int(input("Version number: ").strip())
             meta, questions = load_version(cursor, name, version)
         slug = re.sub(r"[^A-Za-z0-9]+", "_", name).strip("_")
-        output = args.output or Path(f"{slug}_version_{version}.pdf")
+        output = args.output or (Path.home() / "Downloads" / f"{slug}_version_{version}.pdf")
+        output.parent.mkdir(parents=True, exist_ok=True)
         build_pdf(output, meta, questions)
         print(f"Wrote {len(questions)} questions to {output.resolve()}")
         return 0
