@@ -100,14 +100,14 @@ def main(input_func=input, print_func=print, connect=get_db_connection):
 
 def run():
     try:
-        main()
+        deleted = main()
     except (KeyboardInterrupt, EOFError):
         print("\nCancelled.")
         return 1
     except Exception as exc:
         print(f"\nFailed: {exc}", file=sys.stderr)
         return 1
-    return 0
+    return 0 if deleted else 1
 
 
 if __name__ == "__main__":

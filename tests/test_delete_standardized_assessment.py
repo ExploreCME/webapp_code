@@ -165,6 +165,10 @@ class DeleteStandardizedAssessmentTests(unittest.TestCase):
         with patch.object(script, "main", return_value=True):
             self.assertEqual(script.run(), 0)
 
+    def test_run_returns_nonzero_when_nothing_deleted(self):
+        with patch.object(script, "main", return_value=False):
+            self.assertEqual(script.run(), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
