@@ -1,0 +1,178 @@
+{
+  "title": "Surgery End of Rotation Exam Topic List",
+  "organization": "Physician Assistant Education Association (PAEA)",
+  "publication_year": 2023,
+  "organ_systems": {
+    "Gastrointestinal": {
+      "diagnoses": [
+        "Anal disorders",
+        "Appendicitis",
+        "Bowel obstruction",
+        "Cholecystitis/cholelithiasis",
+        "Diverticulitis",
+        "Gastrointestinal bleeding",
+        "Hiatal hernia",
+        "Ileus",
+        "Inflammatory bowel disease",
+        "Malignancy of the gastrointestinal tract",
+        "Obesity",
+        "Pancreatitis",
+        "Peritonitis",
+        "Toxic megacolon"
+      ],
+      "perioperative_risk_assessment_and_complications": true,
+      "procedures": [
+        "Abdominal drains",
+        "Colonoscopy",
+        "Endoscopic retrograde cholangiopancreatography",
+        "Endoscopy",
+        "Ileostomy",
+        "Nasogastric tubes",
+        "Parenteral nutrition",
+        "Percutaneous endoscopic gastronomy tube"
+      ]
+    },
+    "Cardiovascular": {
+      "diagnoses": [
+        "Acute arterial occlusion",
+        "Aortic aneurysm",
+        "Aortic dissection",
+        "Chronic arterial insufficiency",
+        "Chronic venous insufficiency",
+        "Compartment syndrome",
+        "Coronary artery disease",
+        "Carotid artery stenosis",
+        "Intestinal ischemia",
+        "Renal vascular disease",
+        "Valvular heart disease",
+        "Varicose veins"
+      ],
+      "perioperative_risk_assessment_and_complications": true,
+      "procedures": [
+        "Advanced cardiac life support",
+        "Arteriovenous fistula placement",
+        "Central line placement",
+        "Permacath/port placement",
+        "Vascular access"
+      ]
+    },
+    "Pulmonary/Thoracic Surgery": {
+      "diagnoses": [
+        "Chylothorax",
+        "Empyema",
+        "Hemothorax",
+        "Lung malignancy",
+        "Mediastinal disorders",
+        "Pleural effusion",
+        "Pneumothorax",
+        "Pulmonary nodule"
+      ],
+      "perioperative_risk_assessment_and_complications": true,
+      "procedures": [
+        "Chest tube",
+        "Thoracentesis"
+      ]
+    },
+    "Breast Surgery": {
+      "diagnoses": [
+        "Breast abscess",
+        "Benign breast disease",
+        "Carcinoma of the female breast",
+        "Carcinoma of the male breast",
+        "Disorders of the augmented breast",
+        "Fat necrosis",
+        "Mastitis",
+        "Phyllodes tumor"
+      ],
+      "perioperative_risk_assessment_and_complications": true,
+      "procedures": [
+        "Biopsy"
+      ]
+    },
+    "Dermatologic": {
+      "diagnoses": [
+        "Burns",
+        "Cellulitis",
+        "Dermatologic neoplasms",
+        "Epidermal inclusion cyst",
+        "Hidradenitis suppurativa",
+        "Lipoma",
+        "Pressure ulcer"
+      ],
+      "perioperative_risk_assessment_and_complications": true,
+      "procedures": [
+        "Aspiration of seroma/hematoma",
+        "Incision and drainage of abscess",
+        "Skin biopsy",
+        "Skin graft and flap",
+        "Suturing"
+      ]
+    },
+    "Renal/Genitourinary": {
+      "diagnoses": [
+        "Benign prostatic hyperplasia",
+        "Nephrolithiasis",
+        "Paraphimosis/phimosis",
+        "Testicular torsion",
+        "Urethral stricture",
+        "Urologic/renal neoplasms"
+      ],
+      "perioperative_risk_assessment_and_complications": true,
+      "procedures": [
+        "Lithotripsy",
+        "Urinary catheterization",
+        "Vasectomy"
+      ]
+    },
+    "Trauma/Acute Care": {
+      "diagnoses": [
+        "Acute abdomen",
+        "Alteration in consciousness",
+        "Compound fractures",
+        "Shock"
+      ],
+      "perioperative_risk_assessment_and_complications": true,
+      "procedures": [
+        "Transfusion"
+      ]
+    },
+    "Neurologic/Neurosurgery": {
+      "diagnoses": [
+        "Carpal tunnel syndrome",
+        "Epidural hematoma",
+        "Neurologic neoplasms",
+        "Subarachnoid hemorrhage"
+      ],
+      "perioperative_risk_assessment_and_complications": true,
+      "procedures": [
+        "Lumbar puncture"
+      ]
+    },
+    "Pain Medicine/Anesthesia": {
+      "diagnoses": [
+        "Acute pain",
+        "Chronic pain",
+        "Substance use disorder"
+      ],
+      "perioperative_risk_assessment_and_complications": true,
+      "procedures": [
+        "Endotracheal intubation",
+        "Intravenous line placement",
+        "Local and regional anesthesia"
+      ]
+    },
+    "Endocrine": {
+      "diagnoses": [
+        "Adrenal disorders",
+        "Endocrine neoplasms",
+        "Parathyroid disorders",
+        "Pituitary disorders",
+        "Thyroid disorders"
+      ],
+      "perioperative_risk_assessment_and_complications": true,
+      "procedures": [
+        "Fine needle biopsy"
+      ]
+    }
+  }
+}
