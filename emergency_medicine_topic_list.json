@@ -252,5 +252,26 @@
     "Polycythemia",
     "Sickle cell anemia/crisis",
     "Thrombocytopenia"
-  ]
+  ],
+  "Infectious Diseases": [
+     "Bacteremia",
+     "Clostridioides difficile",
+     "Clostridium tetani",
+     "Necrotizing fasciitis",
+     "Pertussis",
+     "Tuberculosis"
+     "Encephalitis",
+     "Fever of unknown origin",
+     "Fever without a source"
+     "Fungal infections",
+     "Toxoplasmosis"
+     "Sepsis",
+     "Sexually transmitted infections",
+     "Vector-borne infections",
+     "Coronavirus disease 2019 (COVID-19)",
+     "Herpes simplex virus",
+     "Human immunodeficiency virus/Acquired immunodeficiency syndrome",
+     "Influenza",
+     "Rabies"
+     ],
 }
