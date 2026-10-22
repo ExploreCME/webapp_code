@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a published standardized quiz version to a PDF answer key (read-only)."""
+"""Export a published standardized quiz version to a PDF or TXT answer key (read-only)."""
 
 import argparse
 import json
@@ -113,11 +113,33 @@ def build_pdf(path, meta, questions):
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
 
 
+def build_txt(path, meta, questions):
+    with path.open("w", encoding="utf-8") as output:
+        output.write(f"{meta['quiz_name']}\n")
+        output.write(
+            f"Category: {meta['category']}\nQuestions: {len(questions)}\n"
+            f"Published: {meta['created_date']}\nCONFIDENTIAL - answer key\n\n"
+        )
+        for number, q in enumerate(questions, 1):
+            output.write(f"{'=' * 70}\nQuestion {number}\n\n")
+            output.write(" / ".join(str(q.get(k) or "") for k in (
+                "organ_system", "task_area", "topic_area"
+            )) + "\n\n")
+            output.write(f"{q.get('question_stem') or ''}\n\n")
+            for choice in CHOICES:
+                output.write(f"{choice}. {q.get(f'answer_choice_{choice}') or ''}\n")
+            correct = str(q.get("correct_answer") or "").strip().upper()
+            correct_text = (q.get(f"answer_choice_{correct}") or "") if correct in CHOICES else ""
+            output.write(f"\nCorrect answer: {correct}. {correct_text}\n")
+            output.write(f"Explanation: {q.get('explanation') or ''}\n\n")
+
+
 def main(argv=None):
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument("--quiz-name", help='e.g. "Family Medicine" (prompted when omitted)')
     cli.add_argument("--version", type=int, help="Version number 1-3 (prompted when omitted)")
-    cli.add_argument("--output", type=Path, help="PDF path (default: ~/Downloads/<quiz>_version_<n>.pdf)")
+    cli.add_argument("--format", choices=("pdf", "txt"), default="pdf", help="Export format (default: pdf)")
+    cli.add_argument("--output", type=Path, help="Output path (default: ~/Downloads/<quiz>_version_<n>.<format>)")
     cli.add_argument("--list", action="store_true", help="List published versions and exit")
     args = cli.parse_args(argv)
 
@@ -139,9 +161,10 @@ def main(argv=None):
                 version = int(input("Version number: ").strip())
             meta, questions = load_version(cursor, name, version)
         slug = re.sub(r"[^A-Za-z0-9]+", "_", name).strip("_")
-        output = args.output or (Path.home() / "Downloads" / f"{slug}_version_{version}.pdf")
+        output = args.output or (Path.home() / "Downloads" / f"{slug}_version_{version}.{args.format}")
         output.parent.mkdir(parents=True, exist_ok=True)
-        build_pdf(output, meta, questions)
+        writer = build_txt if args.format == "txt" else build_pdf
+        writer(output, meta, questions)
         print(f"Wrote {len(questions)} questions to {output.resolve()}")
         return 0
     except (ValueError, OSError, EOFError) as error:
