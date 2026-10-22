@@ -259,12 +259,12 @@
      "Clostridium tetani",
      "Necrotizing fasciitis",
      "Pertussis",
-     "Tuberculosis"
+     "Tuberculosis",
      "Encephalitis",
      "Fever of unknown origin",
-     "Fever without a source"
+     "Fever without a source",
      "Fungal infections",
-     "Toxoplasmosis"
+     "Toxoplasmosis",
      "Sepsis",
      "Sexually transmitted infections",
      "Vector-borne infections",
@@ -273,5 +273,5 @@
      "Human immunodeficiency virus/Acquired immunodeficiency syndrome",
      "Influenza",
      "Rabies"
-     ],
+     ]
 }
