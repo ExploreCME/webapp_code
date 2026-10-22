@@ -1,87 +1,69 @@
 {
-  "title": "Women’s Health End of Rotation Exam Topic List",
-  "organization": "Physician Assistant Education Association (PAEA)",
-  "organ_systems": {
-    "Gynecology - Menstruation": [
-      "Amenorrhea",
-      "Dysfunctional uterine bleeding",
-      "Dysmenorrhea",
-      "Menopause",
-      "Normal physiology",
-      "Premenstrual dysphoric disorder",
-      "Premenstrual syndrome"
-    ],
-    "Gynecology - Infections": [
-      "Cervicitis (gonorrhea, chlamydia, herpes simplex, human papilloma virus)",
-      "Chancroid",
-      "Lymphogranuloma venereum",
-      "Pelvic Inflammatory disease",
-      "Syphilis",
-      "Vaginitis (trichomoniasis, bacterial vaginosis, atrophic vaginitis, candidiasis)"
-    ],
-    "Gynecology - Neoplasms": [
-      "Breast cancer",
-      "Cervical carcinoma",
-      "Cervical dysplasia",
-      "Endometrial cancer",
-      "Ovarian neoplasms",
-      "Vaginal/vulvar neoplasms"
-    ],
-    "Gynecology - Disorders of the Breast": [
-      "Breast abscess",
-      "Breast fibroadenoma",
-      "Fibrocystic disease",
-      "Mastitis"
-    ],
-    "Gynecology - Structural Abnormalities": [
-      "Cystocele",
-      "Ovarian torsion",
-      "Rectocele",
-      "Uterine prolapse"
-    ],
-    "Gynecology - Other": [
-      "Contraceptive methods",
-      "Endometriosis",
-      "Infertility",
-      "Leiomyoma",
-      "Ovarian cyst",
-      "Sexual assault",
-      "Spouse or partner neglect/violence",
-      "Urinary incontinence"
-    ],
-    "Obstetrics - Prenatal Care/Normal Pregnancy": [
-      "Apgar score",
-      "Fetal position",
-      "Multiple gestation",
-      "Normal labor and delivery (stages, duration, mechanism of delivery, monitoring)",
-      "Physiology of pregnancy",
-      "Prenatal diagnosis/care"
-    ],
-    "Obstetrics - Pregnancy Complications": [
-      "Abortion",
-      "Ectopic pregnancy",
-      "Gestational diabetes",
-      "Gestational trophoblastic disease (molar pregnancy, choriocarcinoma)",
-      "Incompetent cervix",
-      "Placenta abruption",
-      "Placenta previa",
-      "Preeclampsia/eclampsia",
-      "Pregnancy induced hypertension",
-      "Rh incompatibility"
-    ],
-    "Obstetrics - Labor and Delivery Complications": [
-      "Breech presentation",
-      "Dystocia",
-      "Fetal distress",
-      "Premature rupture of membranes",
-      "Preterm labor",
-      "Prolapsed umbilical cord"
-    ],
-    "Obstetrics - Postpartum Care": [
-      "Endometritis",
-      "Normal physiology changes of puerperium",
-      "Perineal laceration/episiotomy care",
-      "Postpartum hemorrhage"
-    ]
-  }
+  "Genitourinary System": [
+    "Urinary incontinence"
+  ],
+  "Psychiatry/Behavioral Science": [
+    "Premenstrual dysphoric disorder",
+    "Sexual assault",
+    "Spouse or partner neglect/violence"
+  ],
+  "Reproductive System": [
+    "Amenorrhea",
+    "Dysfunctional uterine bleeding",
+    "Dysmenorrhea",
+    "Menopause",
+    "Normal physiology",
+    "Premenstrual syndrome",
+    "Cervicitis (gonorrhea, chlamydia, herpes simplex, human papilloma virus)",
+    "Chancroid",
+    "Lymphogranuloma venereum",
+    "Pelvic Inflammatory disease",
+    "Syphilis",
+    "Vaginitis (trichomoniasis, bacterial vaginosis, atrophic vaginitis, candidiasis)",
+    "Breast cancer",
+    "Cervical carcinoma",
+    "Cervical dysplasia",
+    "Endometrial cancer",
+    "Ovarian neoplasms",
+    "Vaginal/vulvar neoplasms",
+    "Breast abscess",
+    "Breast fibroadenoma",
+    "Fibrocystic disease",
+    "Mastitis",
+    "Cystocele",
+    "Ovarian torsion",
+    "Rectocele",
+    "Uterine prolapse",
+    "Contraceptive methods",
+    "Endometriosis",
+    "Infertility",
+    "Leiomyoma",
+    "Ovarian cyst",
+    "Apgar score",
+    "Fetal position",
+    "Multiple gestation",
+    "Normal labor and delivery (stages, duration, mechanism of delivery, monitoring)",
+    "Physiology of pregnancy",
+    "Prenatal diagnosis/care",
+    "Abortion",
+    "Ectopic pregnancy",
+    "Gestational diabetes",
+    "Gestational trophoblastic disease (molar pregnancy, choriocarcinoma)",
+    "Incompetent cervix",
+    "Placenta abruption",
+    "Placenta previa",
+    "Preeclampsia/eclampsia",
+    "Pregnancy induced hypertension",
+    "Rh incompatibility",
+    "Breech presentation",
+    "Dystocia",
+    "Fetal distress",
+    "Premature rupture of membranes",
+    "Preterm labor",
+    "Prolapsed umbilical cord",
+    "Endometritis",
+    "Normal physiology changes of puerperium",
+    "Perineal laceration/episiotomy care",
+    "Postpartum hemorrhage"
+  ]
 }
