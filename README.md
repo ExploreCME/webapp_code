@@ -505,7 +505,8 @@ available to your account. No additional dependencies are required.
 
 Published membership is an ordered list of `std-` question IDs in
 `standardized_quiz_versions`; content lives in `question_bank`. Neither user quiz
-ownership nor `quiz_questions_map` is used. IDs and version names are immutable,
+ownership nor `quiz_questions_map` is used. IDs and version names are immutable
+(except for the base-name correction script below),
 and ordinary blueprint generation excludes standardized question IDs.
 `standardized_quizzes.py` retains the original sample sets for legacy attempts;
 categories with no generated versions show a clearly labeled sample fallback or
@@ -536,6 +537,29 @@ quizzes are not deleted; shared published question IDs cause the operation to
 abort. Errors or interruption roll back the transaction. The removed version's
 content can then be regenerated (the generator still refuses publication if any
 of its three version names already exists).
+
+To correct a published assessment's base name (for example the typo
+`Emergecy Medicine`), first back up the database, then merge/deploy this script
+and run it from the Render project directory. Preview with `--dry-run`, then run
+the live command, which asks you to type `RENAME <old name>` to confirm:
+
+```bash
+python rename_standardized_assessment.py --old-name "Emergecy Medicine" --new-name "Emergency Medicine" --dry-run
+python rename_standardized_assessment.py --old-name "Emergecy Medicine" --new-name "Emergency Medicine"
+```
+
+Omit `--old-name`/`--new-name` to be prompted. This changes database metadata
+only: every exact `<old> version <N>` row becomes `<new> version <N>` with
+category `<new>`, and exact `Standardized: <old> version <N>` names in
+`quiz_attempts` (including a non-generated `quiz_name_norm`) and
+`assigned_quizzes` are updated in one transaction. Attempt IDs, responses,
+scores, question IDs/content/order, and dates are unchanged. The script refuses
+(changing nothing) on inconsistent name/category metadata, case variants,
+existing destination versions/categories/attempt or assignment names, and
+built-in sample names; data that changes after the preview also aborts the
+rename. Run it when no one is taking or submitting these assessments, since
+open sessions still use the old name. Exit status is 0 for a completed rename or
+dry run and 1 for no match, cancellation, or failure.
 
 ### Student reports
 
@@ -587,6 +611,7 @@ Run the generator and SQLite-backed flow regressions without MySQL/API access:
 ```bash
 python -m unittest discover -s tests -p 'test_standardized_quizzes.py' -v
 python -m unittest discover -s tests -p 'test_generate_standardized_quizzes.py' -v
+python -m unittest discover -s tests -p 'test_rename_standardized_assessment.py' -v
 ```
 
 ## Blueprint quiz database-first selection
