@@ -505,7 +505,8 @@ available to your account. No additional dependencies are required.
 
 Published membership is an ordered list of `std-` question IDs in
 `standardized_quiz_versions`; content lives in `question_bank`. Neither user quiz
-ownership nor `quiz_questions_map` is used. IDs and version names are immutable,
+ownership nor `quiz_questions_map` is used. IDs and version names are immutable
+(except for the base-name correction script below),
 and ordinary blueprint generation excludes standardized question IDs.
 `standardized_quizzes.py` retains the original sample sets for legacy attempts;
 categories with no generated versions show a clearly labeled sample fallback or

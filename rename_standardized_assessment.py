@@ -143,6 +143,8 @@ def build_plan(cursor, old_name, new_name, norm_columns, lock=False):
     for name in new_names:
         if len(STANDARDIZED_PREFIX + name) > MAX_NAME_LENGTH:
             conflicts.append(f"{name!r} exceeds {MAX_NAME_LENGTH} characters with its prefix")
+        # Joining a built-in category is intended; only a version name that equals a
+        # catalog key would shadow its "Standardized: <category>" sample quiz.
         if _norm(name) in reserved:
             conflicts.append(f"{name!r} is a reserved built-in sample name")
     for row in rows:
