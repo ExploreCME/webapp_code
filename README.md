@@ -520,11 +520,22 @@ python delete_standardized_assessment.py
 
 Enter the assessment name (`Emergency Medicine`) and version number (`1`), not
 the combined title. The script locks the exact, case-sensitive
-`<name> version <N>` row, previews its category and question count, and deletes
-it only after you type `DELETE <name> version <N>`. Only the
-`standardized_quiz_versions` row is removed; `question_bank` content and student
-attempts are retained, but the version disappears from selection and
-catalog-based reports. Take a database backup first if you may need to restore it.
+`<name> version <N>` row, previews its category and counts of questions, attempts,
+responses, assignments, and question mappings, and proceeds only after you type
+`DELETE <name> version <N>` exactly.
+
+**Warning: This is a permanent hard delete. Back up the database first and stop
+quiz writes while performing maintenance. Student attempts and answers are deleted
+too, including their history and report data.**
+In one transaction, the script deletes `attempt_responses` for the exact
+`Standardized: <name> version <N>` attempts, then those `quiz_attempts`, matching
+`assigned_quizzes`, `quiz_questions_map` entries for the published question IDs,
+the `question_bank` rows themselves (including their embedded answer choices),
+and finally the `standardized_quiz_versions` row. Other versions and unrelated
+quizzes are not deleted; shared published question IDs cause the operation to
+abort. Errors or interruption roll back the transaction. The removed version's
+content can then be regenerated (the generator still refuses publication if any
+of its three version names already exists).
 
 ### Student reports
 
