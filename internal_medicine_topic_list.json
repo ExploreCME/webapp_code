@@ -47,10 +47,7 @@
     "Diabetic ketoacidosis/acute hypoglycemia",
     "Thyroid storm"
   ],
-  "Eyes, Ears, Nose, and Throat": [
-    "Acute glaucoma"
-  ],
-  "Gastrointestinal System/Nutrition": [
+   "Gastrointestinal System/Nutrition": [
     "Acute and chronic hepatitis",
     "Acute/chronic pancreatitis",
     "Anal fissure/fistula",
@@ -193,6 +190,23 @@
     "Acute respiratory distress/failure",
     "Pneumothorax",
     "Pulmonary embolism"
+  ],
+  "Psychiatry/Behavioral Science": [
+    "Generalized anxiety disorder",
+    "Panic disorder",
+    "Phobic disorders",
+    "Bipolar and related disorders",
+    "Child/Elder neglect or violence",
+    "Delirium",
+    "Depressive disorders",
+    "Eating disorders",
+    "Pain management",
+    "Psychosis",
+    "Sleep-wake disorders",
+    "Substance-related disorders",
+    "Adjustment disorder",
+    "Bereavement",
+    "Posttraumatic stress disorder"
   ],
   "Renal System": [
     "Acid base disturbances",
