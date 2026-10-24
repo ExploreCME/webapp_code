@@ -67,9 +67,13 @@ web service:
 - `STRIPE_WEBHOOK_SECRET`: signing secret for the Stripe endpoint `/webhook`,
   required for verified subscription/entitlement updates.
 
-Individual checkout currently uses the existing recurring Stripe Price ID
-`price_1U8XG31IrD5jMp4rgoj4dYGg` in `display_database.py` (not an environment
-variable). The key and price must belong to the same Stripe account and mode
+- `STRIPE_PRICE_ID` (optional): recurring Stripe Price ID for individual checkout.
+  When unset or blank, checkout uses the default `price_1UTsSC1IrD5jMp4rcIhmylIf`
+  (`DEFAULT_STRIPE_PRICE_ID` in `display_database.py`). Stripe price changes create
+  a new Price ID, so update this value (or the default) and redeploy after
+  changing PAXcel pricing.
+
+The key and price must belong to the same Stripe account and mode
 (test/live). Institutional access continues to use the existing Stripe Payment
 Link and does not require a server-side checkout API call.
 

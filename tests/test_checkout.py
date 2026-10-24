@@ -74,8 +74,24 @@ class CheckoutTests(unittest.TestCase):
         self.assertEqual(args["client_reference_id"], "checkout-user")
         self.assertEqual(args["mode"], "subscription")
         self.assertEqual(args["line_items"], [
-            {"price": "price_1U8XG31IrD5jMp4rgoj4dYGg", "quantity": 1},
+            {"price": "price_1UTsSC1IrD5jMp4rcIhmylIf", "quantity": 1},
         ])
+
+    def test_price_id_can_be_overridden_from_environment(self):
+        self.create.return_value = SimpleNamespace(url="https://checkout.stripe.com/test-checkout")
+        for value, expected in (
+            ("  price_override123  ", "price_override123"),
+            ("   ", "price_1UTsSC1IrD5jMp4rcIhmylIf"),
+        ):
+            with self.subTest(value=value):
+                self.create.reset_mock()
+                with patch.dict(os.environ, {"STRIPE_PRICE_ID": value}), \
+                        patch.object(self.backend.stripe, "api_key", "test-server-key"):
+                    response = self.client.post("/create-checkout-session")
+                self.assertEqual(response.status_code, 303)
+                self.assertEqual(self.create.call_args.kwargs["line_items"], [
+                    {"price": expected, "quantity": 1},
+                ])
 
     def test_misconfigured_secret_and_api_errors_are_safe(self):
         for error in (
@@ -120,7 +136,7 @@ class CheckoutTests(unittest.TestCase):
                 self.assert_unavailable(self.client.post("/create-checkout-session"))
         output = "\n".join(logs.output)
         self.assertIn("livemode_guess=True", output)
-        self.assertIn("price_id=price_1U8XG31IrD5jMp4rgoj4dYGg", output)
+        self.assertIn("price_id=price_1UTsSC1IrD5jMp4rcIhmylIf", output)
         self.assertIn("type=InvalidRequestError code=resource_missing param=line_items[0][price]", output)
         self.assertNotIn("secretvalue", output)
         with self.client.session_transaction() as session:
