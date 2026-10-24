@@ -14,6 +14,10 @@ import secrets
 # --- PERFORMANCE IMPORTS ---
 from db_pool import get_db_connection
 from document_storage import upload_document, list_documents
+from preview_app import (
+    load_preview, preview_responses, save_preview, protect_preview_response,
+    SAMPLE_QUIZ_NAME, SAMPLE_REMEDIATION_NAME,
+)
 
 # --- IMPORT SHARED UNIQUE CHECK ---
 from shared_utils import is_assignment_name_unique
@@ -94,13 +98,73 @@ def close_db(error):
 
 @quiz_bp.after_request
 def remove_frame_restrictions(response):
+    protect_preview_response(response)
     response.headers["Content-Security-Policy"] = "frame-ancestors * https: http: data: blob: 'self'"
     if "X-Frame-Options" in response.headers:
         del response.headers["X-Frame-Options"]
     return response
 
 @quiz_bp.before_request
+def authorize_sample_request():
+    load_preview()
+    if g.preview:
+        return
+    values = request.form if request.method == 'POST' else request.args
+    if values.get('is_preview') == 'true':
+        name = values.get('quiz_name')
+        kind = {SAMPLE_QUIZ_NAME: 'quiz', SAMPLE_REMEDIATION_NAME: 'remediation'}.get(name)
+        if not kind or request.endpoint not in ('quiz.quiz_mode', 'quiz.start_quiz'):
+            return "Invalid sample request.", 400
+        if values.get('attempt_id') or values.get('resume_attempt_id'):
+            return "Invalid sample attempt.", 400
+        return redirect(url_for('preview.preview_take', assignment_type=kind,
+                                mode=values.get('mode', 'study_no_exp')))
+    protected = {
+        'quiz.question_page', 'quiz.check_answer', 'quiz.quiz_results',
+        'quiz.review_attempt', 'quiz.remediation_question_page',
+        'quiz.remediation_modules', 'quiz.view_remediation_flashcard',
+    }
+    if request.endpoint not in protected:
+        return
+    if not session.get('username') or session['username'].startswith('guest_'):
+        return redirect(url_for('paxcel_landing'))
+    name = values.get('quiz_name', '')
+    if (request.endpoint in ('quiz.question_page', 'quiz.check_answer', 'quiz.remediation_question_page',
+                             'quiz.remediation_modules', 'quiz.view_remediation_flashcard')
+            and not (request.endpoint in ('quiz.question_page', 'quiz.check_answer')
+                     and name.startswith(STANDARDIZED_PREFIX))
+            and hasattr(g, 'is_premium') and not g.is_premium):
+        return "Paid access required outside public samples.", 403
+    attempt_id = values.get('attempt_id')
+    if attempt_id and not name.startswith(STANDARDIZED_PREFIX):
+        cursor = get_db().cursor()
+        cursor.execute("SELECT username, quiz_name FROM quiz_attempts WHERE attempt_id = %s", (attempt_id,))
+        attempt = cursor.fetchone()
+        if attempt and (attempt.get('quiz_name') or '').startswith(STANDARDIZED_PREFIX):
+            return
+        if request.endpoint == 'quiz.review_attempt' and getattr(g, 'is_faculty', False):
+            return
+        if not attempt or attempt.get('username') != session['username']:
+            return "Quiz attempt not found.", 404
+
+
+@quiz_bp.context_processor
+def sample_player_context():
+    if not getattr(g, 'preview', None):
+        return {}
+
+    def sample_url_for(endpoint, **values):
+        if endpoint in ('quiz.select_quiz', 'quiz.quiz_attempts'):
+            return url_for('preview.preview_menu')
+        return url_for(endpoint, **values)
+
+    return {'is_public_preview': True, 'url_for': sample_url_for}
+
+
+@quiz_bp.before_request
 def require_eula():
+    if getattr(g, 'preview', None):
+        return
     # Endpoints that are safe to access without EULA acceptance
     exempt_endpoints = ['quiz.view_eula', 'quiz.accept_eula', 'static']
     if request.endpoint in exempt_endpoints or (request.endpoint and request.endpoint.startswith('static')):
@@ -513,6 +577,8 @@ def generation_status():
 # ==========================================
 @quiz_bp.before_request
 def require_standardized_access():
+    if getattr(g, 'preview', None):
+        return
     values = request.form if request.method == 'POST' else request.args
     quiz_name = (request.view_args or {}).get('quiz_name') or values.get('quiz_name', '')
     attempt_id = values.get('attempt_id') or values.get('resume_attempt_id')
@@ -1225,15 +1291,18 @@ def check_answer():
         flash('Invalid submission. Please select an answer.', 'error')
         return redirect(url_for('quiz.question_page', q=raw_question_id, quiz_name=selected_quiz_name, mode=mode, attempt_id=attempt_id))
 
-    conn = get_db()
-    cursor = conn.cursor()
-
-    if selected_quiz_name and selected_quiz_name.startswith('REMEDIATION_'):
-        cursor.execute('SELECT correct_answer FROM remediation_questions WHERE id = %s', (raw_question_id,))
+    preview = getattr(g, 'preview', None)
+    if preview:
+        mode = preview['mode']
+        question = next((q for q in preview['questions'] if str(q['id']) == raw_question_id), None)
     else:
-        cursor.execute('SELECT correct_answer FROM question_bank WHERE id = %s', (raw_question_id,))
-
-    question = cursor.fetchone()
+        conn = get_db()
+        cursor = conn.cursor()
+        if selected_quiz_name and selected_quiz_name.startswith('REMEDIATION_'):
+            cursor.execute('SELECT correct_answer FROM remediation_questions WHERE id = %s', (raw_question_id,))
+        else:
+            cursor.execute('SELECT correct_answer FROM question_bank WHERE id = %s', (raw_question_id,))
+        question = cursor.fetchone()
 
     if question:
         # --- BULLETPROOF BACKEND GRADER ---
@@ -1257,7 +1326,13 @@ def check_answer():
             is_correct = 1 if user_choice.strip().upper() in raw_db_ans else 0
             correct_display = raw_db_ans
 
-        if attempt_id:
+        if preview:
+            preview['responses'][raw_question_id] = {
+                'question_id': raw_question_id, 'user_choice': user_choice.strip().upper(),
+                'correct_answer': correct_display, 'is_correct': is_correct,
+            }
+            save_preview()
+        elif attempt_id:
             submitted_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute('''
                 INSERT INTO attempt_responses (attempt_id, question_id, user_choice, correct_answer, is_correct, submitted_time)
@@ -1303,12 +1378,17 @@ def question_page():
         assignment_id = selected_quiz_name.replace('REMEDIATION_', '')
         return redirect(url_for('quiz.remediation_question_page', assignment_id=assignment_id, q=raw_q, answered=answered, attempt_id=attempt_id, mode=mode))
 
-    conn = get_db()
-    cursor = conn.cursor()
+    preview = getattr(g, 'preview', None)
+    conn = None if preview else get_db()
+    cursor = None if preview else conn.cursor()
     question_ids = []
 
-    standardized_questions = get_standardized_questions(selected_quiz_name)
-    if standardized_questions is not None:
+    standardized_questions = None if preview else get_standardized_questions(selected_quiz_name)
+    if preview:
+        mode = preview['mode']
+        question_ids = [question['id'] for question in preview['questions']]
+        q = next((qid for qid in question_ids if str(qid) == str(q)), q)
+    elif standardized_questions is not None:
         question_ids = [question['id'] for question in standardized_questions]
     elif selected_quiz_name:
         cursor.execute('''
@@ -1346,7 +1426,9 @@ def question_page():
             pass
 
     if not q and selected_quiz_name and question_ids:
-        if attempt_id:
+        if preview:
+            q = next((qid for qid in question_ids if str(qid) not in preview['responses']), question_ids[0])
+        elif attempt_id:
             if standardized_questions is not None:
                 cursor.execute('SELECT question_id FROM attempt_responses WHERE attempt_id = %s', (attempt_id,))
                 answered_ids = {row['question_id'] for row in cursor.fetchall()}
@@ -1384,7 +1466,12 @@ def question_page():
     responses_dict = {}
     previous_choice = None
 
-    if attempt_id:
+    if preview:
+        for row in preview_responses():
+            responses_dict[str(row['question_id'])] = row['is_correct']
+            if str(row['question_id']) == str(q):
+                previous_choice = row['user_choice']
+    elif attempt_id:
         cursor.execute('SELECT question_id, is_correct, user_choice FROM attempt_responses WHERE attempt_id = %s', (attempt_id,))
         for row in cursor.fetchall():
             responses_dict[str(row['question_id'])] = row['is_correct']
@@ -1406,10 +1493,15 @@ def question_page():
             'is_current': str(q_id) == str(q)
         })
 
-    cursor.execute('SELECT * FROM question_bank WHERE id = %s', (q,))
-    question_data = cursor.fetchone()
+    if preview:
+        question_data = dict(next(question for question in preview['questions'] if str(question['id']) == str(q)))
+        for key in ['correct', 'incorrect', 'choice_a_count', 'choice_b_count', 'choice_c_count', 'choice_d_count', 'choice_e_count']:
+            question_data[key] = 0
+    else:
+        cursor.execute('SELECT * FROM question_bank WHERE id = %s', (q,))
+        question_data = cursor.fetchone()
 
-    if question_data:
+    if question_data and not preview:
         cursor.execute('''
             SELECT
                 COUNT(*) as total_attempts,
@@ -1441,18 +1533,10 @@ def question_page():
 
 @quiz_bp.route('/quiz_mode')
 def quiz_mode():
-    # --- FREE PREVIEW GUEST BYPASS ---
-    if request.args.get('is_preview') == 'true' and 'username' not in session:
-        session['username'] = 'guest_' + uuid.uuid4().hex[:8]
-
     if 'username' not in session:
         return redirect(url_for('paxcel_landing'))
 
     quiz_name = request.args.get('quiz_name')
-
-    # --- HARDCODED FIX FOR SAMPLE CONTENT ---
-    if request.args.get('is_preview') == 'true':
-        quiz_name = 'EOR 1 Remediation'
 
     if not quiz_name:
         return redirect(url_for('quiz.select_quiz'))
@@ -1601,10 +1685,6 @@ def _get_remediation_resume_url(cursor, attempt_id, quiz_name):
 
 @quiz_bp.route('/start_quiz', methods=['POST'])
 def start_quiz():
-    # --- FREE PREVIEW GUEST BYPASS ---
-    if request.form.get('is_preview') == 'true' and 'username' not in session:
-        session['username'] = 'guest_' + uuid.uuid4().hex[:8]
-
     if 'username' not in session:
         return redirect(url_for('paxcel_landing'))
 
@@ -1612,10 +1692,6 @@ def start_quiz():
     quiz_name = request.form.get('quiz_name')
     requested_mode = request.form.get('mode')
     resume_attempt_id = request.form.get('resume_attempt_id')
-
-    # --- HARDCODED FIX FOR SAMPLE CONTENT ---
-    if request.form.get('is_preview') == 'true':
-        quiz_name = 'EOR 1 Remediation'
 
     if not quiz_name or not requested_mode:
         return redirect(url_for('quiz.select_quiz'))
@@ -1819,6 +1895,19 @@ def quiz_attempts():
 
 @quiz_bp.route('/quiz_results')
 def quiz_results():
+    preview = getattr(g, 'preview', None)
+    if preview:
+        responses = preview_responses()
+        correct = sum(row['is_correct'] for row in responses)
+        answered = len(responses)
+        attempt = {
+            'attempt_id': preview['attempt_id'], 'mode': preview['mode'],
+            'correct': correct, 'incorrect': answered - correct, 'total_answered': answered,
+            'percentage': round(correct / answered * 100, 1) if answered else 0,
+        }
+        return render_template('quiz_results.html', attempt=attempt, quiz_name=preview['quiz_name'],
+                               is_remediation=preview['kind'] == 'remediation',
+                               module_breakdown=sample_module_stats(), is_standardized=False)
     if 'username' not in session:
         return redirect(url_for('paxcel_landing'))
     attempt_id, quiz_name = request.args.get('attempt_id'), request.args.get('quiz_name')
@@ -1883,6 +1972,13 @@ def quiz_results():
 
 @quiz_bp.route('/review_attempt')
 def review_attempt():
+    preview = getattr(g, 'preview', None)
+    if preview:
+        questions = {str(q['id']): q for q in preview['questions']}
+        responses = [dict(questions[row['question_id']], **row) for row in preview_responses()]
+        return render_template('review_attempt.html', attempt={
+            'attempt_id': preview['attempt_id'], 'quiz_name': preview['quiz_name'], 'mode': preview['mode'],
+        }, responses=responses, faculty_return_url=None)
     if 'username' not in session:
         return redirect(url_for('paxcel_landing'))
     attempt_id = request.args.get('attempt_id')
@@ -2071,8 +2167,26 @@ def save_flashcard_progress():
 # ==========================================
 # ROUTE: REMEDIATION ASSIGNMENTS
 # ==========================================
+def sample_module_stats():
+    preview = g.preview
+    stats = []
+    for module in preview['modules']:
+        ids = {str(q['id']) for q in preview['questions'] if str(q['assignment_id']) == str(module['id'])}
+        responses = [row for row in preview_responses() if row['question_id'] in ids]
+        correct = sum(row['is_correct'] for row in responses)
+        stats.append(dict(module, total=len(ids), answered=len(responses), correct=correct,
+                          percentage=round(correct / len(responses) * 100, 1) if responses else 0,
+                          is_complete=len(responses) >= len(ids)))
+    return stats
+
+
 @quiz_bp.route('/remediation/modules/<path:remediation_name>')
 def remediation_modules(remediation_name):
+    if getattr(g, 'preview', None):
+        modules = sample_module_stats()
+        return render_template('remediation_module_list.html', remediation_name=remediation_name,
+                               modules=modules, attempt_id=g.preview['attempt_id'],
+                               all_complete=all(m['is_complete'] for m in modules))
     if 'username' not in session:
         return redirect(url_for('paxcel_landing'))
     attempt_id = request.args.get('attempt_id')
@@ -2131,6 +2245,10 @@ def remediation_modules(remediation_name):
 
 @quiz_bp.route('/remediation/review/<assignment_id>')
 def view_remediation_flashcard(assignment_id):
+    if getattr(g, 'preview', None):
+        assignment = next(m for m in g.preview['modules'] if str(m['id']) == assignment_id)
+        return render_template('remediation_flashcard.html', assignment=assignment,
+                               attempt_id=g.preview['attempt_id'])
     if 'username' not in session:
         return redirect(url_for('paxcel_landing'))
     attempt_id = request.args.get('attempt_id')
@@ -2148,11 +2266,12 @@ def view_remediation_flashcard(assignment_id):
 
 @quiz_bp.route('/remediation/questions/<assignment_id>')
 def remediation_question_page(assignment_id):
-    if 'username' not in session:
+    preview = getattr(g, 'preview', None)
+    if not preview and 'username' not in session:
         return redirect(url_for('paxcel_landing'))
 
-    conn = get_db()
-    cursor = conn.cursor()
+    conn = None if preview else get_db()
+    cursor = None if preview else conn.cursor()
 
     raw_q = request.args.get('q')
     current_q_id = int(raw_q) if raw_q and raw_q.isdigit() else raw_q
@@ -2160,29 +2279,37 @@ def remediation_question_page(assignment_id):
     answered = request.args.get('answered') == 'True'
     attempt_id = request.args.get('attempt_id')
 
-    mode = 'test'
-    if attempt_id:
+    mode = preview['mode'] if preview else 'test'
+    if attempt_id and not preview:
         cursor.execute("SELECT mode FROM quiz_attempts WHERE attempt_id = %s", (attempt_id,))
         att_row = cursor.fetchone()
         if att_row:
             mode = att_row['mode']
 
-    cursor.execute("SELECT remediation_name FROM remediation_assignments WHERE id = %s", (assignment_id,))
-    rem_row = cursor.fetchone()
+    if preview:
+        rem_row = {'remediation_name': preview['quiz_name']}
+    else:
+        cursor.execute("SELECT remediation_name FROM remediation_assignments WHERE id = %s", (assignment_id,))
+        rem_row = cursor.fetchone()
     rem_name = rem_row['remediation_name'] if rem_row else "Unknown Remediation"
 
     if current_q_id == 'NEXT_MODULE':
         flash("Module complete! Select your next module.", "success")
         return redirect(url_for('quiz.remediation_modules', remediation_name=rem_name, attempt_id=attempt_id))
 
-    cursor.execute("SELECT * FROM remediation_questions WHERE assignment_id = %s ORDER BY id ASC", (assignment_id,))
-    questions = cursor.fetchall()
+    if preview:
+        questions = [dict(q) for q in preview['questions'] if str(q['assignment_id']) == assignment_id]
+    else:
+        cursor.execute("SELECT * FROM remediation_questions WHERE assignment_id = %s ORDER BY id ASC", (assignment_id,))
+        questions = cursor.fetchall()
 
     if not questions:
         flash("No questions found for this module.", "error")
         return redirect(url_for('quiz.remediation_modules', remediation_name=rem_name, attempt_id=attempt_id))
 
     question_ids = [q['id'] for q in questions]
+    if preview:
+        current_q_id = next((qid for qid in question_ids if str(qid) == str(current_q_id)), current_q_id)
 
     if mode == 'study_missed' and question_ids:
         cursor.execute('''
@@ -2197,7 +2324,9 @@ def remediation_question_page(assignment_id):
             flash("Great job! You have no missed questions to review for this module.", "success")
             return redirect(url_for('quiz.remediation_modules', remediation_name=rem_name, attempt_id=attempt_id))
 
-    if not current_q_id and attempt_id:
+    if not current_q_id and preview:
+        current_q_id = next((qid for qid in question_ids if str(qid) not in preview['responses']), question_ids[0])
+    elif not current_q_id and attempt_id:
         cursor.execute('''
             SELECT q.id FROM remediation_questions q
             LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = %s
@@ -2219,7 +2348,12 @@ def remediation_question_page(assignment_id):
     previous_choice = None
     responses_dict = {}
 
-    if attempt_id:
+    if preview:
+        for row in preview_responses():
+            responses_dict[str(row['question_id'])] = row['is_correct']
+            if str(row['question_id']) == str(current_q_id):
+                previous_choice = row['user_choice']
+    elif attempt_id:
         cursor.execute('SELECT question_id, is_correct, user_choice FROM attempt_responses WHERE attempt_id = %s', (attempt_id,))
         for row in cursor.fetchall():
             responses_dict[str(row['question_id'])] = row['is_correct']

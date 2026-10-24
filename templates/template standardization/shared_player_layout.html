@@ -323,12 +323,12 @@
                 {{ question.question_stem | safe }}
             </div>
 
-            <div style="margin-top: 20px; display: flex; gap: 10px; align-items: center; padding-top: 15px; border-top: 1px dashed #e9ecef;">
+            {% if not is_public_preview | default(false) %}<div style="margin-top: 20px; display: flex; gap: 10px; align-items: center; padding-top: 15px; border-top: 1px dashed #e9ecef;">
                 <span style="font-size: 0.9em; color: #666;">Rate this question:</span>
                 <button type="button" class="btn btn-sm btn-outline-success" onclick="rateQuestion('up', '{{ question.id }}')" title="Thumbs Up">👍</button>
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="rateQuestion('down', '{{ question.id }}')" title="Thumbs Down">👎</button>
                 <span id="rating-feedback" style="font-size: 0.85em; color: #198754; display: none; font-weight: bold;">Feedback saved!</span>
-            </div>
+            </div>{% endif %}
 
             <!-- UPDATED EXPLANATION LOGIC -->
             {% if answered and mode not in ['test', 'study_no_exp'] %}
@@ -463,7 +463,7 @@
         //    Restore the map's previous scroll offset, then scroll only the sidebar
         //    just enough to reveal the current tile (never the page or question pane).
         const sidebar = document.querySelector('.quiz-sidebar');
-        if (sidebar && sidebar.clientHeight > 0) {
+        if (sidebar && sidebar.clientHeight > 0{% if is_public_preview | default(false) %} && false{% endif %}) {
             const mapKey = 'quizMapScroll:' + {{ (quiz_name ~ '|' ~ attempt_id) | tojson }};
             try {
                 const saved = parseInt(sessionStorage.getItem(mapKey), 10);
@@ -490,7 +490,7 @@
 
     // Rating Logic
     function rateQuestion(type, qId) {
-        fetch('{{ url_for("quiz.rate_question") }}', {
+        {% if is_public_preview | default(false) %}return;{% endif %}fetch('{{ url_for("quiz.rate_question") }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

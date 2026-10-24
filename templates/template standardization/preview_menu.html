@@ -16,7 +16,7 @@
         <div style="background: white; border-radius: 12px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #eef2f5; flex: 1; min-width: 300px; transition: transform 0.2s; cursor: pointer;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='none'">
             <h2 style="color: #2b7080; margin-top: 0;">Sample Quiz</h2>
             <p style="color: #444; margin-bottom: 30px;">Test your knowledge with a standard set of PANCE-style questions.</p>
-            <a href="{{ url_for('preview.preview_setup', assignment_type='quiz') }}" class="btn btn-primary" style="background-color: #2b7080; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">
+            <a href="{{ url_for('preview.preview_take', assignment_type='quiz') }}" class="btn btn-primary" style="background-color: #2b7080; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">
                 Take Sample Quiz &rarr;
             </a>
         </div>
@@ -25,7 +25,7 @@
         <div style="background: white; border-radius: 12px; padding: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #eef2f5; flex: 1; min-width: 300px; transition: transform 0.2s; cursor: pointer;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='none'">
             <h2 style="color: #e67e22; margin-top: 0;">Sample Remediation</h2>
             <p style="color: #444; margin-bottom: 30px;">Review specific topic areas with targeted questions and explanations.</p>
-            <a href="{{ url_for('preview.preview_setup', assignment_type='remediation') }}" class="btn btn-primary" style="background-color: #e67e22; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">
+            <a href="{{ url_for('preview.preview_take', assignment_type='remediation') }}" class="btn btn-primary" style="background-color: #e67e22; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">
                 Take Sample Remediation &rarr;
             </a>
         </div>
