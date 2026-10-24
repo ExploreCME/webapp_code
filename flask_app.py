@@ -128,6 +128,14 @@ def authorize_sample_request():
         return
     if not session.get('username') or session['username'].startswith('guest_'):
         return redirect(url_for('paxcel_landing'))
+    if request.endpoint == 'quiz.view_remediation_flashcard' and getattr(g, 'is_faculty', False):
+        cursor = get_db().cursor()
+        cursor.execute("SELECT username FROM remediation_assignments WHERE id = %s",
+                       (request.view_args['assignment_id'],))
+        owner = cursor.fetchone()
+        if not owner or owner.get('username') != session['username']:
+            return "Remediation not found.", 404
+        return
     name = values.get('quiz_name', '')
     if (request.endpoint in ('quiz.question_page', 'quiz.check_answer', 'quiz.remediation_question_page',
                              'quiz.remediation_modules', 'quiz.view_remediation_flashcard')

@@ -926,8 +926,10 @@ Samples use session-bound opaque IDs and isolated cache state with a fixed
 one-hour expiration, never quiz attempts, responses, progress, statistics, or
 user-record writes. Starting another sample invalidates the previous one.
 Signed-in identities and entitlements are retained. Normal authenticated
-attempts still save independently. The existing `REDIS_URL` cache configuration
-is required to share transient sample state across production workers;
+attempts still save independently. `render.yaml` provisions a private, free
+Key Value cache and supplies its connection string as `REDIS_URL` to share
+transient sample state across production workers. Other deployments must
+configure a shared `REDIS_URL` too;
 without Redis, the development cache is process-local and a worker restart
 ends its previews. No schema migration is needed.
 

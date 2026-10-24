@@ -1,5 +1,6 @@
 import copy
 import unittest
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import MagicMock, patch
 
@@ -18,6 +19,8 @@ class PublicPreviewTests(unittest.TestCase):
         self.app.config.update(TESTING=True, SECRET_KEY="public-preview-test-only")
         self.client = self.app.test_client()
         self.paid = False
+        self.faculty = False
+        self.module_owner = "real-user"
         self.allow_writes = False
         self.attempts = {}
         self.responses = {}
@@ -81,7 +84,7 @@ class PublicPreviewTests(unittest.TestCase):
             else:
                 self.fail(f"Unexpected normal write: {sql}")
         elif "SELECT has_paid, is_faculty" in sql:
-            self.rows = [dict(has_paid=int(self.paid), is_faculty="N")]
+            self.rows = [dict(has_paid=int(self.paid), is_faculty="Y" if self.faculty else "N")]
         elif "SELECT quiz_id FROM user_quizzes" in sql:
             self.assertEqual(params, ("EOR 1 Quiz",))
             self.assertIn("BINARY quiz_name", sql)
@@ -89,6 +92,11 @@ class PublicPreviewTests(unittest.TestCase):
         elif "SELECT qb.*" in sql:
             self.assertEqual(params, ("sample-quiz",))
             self.rows = [] if self.missing == "questions" else [self.question(1), self.question(2)]
+        elif "SELECT username FROM remediation_assignments" in sql:
+            self.rows = [dict(username=self.module_owner)]
+        elif "SELECT * FROM remediation_assignments WHERE id" in sql:
+            self.rows = [dict(id=params[0], username=self.module_owner, topic_area="Sample topic",
+                              summary="Sample review", diagram_code="", diagram_explanation="")]
         elif "SELECT * FROM remediation_assignments" in sql:
             self.assertEqual(params, ("EOR 1 Remediation",))
             self.assertIn("BINARY remediation_name", sql)
@@ -97,11 +105,15 @@ class PublicPreviewTests(unittest.TestCase):
                                   topic_area=mid, task_area="Diagnosis", summary="Sample review")
                              for mid in ("module-a", "module-b")]
         elif "SELECT * FROM remediation_questions" in sql:
-            self.rows = [self.question("rq-" + params[0], params[0])]
+            self.rows = [] if self.missing == "remediation-questions" else [self.question("rq-" + params[0], params[0])]
+        elif "SELECT 1 FROM remediation_assignments" in sql:
+            self.rows = [{"exists": 1}] if params[0] == "Normal remediation" else []
         elif "FROM quiz_attempts WHERE attempt_id" in sql:
             attempt = self.attempts.get(params[0])
             self.rows = [attempt] if attempt else []
         elif "SELECT correct_answer FROM question_bank" in sql:
+            self.rows = [dict(correct_answer="B")]
+        elif "SELECT correct_answer FROM remediation_questions" in sql:
             self.rows = [dict(correct_answer="B")]
         elif "FROM quiz_attempts qa LEFT JOIN attempt_responses" in sql:
             attempt = self.attempts.get(params[0])
@@ -237,6 +249,8 @@ class PublicPreviewTests(unittest.TestCase):
                 {"quiz_name": "Other paid quiz"}, {"q": "unrelated-question"},
                 {"attempt_id": "preview_forged"}, {"mode": "study_missed"},
                 {"mode": "invalid"}, {"resume_attempt_id": "real-attempt"},
+                {"q": "None"}, {"q": "NEXT_MODULE"} if kind == "quiz" else {"q": "private"},
+                {"attempt_id": "preview_\u2603"},
             ):
                 args = dict(attempt_id=token, quiz_name=name)
                 args.update(changes)
@@ -260,7 +274,8 @@ class PublicPreviewTests(unittest.TestCase):
         for path, status in (("/preview/take/invalid", 404), ("/preview/take/quiz?mode=bad", 400),
                              ("/preview/take/quiz?mode=study_missed", 400)):
             self.assertEqual(self.client.get(path).status_code, status)
-        for missing, kind in (("quiz", "quiz"), ("questions", "quiz"), ("remediation", "remediation")):
+        for missing, kind in (("quiz", "quiz"), ("questions", "quiz"), ("remediation", "remediation"),
+                              ("remediation-questions", "remediation")):
             self.missing = missing
             self.assertEqual(self.client.get(f"/preview/take/{kind}").status_code, 404)
         self.missing = None
@@ -311,6 +326,57 @@ class PublicPreviewTests(unittest.TestCase):
             "attempt_id": attempt_id, "mode": "test",
         }).status_code, 404)
         self.assertEqual(self.db.commit.call_count, 2)
+
+    def test_unpaid_faculty_can_review_owned_remediation_only(self):
+        self.sign_in()
+        self.faculty = True
+        response = self.client.get("/remediation/review/owned-module?source=faculty")
+        self.assertEqual(response.status_code, 200)
+        self.module_owner = "other-faculty"
+        self.assertEqual(self.client.get("/remediation/review/private?source=faculty").status_code, 404)
+        self.faculty = False
+        self.assertEqual(self.client.get("/remediation/review/private?source=faculty").status_code, 403)
+        self.assert_unsaved()
+
+    def test_preview_preserves_unaccepted_eula_and_real_identity(self):
+        self.sign_in()
+        with self.client.session_transaction() as session:
+            session["accepted_eula"] = False
+        self.begin("remediation")
+        with self.client.session_transaction() as session:
+            self.assertIs(session["accepted_eula"], False)
+        self.assert_unsaved()
+
+    def test_normal_remediation_attempt_still_saves_after_preview(self):
+        self.sign_in(paid=True)
+        self.begin("remediation")
+        self.allow_writes = True
+        response = self.client.post("/start_quiz", data={"quiz_name": "Normal remediation", "mode": "test"})
+        self.assertEqual(response.status_code, 302)
+        attempt_id = next(iter(self.attempts))
+        self.assertIn("/remediation/modules/Normal%20remediation", response.location)
+        response = self.client.post("/submit-answer", data={
+            "question_id": "normal-remediation-question", "user_choice": "B",
+            "quiz_name": "REMEDIATION_normal-module", "attempt_id": attempt_id,
+            "mode": "test", "next_q_id": "NEXT_MODULE",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.responses["normal-remediation-question"]["is_correct"], 1)
+        self.assertEqual(self.db.commit.call_count, 2)
+        page = self.client.get("/quiz_results", query_string={
+            "attempt_id": attempt_id, "quiz_name": "Normal remediation",
+        })
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual(self.contexts[-1][1]["attempt"]["percentage"], 100)
+
+    def test_render_workers_use_shared_preview_cache(self):
+        config = (Path(__file__).resolve().parents[1] / "render.yaml").read_text()
+        self.assertIn(
+            "key: REDIS_URL\n        fromService:\n          type: keyvalue\n"
+            "          name: explorecme-preview-cache\n          property: connectionString", config,
+        )
+        self.assertIn("type: keyvalue\n    name: explorecme-preview-cache", config)
+        self.assertIn("ipAllowList: []", config)
 
 
 if __name__ == "__main__":

@@ -60,7 +60,7 @@ def load_preview():
     attempt_id = values.get('attempt_id') or request.args.get('attempt_id', '')
     if not attempt_id.startswith('preview_'):
         return
-    if not secrets.compare_digest(session.get('paxcel_preview', ''), attempt_id):
+    if not attempt_id.isascii() or not secrets.compare_digest(session.get('paxcel_preview', ''), attempt_id):
         abort(404)
     state = preview_cache().get(attempt_id)
     if not state or state['expires'] <= time.time():
@@ -104,10 +104,12 @@ def load_preview():
         questions = [q for q in questions if str(q['assignment_id']) == module_id]
     for field in ('q', 'question_id', 'next_q_id'):
         qid = values.get(field)
-        if qid and qid not in ('None', 'NEXT_MODULE') and qid not in {str(q['id']) for q in questions}:
+        if not qid or (field == 'next_q_id' and qid == 'None'):
+            continue
+        if qid == 'NEXT_MODULE' and state['kind'] == 'remediation' and field != 'question_id':
+            continue
+        if qid not in {str(q['id']) for q in questions}:
             abort(404)
-    if values.get('q') == 'NEXT_MODULE' and state['kind'] != 'remediation':
-        abort(404)
     if request.endpoint == 'quiz.check_answer':
         if values.get('user_choice', '').strip().upper() not in ('A', 'B', 'C', 'D', 'E'):
             abort(400)

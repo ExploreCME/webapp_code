@@ -51,8 +51,17 @@ services:
       - key: CACHE_DEFAULT_TIMEOUT
         value: 300
       - key: REDIS_URL
-        value: ""
+        fromService:
+          type: keyvalue
+          name: explorecme-preview-cache
+          property: connectionString
     healthCheckPath: /
+
+  - type: keyvalue
+    name: explorecme-preview-cache
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
 
   - type: worker
     name: explorecme-worker
