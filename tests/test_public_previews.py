@@ -148,6 +148,17 @@ class PublicPreviewTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertEqual(page.headers["Cache-Control"], "no-store")
         self.assertEqual(page.headers["Referrer-Policy"], "same-origin")
+        if kind == "remediation":
+            self.assertEqual(urlsplit(response.location).path,
+                             "/remediation/modules/EOR%201%20Remediation")
+            self.assertEqual(self.contexts[-1][0], "remediation_module_list.html")
+            module_id = self.contexts[-1][1]["modules"][0]["id"]
+            page = self.client.get(f"/remediation/questions/{module_id}",
+                                   query_string={"attempt_id": args["attempt_id"]})
+            self.assertEqual(page.status_code, 200)
+        else:
+            self.assertEqual(urlsplit(response.location).path, "/question_page")
+            self.assertEqual(args["quiz_name"], "EOR 1 Quiz")
         self.assertNotIn("Rate this question:", page.text)
         self.assertNotIn("Sample explanation", page.text)
         self.assertEqual(self.contexts[-1][0], "index.html")
@@ -169,6 +180,41 @@ class PublicPreviewTests(unittest.TestCase):
             self.assertEqual(self.client.get(f"/preview/setup/{kind}").location,
                              f"/preview/take/{kind}?mode=study_no_exp")
         self.assert_unsaved()
+
+    def test_remediation_entry_opens_module_selection_before_any_question(self):
+        for signed_in in (False, True):
+            for entry in ("/preview/take/remediation", "/preview/setup/remediation"):
+                with self.subTest(signed_in=signed_in, entry=entry):
+                    self.client = self.app.test_client()
+                    if signed_in:
+                        self.sign_in()
+                    self.contexts.clear()
+                    page = self.client.get(entry, query_string={
+                        "quiz_name": "Other remediation", "assignment_id": "private",
+                    }, follow_redirects=True)
+                    self.assertEqual(page.status_code, 200)
+                    self.assertEqual(urlsplit(page.request.url).path,
+                                     "/remediation/modules/EOR%201%20Remediation")
+                    self.assertEqual([name for name, _ in self.contexts],
+                                     ["remediation_module_list.html"])
+                    context = self.contexts[-1][1]
+                    self.assertEqual(context["remediation_name"], "EOR 1 Remediation")
+                    self.assertEqual([module["id"] for module in context["modules"]],
+                                     ["module-a", "module-b"])
+                    self.assertTrue(all(module["answered"] == 0 for module in context["modules"]))
+                    self.assertFalse(context["all_complete"])
+                    self.assertIn("Select a module below", page.text)
+                    self.assertNotIn("Sample question", page.text)
+                    self.assertEqual(page.headers["Cache-Control"], "no-store")
+                    self.assertEqual(page.headers["Referrer-Policy"], "same-origin")
+                    token = context["attempt_id"]
+                    for module in context["modules"]:
+                        self.assertIn(f'/remediation/review/{module["id"]}?attempt_id={token}',
+                                      page.text)
+                    review = self.client.get(f"/remediation/review/module-b?attempt_id={token}")
+                    self.assertEqual(review.status_code, 200)
+                    self.assertEqual(self.contexts[-1][0], "remediation_flashcard.html")
+                    self.assert_unsaved()
 
     def test_navigation_previous_answers_and_restarts_are_isolated(self):
         token, context = self.begin("quiz")

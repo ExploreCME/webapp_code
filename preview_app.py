@@ -198,6 +198,6 @@ def preview_take(assignment_type):
     session['paxcel_preview'] = attempt_id
     save_preview()
     if assignment_type == 'remediation':
-        return redirect(url_for('quiz.remediation_question_page', assignment_id=modules[0]['id'],
+        return redirect(url_for('quiz.remediation_modules', remediation_name=name,
                                 mode=mode, attempt_id=attempt_id))
     return redirect(url_for('quiz.question_page', quiz_name=name, mode=mode, attempt_id=attempt_id))
