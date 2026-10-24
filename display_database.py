@@ -232,6 +232,7 @@ def inject_premium_status():
         is_premium=is_premium,
         is_app=is_app,
         is_faculty=is_faculty,
+        is_public_preview=request.blueprint == 'preview' or bool(getattr(g, 'preview', None)),
         clerk_publishable_key=clerk_publishable_key
     )
 

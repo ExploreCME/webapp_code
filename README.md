@@ -914,3 +914,27 @@ python -m unittest discover -s tests -p 'test_flashcards.py' -v
 These use an isolated SQLite fixture with generated columns and an upsert syntax
 adapter; verify save/resume against a safe MySQL test database separately to cover
 MySQL-specific schema and collation behavior.
+
+### PAXcel public samples
+
+`/preview` opens the normal player directly for exactly `EOR 1 Quiz` or
+`EOR 1 Remediation`, defaulting to `study_no_exp`. `study_exp` and `test` are
+also supported; history-dependent `study_missed` is not available for samples.
+The sample content must already exist; missing content returns a safe 404.
+
+Samples use session-bound opaque IDs and isolated cache state with a fixed
+one-hour expiration, never quiz attempts, responses, progress, statistics, or
+user-record writes. Starting another sample invalidates the previous one.
+Signed-in identities and entitlements are retained. Normal authenticated
+attempts still save independently. `render.yaml` provisions a private, free
+Key Value cache and supplies its connection string as `REDIS_URL` to share
+transient sample state across production workers. Other deployments must
+configure a shared `REDIS_URL` too;
+without Redis, the development cache is process-local and a worker restart
+ends its previews. No schema migration is needed.
+
+Run the focused flow and no-persistence tests:
+
+```bash
+python -m unittest discover -s tests -p 'test_public_previews.py' -v
+```

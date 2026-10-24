@@ -518,7 +518,7 @@
                   }
 
                   // 3. NEW: SILENTLY SYNC USER DATA TO FLASK DATABASE
-                  let primaryEmail = Clerk.user.primaryEmailAddress ? Clerk.user.primaryEmailAddress.emailAddress : '';
+                  {% if not is_public_preview | default(false) %}let primaryEmail = Clerk.user.primaryEmailAddress ? Clerk.user.primaryEmailAddress.emailAddress : '';
                   fetch('/sync_clerk_user', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -528,7 +528,7 @@
                           last_name: Clerk.user.lastName || '',
                           email: primaryEmail
                       })
-                  });
+                  });{% endif %}
                 } else {
                   // Show Sign In button if logged out
                   if (signInBtn) {
