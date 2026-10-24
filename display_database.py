@@ -19,6 +19,8 @@ from db_pool import get_db_connection  # <-- Uses the new global pool
 basedir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
 stripe.api_key = (os.getenv('STRIPE_SECRET_KEY') or '').strip() or None
+# Recurring Price for PAXcel individual checkout; override with STRIPE_PRICE_ID.
+DEFAULT_STRIPE_PRICE_ID = 'price_1UTsSC1IrD5jMp4rcIhmylIf'
 
 COMING_SOON_PRODUCTS = {
     'rnxcel': {
@@ -544,7 +546,7 @@ def create_checkout_session():
         flash("Checkout is temporarily unavailable. Please try again later.", "error")
         return redirect(url_for('paxcel_landing'))
 
-    price_id = 'price_1U8XG31IrD5jMp4rgoj4dYGg'
+    price_id = (os.getenv('STRIPE_PRICE_ID') or '').strip() or DEFAULT_STRIPE_PRICE_ID
     try:
         clerk_token = request.cookies.get('__session')
         if not clerk_token:
