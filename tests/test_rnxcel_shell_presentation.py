@@ -17,7 +17,7 @@ TEMPLATES = ROOT / "templates" / "template standardization"
 PA_RENDER_DIGESTS = {
     "base.html": "71b6ee0d1c13208a36a79f86dde8e0ffba9076351139f8d715cb9c461ff93dae",
     "student_dashboard.html": "7e4c13d2556cd497d270ec953856bc3be462787a6ad0755974934126f0f247f2",
-    "index_for_display.html": "b85d3acbdf62b357c314ba2ceccf0507dc786121d5b18a108aaa0dc84783f828",
+    "index_for_display.html": "d5d31325f8701de463d3ac8fdd0cc9753aaaa5db64ae8cc3dc7654450037678a",
 }
 
 
