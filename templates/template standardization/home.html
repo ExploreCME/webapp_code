@@ -9,7 +9,7 @@
         {% if is_app %}
             Generate customized quizzes from our database blueprints.
         {% else %}
-            Upload source materials to generate a custom AI quiz, or build from blueprints.
+            Upload source materials to generate a custom AI quiz.
         {% endif %}
     </p>
 
@@ -28,7 +28,7 @@
                 <div class="form-group">
                     <label for="file">1. Upload Document:</label>
                     <input type="file" name="file" id="file" accept=".pdf,application/pdf" required>
-                    <p>PDFs only (up to {{ max_document_mb }} MiB). Documents are sent to OpenAI for temporary processing and deleted after success or failure, with automatic expiration under the configured retention policy as a backstop. Generated questions are saved only in MySQL; generated JSON files are not stored. Do not upload patient-identifying or confidential information without authorization. Deletion or expiration does not imply zero provider retention.</p>
+                    <p>PDFs only (up to {{ max_document_mb }} MiB). Documents are sent to OpenAI for temporary processing and deleted after success or failure, with automatic expiration under the configured retention policy.</p>
                 </div>
 
                 <div class="form-group">
