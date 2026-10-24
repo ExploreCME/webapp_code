@@ -47,7 +47,8 @@ class LandingPageTests(unittest.TestCase):
     def test_root_is_explorecme_landing_with_product_links(self):
         html = self.get_html("/")
         self.assertIn("FullLogo.png", html)
-        self.assertIn("$9.99", html)
+        self.assertIn("$4.99 per month", html)
+        self.assertNotIn("$9.99", html)
         for target in ("/paxcel", "/rnxcel/", "/coming-soon/mdxcel"):
             self.assertIn(f'href="{target}"', html)
 
@@ -115,6 +116,12 @@ class LandingPageTests(unittest.TestCase):
                     "Clerk.redirectToSignIn()",
                 ):
                     self.assertIn(marker, html)
+                self.assertNotIn(
+                    'onclick="document.getElementById(\'pricingModal\').style.display=\'block\'; return false;">Pricing</a>',
+                    html,
+                )
+                for link in ("Feedback", "About"):
+                    self.assertIn(f">{link}</a>", html)
                 for link in (
                     'action="/create-customer-portal-session"',
                     'href="/student_dashboard"',

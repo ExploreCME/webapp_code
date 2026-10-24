@@ -326,8 +326,8 @@
                     {% endif %}
                 {% endif %}
 
-                <!-- Pricing Link -->
-                <a href="#" onclick="document.getElementById('pricingModal').style.display='block'; return false;">Pricing</a>
+                {% block navbar_pricing_link %}<!-- Pricing Link -->
+                <a href="#" onclick="document.getElementById('pricingModal').style.display='block'; return false;">Pricing</a>{% endblock %}
 
                 <!-- Feedback Modal Trigger -->
                 <a href="#" onclick="document.getElementById('feedbackModal').style.display='block'; return false;">Feedback</a>
