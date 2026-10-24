@@ -190,7 +190,7 @@ class StandardizedQuizTests(unittest.TestCase):
         self.assertEqual(dashboard.count('href="/select_standardized_quiz"'), 1)
         self.assertIn('href="/select_standardized_quiz"', dashboard)
         self.assertIn("Standardized Assessment", dashboard)
-        self.assertIn("Explore standaridzed assessments base on EOR blueprints", dashboard)
+        self.assertIn("Explore standardized assessments base on EOR blueprints", dashboard)
         self.assertNotIn("Standardized Quizzes", dashboard)
         self.assertIn('href="/student_reports"', dashboard)
         response = self.client.get("/select_standardized_quiz")
