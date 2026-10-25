@@ -6,7 +6,10 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import List, Literal
-from standardizers import standardize_organ_system, standardize_task_area
+from standardizers import (
+    DOCUMENT_CATEGORY_INSTRUCTION, SOURCE_ORGAN_ALIASES,
+    source_organ_system, standardize_organ_system, standardize_task_area,
+)
 
 # Point exactly to where your .env file lives
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
@@ -38,8 +41,9 @@ class EORExtractionItem(BaseModel):
         "Renal System",
         "Reproductive System",
         "Professional Practice",
-        "Misc"
-    ] = Field(description="Must be EXACTLY one of the constrained PANCE categories or Misc")
+        "Misc",
+        *SOURCE_ORGAN_ALIASES
+    ] = Field(description="Canonical organ system or explicitly listed source content category")
 
     task_area: Literal[
         "History Taking and Performing Physical Examination",
@@ -105,7 +109,9 @@ PANCE_Verification_CONSTRAINTS = """Follow these rules:
   2. task_area (Task Area)
   3. topic_area (Keywords / Specific Medical Conditions)
 - CRITICAL MAPPING: The "topic_area" MUST contain the specific diseases, medical conditions, or keywords listed in the document (e.g., "Acute bronchitis", "Hypertension"). Do NOT duplicate the task area into the topic area field.
-- CRITICAL: You MUST standardize the "organ_system" by mapping it to EXACTLY one of the following categories:
+- SOURCE CATEGORY RULE:
+""" + DOCUMENT_CATEGORY_INSTRUCTION + """
+- Otherwise map "organ_system" to one of the following categories:
   * Cardiovascular System
   * Dermatologic System
   * Endocrine System
@@ -149,7 +155,7 @@ def eor_extract_information(conv_manager, uploaded_file_id, output_file_path=Non
         for item in creation_extracted_data.get("extracted_topics", []):
             # Pre-normalize organ system using our matching logic to catch edge cases & prefixes
             raw_organ = item.get("organ_system")
-            item["organ_system"] = standardize_extracted_organ(raw_organ)
+            item["organ_system"] = source_organ_system(raw_organ)
             item["task_area"] = standardize_task_area(item.get("task_area"))
 
             organ_system = item.get("organ_system")
@@ -157,7 +163,7 @@ def eor_extract_information(conv_manager, uploaded_file_id, output_file_path=Non
 
             valid_topics = canonical_topics_data.get(organ_system, [])
 
-            if valid_topics and raw_topic:
+            if organ_system not in SOURCE_ORGAN_ALIASES and valid_topics and raw_topic:
                 matches = difflib.get_close_matches(raw_topic, valid_topics, n=1, cutoff=0.6)
 
                 if matches:

@@ -12,6 +12,10 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import List, Literal
 from db_pool import get_async_db_connection
+from standardizers import (
+    DOCUMENT_CATEGORY_INSTRUCTION, SOURCE_ORGAN_ALIASES, source_organ_system,
+    storage_organ_system, standardize_task_area,
+)
 
 # --- IMPORT THE UNIFIED ENGINE FROM YOUR CORE SCRIPT ---
 from Question_writing_and_verification_optomized import (
@@ -51,8 +55,9 @@ class EORExtractionItem(BaseModel):
         "Renal System",
         "Reproductive System",
         "Professional Practice",
-        "Misc"
-    ] = Field(description="Must be EXACTLY one of the constrained PANCE categories or Misc")
+        "Misc",
+        *SOURCE_ORGAN_ALIASES
+    ] = Field(description="Canonical organ system or explicitly listed source content category")
 
     task_area: Literal[
         "History Taking and Performing Physical Examination",
@@ -78,7 +83,9 @@ Follow these rules:
   2. task_area (Task Area)
   3. topic_area (Keywords / Specific Medical Conditions)
 - CRITICAL MAPPING: The "topic_area" MUST contain the specific diseases, medical conditions, or keywords listed in the document (e.g., "Acute bronchitis", "Hypertension"). Do NOT duplicate the task area into the topic area field.
-- CRITICAL: You MUST standardize the "organ_system" by mapping it to EXACTLY one of the following categories:
+- SOURCE CATEGORY RULE:
+""" + DOCUMENT_CATEGORY_INSTRUCTION + """
+- Otherwise map "organ_system" to one of the following categories:
   * Cardiovascular System
   * Dermatologic System
   * Endocrine System
@@ -243,14 +250,15 @@ class ConversationManager:
 
         # Standardize categories and fuzzy match topic area against canonical JSON
         for item in extracted_topics:
-            clean_organ, clean_task = standardize_categories(item.organ_system, item.task_area)
+            clean_organ = source_organ_system(item.organ_system)
+            clean_task = standardize_task_area(item.task_area)
             item.organ_system = clean_organ
             item.task_area = clean_task
 
             raw_topic = item.topic_area
             valid_topics = canonical_topics_data.get(clean_organ, [])
 
-            if valid_topics and raw_topic:
+            if clean_organ not in SOURCE_ORGAN_ALIASES and valid_topics and raw_topic:
                 matches = difflib.get_close_matches(raw_topic, valid_topics, n=1, cutoff=0.6)
                 if matches:
                     print(f"Matched raw '{raw_topic}' -> Canonical '{matches[0]}'")
@@ -265,7 +273,8 @@ class ConversationManager:
 # ==========================================
 async def process_topic_set(manager, manager_verify, item):
     """Processes a single topic, utilizing fallback logic if verification fails."""
-    clean_organ, clean_task = standardize_categories(item.organ_system, item.task_area)
+    clean_organ = source_organ_system(item.organ_system)
+    clean_task = standardize_task_area(item.task_area)
     item_dict = {
         "organ_system": clean_organ,
         "task_area": clean_task,
@@ -338,6 +347,7 @@ async def process_topic_set(manager, manager_verify, item):
         await core_manager_verify.client.close()
 
     item_dict["questions"] = verified_questions
+    item_dict["organ_system"] = storage_organ_system(clean_organ)
     return item_dict
 
 async def sem_process_topic_set(sem, manager, manager_verify, item):
@@ -390,7 +400,7 @@ async def save_to_database(username: str, data_list: list, remediation_name: str
                     continue
                 assignment_id = uuid.uuid4().hex
                 generated_ids.append(assignment_id)
-                assignment_organ = data.get("organ_system") or "Unassigned"
+                assignment_organ = storage_organ_system(data.get("organ_system")) or "Unassigned"
                 assignment_task = data.get("task_area") or "Formulating the Most Likely Diagnosis"
                 assignment_topic = data.get("topic_area") or "General"
                 assignment_tuples.append((
@@ -465,10 +475,13 @@ async def background_process_document(filepath: str, username: str, remediation_
         generation_tasks = []
         sem = asyncio.Semaphore(3)
         for item in extracted_topics:
-            clean_organ, clean_task = standardize_categories(item.organ_system, item.task_area)
+            clean_organ = source_organ_system(item.organ_system)
+            clean_task = standardize_task_area(item.task_area)
             item.organ_system = clean_organ
             item.task_area = clean_task
-            existing_data = await check_existing_remediation(db_conn, item.organ_system, item.task_area, item.topic_area)
+            # Canonical cached content cannot establish the narrower source scope.
+            existing_data = (None if clean_organ in SOURCE_ORGAN_ALIASES else
+                             await check_existing_remediation(db_conn, clean_organ, clean_task, item.topic_area))
             if existing_data:
                 final_ids.append(existing_data["id"])
             else:

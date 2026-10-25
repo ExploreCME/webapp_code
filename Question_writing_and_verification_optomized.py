@@ -8,7 +8,10 @@ import asyncio
 import uuid
 import random
 import traceback
-from standardizers import TASK_AREAS, standardize_organ_system, standardize_task_area
+from standardizers import (
+    TASK_AREAS, SOURCE_ORGAN_ALIASES, selected_category_key, source_organ_system,
+    storage_organ_system, standardize_organ_system, standardize_task_area,
+)
 from openai import AsyncOpenAI
 from datetime import datetime
 from dotenv import load_dotenv
@@ -95,6 +98,7 @@ Respond with JSON only. No explanations or markdown.
     def build_PANCE_Verification_prompt(self, q_data):
         return f"""{PANCE_Verification_SYSTEM}
 {PANCE_Verification_TASK}
+Requested educational scope: {q_data.get('organ_system')} / {q_data.get('task_area')} / {q_data.get('topic_area')}
 {q_data.get('question_stem')}
 A: {q_data.get('answer_choice_A')}
 B: {q_data.get('answer_choice_B')}
@@ -227,8 +231,8 @@ def _is_placeholder(value):
 
 def standardize_categories(raw_organ, raw_task, *, allowed_organ_systems=None):
     if allowed_organ_systems is not None:
-        labels = {label.casefold(): label for label in allowed_organ_systems}
-        organ = labels.get(raw_organ.strip().casefold()) if isinstance(raw_organ, str) else None
+        labels = {selected_category_key(label): label for label in allowed_organ_systems}
+        organ = labels.get(selected_category_key(raw_organ)) if isinstance(raw_organ, str) else None
         if organ is None:
             raise ValueError("Organ system is not in the selected categories")
         return organ, standardize_task_area(raw_task)
@@ -466,6 +470,11 @@ async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_
     ``allowed_organ_systems`` opts into exact selected-category matching without fuzzy fallback.
     """
     organ_system = item_dict.get("organ_system")
+    if allowed_organ_systems is None:
+        source = source_organ_system(organ_system)
+        if source in SOURCE_ORGAN_ALIASES:
+            organ_system = source
+            allowed_organ_systems = (source,)
     task_area = item_dict.get("task_area")
     requested_topic = item_dict.get("topic_area")
     topic_area = (requested_topic if allowed_organ_systems is not None or not _is_placeholder(requested_topic)
@@ -615,7 +624,8 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
                 target_count = item["target_count"]
                 fetched_rows = []
 
-                if use_existing:
+                source_organ = source_organ_system(raw_organ)
+                if use_existing and source_organ not in SOURCE_ORGAN_ALIASES:
                     if topic_area and str(topic_area).strip():
                         query = """
                             SELECT id, organ_system, task_area, topic_area, question_stem,
@@ -688,7 +698,7 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
 
                 if num_needed > 0:
                     gen_item = {
-                        "organ_system": clean_organ,
+                        "organ_system": source_organ,
                         "task_area": clean_task if raw_task else "Formulating the Most Likely Diagnosis",
                         "topic_area": topic_area if (topic_area and str(topic_area).strip()) else "General Medical Knowledge"
                     }
@@ -706,7 +716,7 @@ async def generate_questions_from_eor_async(input_file_path, quiz_name, output_j
                     for result in results:
                         successful_questions.append({
                             "question_id": uuid.uuid4().hex,
-                            "clean_organ": result.get("organ_system"),
+                            "clean_organ": storage_organ_system(result.get("organ_system")),
                             "clean_task": result.get("task_area"),
                             "topic_area": result.get("topic_area"),
                             "question_stem": result.get("question_stem"),

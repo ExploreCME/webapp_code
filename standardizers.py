@@ -23,6 +23,70 @@ TASK_AREAS = (
 )
 
 _CANONICAL_ORGANS = {label.lower(): label for label in ORGAN_SYSTEMS}
+
+SOURCE_ORGAN_ALIASES = {
+    "Neurology/Developmental": "Neurologic System",
+    "Anxiety disorders; Trauma- and stress-related disorders": "Psychiatry/Behavioral Science",
+    "Depressive disorders; Bipolar and related disorders": "Psychiatry/Behavioral Science",
+    "Substance-related disorders": "Psychiatry/Behavioral Science",
+    "Schizophrenia spectrum and other psychotic disorders": "Psychiatry/Behavioral Science",
+    "Disruptive, impulse-control, and conduct disorders; Neurodevelopmental disorders": "Psychiatry/Behavioral Science",
+    "Feeding or eating disorders": "Psychiatry/Behavioral Science",
+    "Personality disorders; Obsessive-compulsive and related disorders": "Psychiatry/Behavioral Science",
+    "Somatic symptom and related disorders; Nonadherence to medical treatment": "Psychiatry/Behavioral Science",
+    "Paraphilic disorders; Sexual dysfunctions": "Psychiatry/Behavioral Science",
+    "OB - Prenatal care/normal pregnancy": "Reproductive System",
+    "GYN – Menstruation": "Reproductive System",
+    "OB - Pregnancy complications": "Reproductive System",
+    "GYN – Infections": "Reproductive System",
+    "GYN – Neoplasms": "Reproductive System",
+    "GYN - Disorders of the breast": "Reproductive System",
+    "OB - Labor and delivery complications": "Reproductive System",
+    "OB - Postpartum care": "Reproductive System",
+    "GYN – Other": "Reproductive System",
+    "GYN - Structural abnormalities": "Reproductive System",
+    "Pulmonary/Thoracic Surgery": "Pulmonary System",
+    "Breast Surgery": "Reproductive System",
+    "Trauma/Acute Care": "Misc",
+    "Neurologic/Neurosurgery": "Neurologic System",
+    "Pain Medicine/Anesthesia": "Misc",
+}
+
+
+def category_key(value):
+    """Compare source categories without confusing them with disease/topic text."""
+    return re.sub(r"\s*[-–]\s*", "-", " ".join(str(value or "").split())).casefold()
+
+
+_SOURCE_ORGANS = {category_key(label): label for label in SOURCE_ORGAN_ALIASES}
+
+
+def selected_category_key(value):
+    """Normalize known source aliases only; leave other selected labels distinct."""
+    key = category_key(value)
+    return key if key in _SOURCE_ORGANS else str(value or "").strip().casefold()
+
+
+def source_organ_system(value):
+    """Retain explicitly supported document scope; otherwise use canonical behavior."""
+    return _SOURCE_ORGANS.get(category_key(value)) or standardize_organ_system(value)
+
+
+def storage_organ_system(value):
+    """Map known source labels only, preserving unrelated selected JSON categories."""
+    source = _SOURCE_ORGANS.get(category_key(value))
+    return SOURCE_ORGAN_ALIASES[source] if source else value
+
+
+DOCUMENT_CATEGORY_INSTRUCTION = (
+    "Preserve these source content-category labels when present in the document, "
+    "instead of replacing them with a broad canonical organ system:\n"
+    + "\n".join(f"* {label}" for label in SOURCE_ORGAN_ALIASES)
+    + "\nKeep each category's educational scope and every specific disease/keyword "
+    "in topic_area distinct. Never use a category label as a substitute for its topics. "
+    "For other categories, use the canonical organ systems listed below.\n"
+)
+
 _CANONICAL_TASKS = {label.lower(): label for label in TASK_AREAS}
 TASK_ALIASES = {
     "Using Laboratory and Diagnostic Studies": TASK_AREAS[1],
@@ -77,6 +141,9 @@ def _match_rules(value, rules):
 def standardize_organ_system(raw_organ, *, default="Misc"):
     """Return a canonical organ label, or the given default for unrecognized input."""
     value = str(raw_organ).strip() if raw_organ else ""
+    source = _SOURCE_ORGANS.get(category_key(value))
+    if source:
+        return SOURCE_ORGAN_ALIASES[source]
     value = value.split(":", 1)[0].strip().lower()
     if value in _CANONICAL_ORGANS:
         return _CANONICAL_ORGANS[value]
