@@ -24,6 +24,7 @@ from reportlab.lib import colors
 # --- PERFORMANCE IMPORTS ---
 from db_pool import get_db_connection  # <-- Uses the new global pool
 from document_storage import upload_document
+from remediation_display import remediation_label, remediation_groups
 
 # Import the new statistical report engine (Fail gracefully if not created yet)
 try:
@@ -37,6 +38,8 @@ from shared_utils import SHARED_VALID_TASK_AREAS, is_assignment_name_unique
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 
 faculty_bp = Blueprint('faculty', __name__)
+faculty_bp.add_app_template_filter(remediation_label, 'remediation_label')
+faculty_bp.add_app_template_filter(remediation_groups, 'remediation_groups')
 
 # ==========================================
 # MYSQL DATABASE CONNECTION POOL (SCALABLE)
@@ -265,7 +268,7 @@ def review_remediation_details(remediation_name):
     try:
         with conn.cursor() as cursor:
             sql = """
-                SELECT id, remediation_name, organ_system, task_area, topic_area, created_date
+                SELECT id, remediation_name, organ_system, source_organ_system, task_area, topic_area, created_date
                 FROM remediation_assignments
                 WHERE username_norm = LOWER(TRIM(%s))
                 ORDER BY remediation_name ASC
@@ -392,7 +395,7 @@ def review_remediation_questions(module_id):
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
-                SELECT id, remediation_name, organ_system, task_area, topic_area
+                SELECT id, remediation_name, organ_system, source_organ_system, task_area, topic_area
                 FROM remediation_assignments
                 WHERE id = %s AND username_norm = LOWER(TRIM(%s))
             """, (module_id, username))

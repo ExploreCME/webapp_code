@@ -221,6 +221,7 @@ def init_mysql():
             id VARCHAR(64) PRIMARY KEY,
             username VARCHAR(255),
             organ_system VARCHAR(255),
+            source_organ_system TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
             task_area VARCHAR(255),
             topic_area VARCHAR(255),
             summary TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -274,6 +275,15 @@ def init_mysql():
     except pymysql.MySQLError as exc:
         if exc.args[0] != 1060:  # Duplicate column
             print(f"⚠️ Could not add remediation diagram_explanation: {exc}")
+
+    try:
+        cursor.execute(
+            "ALTER TABLE remediation_assignments ADD COLUMN source_organ_system "
+            "TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL"
+        )
+    except pymysql.MySQLError as exc:
+        if exc.args[0] != 1060:
+            raise
 
     conn.commit()
     conn.close()

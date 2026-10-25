@@ -16,7 +16,7 @@
                 <div class="card h-100 shadow-sm border-primary">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title text-primary fw-bold">{{ module.topic_area }}</h5>
-                        <h6 class="card-subtitle mb-3 text-muted">{{ module.organ_system }}</h6>
+                        <h6 class="card-subtitle mb-3 text-muted">{{ module|remediation_label }}</h6>
                         <p class="card-text small mb-4"><strong>Task Area:</strong> {{ module.task_area }}</p>
                         
                         <!-- Pushes the button to the bottom of the card -->

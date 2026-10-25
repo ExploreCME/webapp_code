@@ -169,7 +169,7 @@
 
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-    <h2 style="margin: 0; color: #2C3E50;">{{ assignment.organ_system }} - {{ assignment.topic_area }}</h2>
+    <h2 style="margin: 0; color: #2C3E50;">{{ assignment|remediation_label }} - {{ assignment.topic_area }}</h2>
     <div>
         <button onclick="toggleFullScreen()" class="btn btn-primary" style="margin-right: 10px; background-color: #34495e; border: none; border-radius: 8px;">
             ⛶ Fullscreen
