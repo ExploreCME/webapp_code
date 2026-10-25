@@ -44,6 +44,68 @@ def make_versions():
 
 
 class GeneratorTests(unittest.TestCase):
+    def test_custom_categories_load_prompt_and_allocate_without_remapping(self):
+        topics = {
+            "Cardiovascular System": ["Hypertension"],
+            "Growth and Development": ["Developmental milestones", "Teething"],
+            "Pediatric Renal Development": ["Kidney development"],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "topics.json"
+            path.write_text(json.dumps(topics))
+            self.assertEqual(generator.load_topics(path, allow_custom_categories=True), topics)
+            with self.assertRaises(ValueError):
+                generator.load_topics(path)
+            for weights in ((0, 100, 0), (25, 50, 25)):
+                with self.subTest(weights=weights):
+                    answers = [str(value) for value in (*weights, *TASKS.values())]
+                    with patch("builtins.input", side_effect=answers) as prompts, \
+                            patch.object(generator.importlib, "import_module") as import_engine, \
+                            patch.object(generator, "VersionPublisher") as publisher, \
+                            redirect_stdout(io.StringIO()):
+                        self.assertEqual(generator.main([
+                            "--quiz-name", "Pediatrics", "--topics-file", str(path), "--dry-run",
+                        ]), 0)
+                    self.assertEqual(
+                        [call.args[0] for call in prompts.call_args_list[:3]],
+                        [f"{label} (%): " for label in topics],
+                    )
+                    import_engine.assert_not_called()
+                    publisher.assert_not_called()
+                    blueprints = generator.build_blueprints(
+                        topics, dict(zip(topics, weights)), TASKS, random.Random(1),
+                    )
+                    self.assertEqual(len(blueprints), 3)
+                    for blueprint in blueprints:
+                        self.assertEqual(len(blueprint), 120)
+                        self.assertEqual(Counter(item["organ_system"] for item in blueprint),
+                                         {label: weight * 120 // 100
+                                          for label, weight in zip(topics, weights) if weight})
+                        self.assertEqual(Counter(item["task_area"] for item in blueprint),
+                                         dict(zip(TASK_AREAS, (18, 18, 24, 12, 24, 18, 6))))
+
+    def test_custom_loader_keeps_strict_json_and_label_validation(self):
+        invalid = (
+            '{}', '[]', '{"Growth": ["Teething"], "Growth": ["Feeding"]}',
+            '{"Growth": ["Teething"], "growth": ["Feeding"]}',
+            '{"": ["Teething"]}', '{" Growth": ["Teething"]}',
+            json.dumps({"x" * 256: ["Teething"]}),
+            '{"Growth": []}', '{"Growth": "Teething"}', '{"Growth": [null]}',
+            '{"Growth": [""]}', '{"Growth": [" Teething"]}',
+            json.dumps({"Growth": ["x" * 256]}),
+            '{“Growth”: ["Teething"]}', '{"Growth": ["Teething"] "Renal": ["Kidney"]}',
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "topics.json"
+            for content in invalid:
+                with self.subTest(content=content), self.assertRaises(ValueError):
+                    path.write_text(content)
+                    generator.load_topics(path, allow_custom_categories=True)
+            topics = {"x" * 255: ["Teething", "Teething"]}
+            path.write_text(json.dumps(topics))
+            self.assertEqual(generator.load_topics(path, allow_custom_categories=True),
+                             {"x" * 255: ["Teething"]})
+
     def test_exact_percentage_marginals_and_random_topic_pairings(self):
         versions = generator.build_blueprints(TOPICS, ORGANS, TASKS, random.Random(19))
         for blueprint in versions:
@@ -145,6 +207,83 @@ class GeneratorTests(unittest.TestCase):
 
 
 class GenerationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_real_engine_preserves_custom_labels_through_publication(self):
+        from test_question_verification import engine
+
+        for organ in ("Growth and Development", "Pediatric Renal Development"):
+            with self.subTest(organ=organ):
+                topics = {organ: ["Developmental milestones"]}
+                tasks = dict.fromkeys(TASK_AREAS, 0)
+                tasks["Clinical Intervention"] = 100
+                blueprints = generator.build_blueprints(
+                    topics, {organ: 100}, tasks, random.Random(1),
+                )
+                item = blueprints[0][0]
+                sequence = 0
+                verified_prompts = []
+                generation_prompts = []
+
+                async def api_response(**kwargs):
+                    nonlocal sequence
+                    prompt = kwargs["messages"][-1]["content"]
+                    if "Create EXACTLY" in prompt:
+                        generation_prompts.append(prompt)
+                        self.assertIn(f'**Allowed Organ Systems**: ["{organ}"]', prompt)
+                        count = int(prompt.split("Create EXACTLY ")[1].split()[0])
+                        results = []
+                        for _ in range(count):
+                            sequence += 1
+                            result = question(item, f"Distinct vignette {sequence}")
+                            result["organ_system"] = organ.lower()
+                            result["task_area"] = item["task_area"].lower()
+                            results.append(result)
+                        payload = {"questions": results}
+                    elif "rate the difficulty" in prompt:
+                        payload = {"difficulty": 5}
+                    else:
+                        verified_prompts.append(prompt)
+                        payload = {"correct_answer": "B", "confidence_score": 9}
+                    return SimpleNamespace(choices=[
+                        SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload))),
+                    ])
+
+                clients = []
+                def api_client(**kwargs):
+                    client = SimpleNamespace(
+                        chat=SimpleNamespace(completions=SimpleNamespace(
+                            create=AsyncMock(side_effect=api_response))),
+                        close=AsyncMock(),
+                    )
+                    clients.append(client)
+                    return client
+
+                with patch.object(engine, "AsyncOpenAI", side_effect=api_client), \
+                        redirect_stdout(io.StringIO()):
+                    versions = await generator.generate_versions(
+                        blueprints, engine, "test-only", "model", None, 2, 1,
+                    )
+                self.assertEqual([len(version) for version in versions], [120] * 3)
+                self.assertEqual(len(verified_prompts), 360 * engine.VERIFICATION_PASSES)
+                self.assertTrue(generation_prompts)
+                for version in versions:
+                    for result in version:
+                        self.assertEqual({key: result[key] for key in item}, item)
+                        self.assertEqual(result["difficulty_rating"], 5)
+                for client in clients:
+                    client.close.assert_awaited_once()
+                db = quiz_tests.QuizDatabase()
+                try:
+                    generator.VersionPublisher(lambda: db, "Pediatrics").publish(versions)
+                    rows = db.connection.execute(
+                        "SELECT organ_system, COUNT(*) AS n FROM question_bank GROUP BY organ_system"
+                    ).fetchall()
+                    self.assertEqual(rows, [{"organ_system": organ, "n": 360}])
+                    self.assertEqual(db.connection.execute(
+                        "SELECT COUNT(*) AS n FROM standardized_quiz_versions"
+                    ).fetchone()["n"], 3)
+                finally:
+                    db.connection.close()
+
     def engine(self, responder):
         managers = []
         def manager(**kwargs):
@@ -153,7 +292,7 @@ class GenerationTests(unittest.IsolatedAsyncioTestCase):
             return instance
         return SimpleNamespace(
             ConversationManager=manager, process_topic_batch=responder,
-            standardize_categories=lambda organ, task: (organ, task), managers=managers,
+            standardize_categories=lambda organ, task, **kwargs: (organ, task), managers=managers,
         )
 
     async def test_shared_engine_validation_unique_stems_and_refills(self):

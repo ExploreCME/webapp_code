@@ -172,6 +172,9 @@ class VersionPublisher:
 
 
 async def generate_versions(blueprints, engine, api_key, model, verify_model, concurrency, max_rounds):
+    allowed_organ_systems = tuple(dict.fromkeys(
+        item["organ_system"] for blueprint in blueprints for item in blueprint
+    ))
     jobs = {}
     versions = [[None] * QUESTIONS_PER_VERSION for _ in blueprints]
     for version, blueprint in enumerate(blueprints):
@@ -196,6 +199,7 @@ async def generate_versions(blueprints, engine, api_key, model, verify_model, co
                         batch = await engine.process_topic_batch(
                             item_dict=dict(item), num_needed=target - accepted,
                             conv_manager=managers[0], conv_manager_verify=managers[1], stats=batch_reasons,
+                            allowed_organ_systems=allowed_organ_systems,
                         )
                     finally:
                         reasons.update(batch_reasons)
@@ -205,7 +209,10 @@ async def generate_versions(blueprints, engine, api_key, model, verify_model, co
                         if accepted == target:
                             break
                         try:
-                            question = validate_question(result, item, engine.standardize_categories)
+                            question = validate_question(
+                                result, item, engine.standardize_categories,
+                                allowed_organ_systems=allowed_organ_systems,
+                            )
                         except ValueError:
                             reasons["invalid_question"] += 1
                             continue
@@ -256,7 +263,7 @@ def main(argv=None):
     try:
         name = validate_name(args.quiz_name or input("Quiz name: "))
         path = args.topics_file or Path(input("Topics JSON file: ").strip()).expanduser()
-        topics = load_topics(path)
+        topics = load_topics(path, allow_custom_categories=True)
         organs = prompt_percentages(topics, "Organ system percentages")
         tasks = prompt_percentages(TASK_AREAS, "Task area percentages")
         blueprints = build_blueprints(topics, organs, tasks, random.Random(args.seed))
