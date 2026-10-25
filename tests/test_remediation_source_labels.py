@@ -313,7 +313,7 @@ class RemediationSourceLabelTests(unittest.TestCase):
     def test_live_search_distinguishes_source_headings_and_hides_empty_groups(self):
         template = (ROOT / "templates/template standardization" /
                     "faculty_review_remediation_details.html").read_text()
-        script = re.search(r"<script>(.*?)</script>", template, re.S).group(1)
+        script = re.search(r"<script>(.*?)</script>", template, re.S | re.I).group(1)
         harness = """
             const assert = require('node:assert/strict');
             let onInput;
