@@ -69,7 +69,7 @@ def parser():
     return cli
 
 
-def load_topics(path):
+def load_topics(path, *, allow_custom_categories=False):
     def unique_keys(pairs):
         result = {}
         for key, value in pairs:
@@ -84,8 +84,12 @@ def load_topics(path):
         raise ValueError("Topics JSON must be a nonempty organ-system-to-topic-array mapping")
     result = {}
     for system, topics in data.items():
-        if not trimmed_string(system) or system not in ORGAN_SYSTEMS:
+        if not trimmed_string(system) or len(system) > 255:
+            raise ValueError("Organ systems must be nonempty trimmed strings of at most 255 characters")
+        if not allow_custom_categories and system not in ORGAN_SYSTEMS:
             raise ValueError(f"Noncanonical organ system: {system!r}")
+        if system.casefold() in {label.casefold() for label in result}:
+            raise ValueError(f"Duplicate organ system ignoring case: {system!r}")
         if not isinstance(topics, list) or not topics:
             raise ValueError(f"{system}: expected a nonempty topic array")
         if any(not trimmed_string(topic) or len(topic) > 255 for topic in topics):
@@ -125,7 +129,7 @@ def select_topics(args, data):
     return selected
 
 
-def validate_question(question, item, standardize):
+def validate_question(question, item, standardize, *, allowed_organ_systems=None):
     if not isinstance(question, dict):
         raise ValueError("Question is not an object")
     cleaned = {}
@@ -135,13 +139,15 @@ def validate_question(question, item, standardize):
             raise ValueError(f"Missing or empty {field}")
         cleaned[field] = value.strip()
     # Never feed arbitrary labels to the engine's fuzzy/defaulting normalizer.
-    for field, labels in (("organ_system", ORGAN_SYSTEMS), ("task_area", TASK_AREAS)):
+    organs = ORGAN_SYSTEMS if allowed_organ_systems is None else allowed_organ_systems
+    for field, labels in (("organ_system", organs), ("task_area", TASK_AREAS)):
         labels_by_case = {label.casefold(): label for label in labels}
         value = labels_by_case.get(cleaned[field].casefold())
         if value != item[field]:
             raise ValueError(f"Wrong {field}")
         cleaned[field] = value
-    organ, task = standardize(cleaned["organ_system"], cleaned["task_area"])
+    context = {} if allowed_organ_systems is None else {"allowed_organ_systems": organs}
+    organ, task = standardize(cleaned["organ_system"], cleaned["task_area"], **context)
     if (organ, task) != (item["organ_system"], item["task_area"]):
         raise ValueError("Category normalization changed the requested classification")
     if cleaned["topic_area"] != item["topic_area"]:

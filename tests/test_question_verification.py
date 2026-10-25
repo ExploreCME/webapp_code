@@ -57,6 +57,100 @@ def verdict(answer="B", confidence=9):
     return {"correct_answer": answer, "confidence_score": confidence}
 
 
+class SelectedCategoryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_selected_labels_are_json_escaped_and_topics_are_not_defaulted(self):
+        item = {**ITEM, "organ_system": 'Growth: "Early Years"', "topic_area": "string"}
+        generator = FakeManager([{"questions": [question(**item)]}])
+        generator.build_PANCE_batch_prompt = (
+            engine.ConversationManager.build_PANCE_batch_prompt.__get__(generator)
+        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            results = await engine.process_topic_batch(
+                item, 1, generator, FakeManager([verdict()] * 3 + [{"difficulty": 5}]),
+                allowed_organ_systems=(item["organ_system"],),
+            )
+        self.assertEqual({key: results[0][key] for key in item}, item)
+        prompt = generator.prompts[0]
+        self.assertIn("Target Diagnosis/Topic: string", prompt)
+        example = prompt.split("Output your response as valid JSON with this exact structure:\n")[1]
+        example = json.loads(example.split("\nRespond with JSON only.")[0])
+        self.assertEqual(example["questions"][0]["organ_system"], item["organ_system"])
+
+    async def test_wrong_or_missing_classifications_are_not_overwritten(self):
+        item = {**ITEM, "organ_system": "Growth and Development"}
+        allowed = ("Growth and Development", "Pediatric Renal Development", "Renal System")
+        for overrides in (
+            {"organ_system": None}, {"organ_system": ""}, {"organ_system": "Misc"},
+            {"organ_system": "Renal System"}, {"organ_system": "Unrelated"},
+            {"organ_system": "Pediatric Renal Development"},
+            {"task_area": None}, {"task_area": "diagnosis"},
+            {"task_area": "Pharmaceutical Therapeutics"}, {"topic_area": None},
+            {"topic_area": "Unrelated"}, {"topic_area": "string"},
+        ):
+            with self.subTest(overrides=overrides):
+                candidate = question(**item)
+                candidate.update(overrides)
+                generator = FakeManager([{"questions": [candidate]}] * 4)
+                generator.build_PANCE_batch_prompt = (
+                    engine.ConversationManager.build_PANCE_batch_prompt.__get__(generator)
+                )
+                verifier = FakeManager([])
+                stats = {}
+                with contextlib.redirect_stdout(io.StringIO()):
+                    results = await engine.process_topic_batch(
+                        item, 1, generator, verifier, stats=stats,
+                        allowed_organ_systems=allowed,
+                    )
+                self.assertEqual(results, [])
+                self.assertEqual(stats, {"generator_wrong_classification": 4})
+                self.assertEqual(verifier.prompts, [])
+
+    async def test_custom_categories_still_require_verifier_agreement(self):
+        item = {**ITEM, "organ_system": "Growth and Development"}
+        generator = FakeManager([{"questions": [question(**item)]}] * 4)
+        generator.build_PANCE_batch_prompt = (
+            engine.ConversationManager.build_PANCE_batch_prompt.__get__(generator)
+        )
+        stats = {}
+        with contextlib.redirect_stdout(io.StringIO()):
+            results = await engine.process_topic_batch(
+                item, 1, generator, FakeManager([verdict("D")] * 4), stats=stats,
+                allowed_organ_systems=(item["organ_system"],),
+            )
+        self.assertEqual(results, [])
+        self.assertEqual(stats, {"verifier_disagreed": 4})
+
+    def test_selected_normalization_and_validator_remain_strict(self):
+        from fill_database_topics import validate_question
+
+        organ = "Pediatric Renal Development"
+        allowed = ("Growth and Development", organ)
+        item = {**ITEM, "organ_system": organ}
+        candidate = question(**item, difficulty_rating=5)
+        self.assertEqual(engine.standardize_categories(organ, ITEM["task_area"])[0], "Renal System")
+        self.assertEqual(engine.standardize_categories(
+            "growth and development", ITEM["task_area"], allowed_organ_systems=allowed,
+        )[0], "Growth and Development")
+        with self.assertRaises(ValueError):
+            validate_question(candidate, item, engine.standardize_categories)
+        self.assertEqual(validate_question(
+            {**candidate, "organ_system": organ.lower()}, item, engine.standardize_categories,
+            allowed_organ_systems=allowed,
+        ), candidate)
+        for overrides in (
+            {"organ_system": "Renal System"}, {"organ_system": None},
+            {"organ_system": "Growth and Development"}, {"task_area": "diagnosis"},
+            {"topic_area": "Unrelated"}, {"correct_answer": "F"},
+            {"difficulty_rating": True}, {"difficulty_rating": 11},
+            {"explanation": ""}, {"answer_choice_E": None},
+        ):
+            with self.subTest(overrides=overrides), self.assertRaises(ValueError):
+                validate_question(
+                    {**candidate, **overrides}, item, engine.standardize_categories,
+                    allowed_organ_systems=allowed,
+                )
+
+
 class ParsingTests(unittest.TestCase):
     def test_extract_correct_letter_does_not_default_to_a(self):
         q_data = question()

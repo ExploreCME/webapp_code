@@ -461,11 +461,19 @@ python generate_standardized_quizzes.py
 The script prompts for:
 
 1. Quiz name (for example, `Emergency Medicine`).
-2. Topics JSON filename, using the same canonical organ-system-to-topic-array
+2. Topics JSON filename, using the same organ-system-to-topic-array
    structure as `topics_by_organ_system.json`.
 3. A percentage for **every organ system in that file**, totaling exactly 100.
 4. A percentage for **each of the seven canonical task areas**, totaling exactly 100.
 5. Confirmation before incurring API costs and publishing shared quizzes.
+
+For standardized generation, the selected JSON defines the allowed organ-system
+labels, including custom categories such as Pediatrics' `Growth and Development`.
+Labels and file order are preserved; category names must be nonempty, trimmed,
+at most 255 characters, and distinct ignoring case. Generated labels may differ
+only in case and are stored using the selected spelling, never fuzzy-mapped to
+canonical organs or `Misc`. Wrong organ, task, or topic classifications are
+rejected. Other generators retain their existing canonical behavior.
 
 Use zero to exclude an organ or task. Largest-remainder rounding converts each
 distribution to exactly 120 questions per version, so rounding can differ slightly

@@ -44,8 +44,12 @@ class ConversationManager:
         )
         return response.choices[0].message.content
 
-    def build_PANCE_batch_prompt(self, organ_system, topic_area, task_area, num_questions, summary=None):
+    def build_PANCE_batch_prompt(self, organ_system, topic_area, task_area, num_questions, summary=None, *, allowed_organ_systems=None):
         summary_instruction = f"\n- **CONTEXT**: Ensure the medical facts align with this study summary:\n{summary}\n" if summary else ""
+        organ_labels = "Cardiovascular System, Dermatologic System, Endocrine System, Eyes, Ears, Nose, and Throat, Gastrointestinal System/Nutrition, Genitourinary System, Hematologic System, Infectious Diseases, Musculoskeletal System, Neurologic System, Psychiatry/Behavioral Science, Pulmonary System, Renal System, Reproductive System"
+        if allowed_organ_systems is not None:
+            organ_labels = json.dumps(list(allowed_organ_systems), ensure_ascii=False)
+            summary_instruction += "\n- Return the exact requested Organ System, Task Area and Target Diagnosis/Topic labels; do not substitute or reclassify them.\n"
 
         return f"""You are an experienced professor in a Physician Assistant program.
 Create EXACTLY {num_questions} distinct PANCE style exam questions.
@@ -64,16 +68,16 @@ Follow these strict rules to ensure MAXIMUM VARIETY across the {num_questions} q
 - **EXPLANATIONS**: Explain why the answer is correct using medical text, NEVER referring to choices by their letters (e.g., never write "A is correct").
 
 - **CATEGORY MAPPING RULE (CRITICAL)**: The `organ_system` and `task_area` in your JSON output MUST EXACTLY MATCH one of the following exact strings. Do not invent your own categories.
-  **Allowed Organ Systems**: Cardiovascular System, Dermatologic System, Endocrine System, Eyes, Ears, Nose, and Throat, Gastrointestinal System/Nutrition, Genitourinary System, Hematologic System, Infectious Diseases, Musculoskeletal System, Neurologic System, Psychiatry/Behavioral Science, Pulmonary System, Renal System, Reproductive System.
+  **Allowed Organ Systems**: {organ_labels}.
   **Allowed Task Areas**: History Taking and Performing Physical Examination, Using Diagnostic and Laboratory Studies, Formulating the Most Likely Diagnosis, Health Maintenance, Patient Education, and Preventive Measures, Clinical Intervention, Pharmaceutical Therapeutics, Applying Foundational Scientific Concepts.
 
 Output your response as valid JSON with this exact structure:
 {{
   "questions": [
     {{
-      "organ_system": "{organ_system}",
-      "task_area": "{task_area}",
-      "topic_area": "{topic_area}",
+      "organ_system": {json.dumps(organ_system, ensure_ascii=False)},
+      "task_area": {json.dumps(task_area, ensure_ascii=False)},
+      "topic_area": {json.dumps(topic_area, ensure_ascii=False)},
       "question_stem": "string",
       "answer_choice_A": "string",
       "answer_choice_B": "string",
@@ -221,7 +225,13 @@ def _snippet(text, limit=200):
 def _is_placeholder(value):
     return not value or str(value).strip().lower() in _PLACEHOLDER_VALUES
 
-def standardize_categories(raw_organ, raw_task):
+def standardize_categories(raw_organ, raw_task, *, allowed_organ_systems=None):
+    if allowed_organ_systems is not None:
+        labels = {label.casefold(): label for label in allowed_organ_systems}
+        organ = labels.get(raw_organ.strip().casefold()) if isinstance(raw_organ, str) else None
+        if organ is None:
+            raise ValueError("Organ system is not in the selected categories")
+        return organ, standardize_task_area(raw_task)
     return standardize_organ_system(raw_organ), standardize_task_area(raw_task)
 
 def extract_correct_letter(raw_text, q_data):
@@ -410,10 +420,20 @@ def _resolve_task_area(raw_task, llm_task=None):
                 return standardized
     return random.choice(TASK_AREAS)
 
-def _apply_requested_metadata(q_data, organ_system, task_area, topic_area, label):
-    """Return a copy whose organ/task/topic come from the request (LLM labels are fallbacks only)."""
+def _apply_requested_metadata(q_data, organ_system, task_area, topic_area, label, *, allowed_organ_systems=None):
+    """Use requested metadata, requiring matching model labels in selected-category mode."""
     q_data = dict(q_data)
     llm_organ, llm_task, llm_topic = (q_data.get(key) for key in ("organ_system", "task_area", "topic_area"))
+    if allowed_organ_systems is not None:
+        organ, _ = standardize_categories(
+            llm_organ, llm_task, allowed_organ_systems=allowed_organ_systems,
+        )
+        tasks = {task.casefold(): task for task in TASK_AREAS}
+        task = tasks.get(llm_task.strip().casefold()) if isinstance(llm_task, str) else None
+        if (organ, task, llm_topic) != (organ_system, task_area, topic_area):
+            raise ValueError("Generator classification does not match the requested categories/topic")
+        q_data.update(organ_system=organ, task_area=task, topic_area=topic_area)
+        return q_data
     raw_organ = organ_system if not _is_placeholder(organ_system) else (None if _is_placeholder(llm_organ) else llm_organ)
     final_organ = standardize_organ_system(raw_organ)
     final_task = _resolve_task_area(task_area, llm_task)
@@ -438,16 +458,18 @@ def _apply_requested_metadata(q_data, organ_system, task_area, topic_area, label
     q_data["topic_area"] = final_topic
     return q_data
 
-async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_verify, stats=None):
+async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_verify, stats=None, *, allowed_organ_systems=None):
     """Generate and verify up to ``num_needed`` questions for one organ/topic/task request.
 
     Verified questions are always returned even if later API calls fail. When ``stats``
     (a dict) is provided, discard/failure reasons are counted in it for diagnostics.
+    ``allowed_organ_systems`` opts into exact selected-category matching without fuzzy fallback.
     """
     organ_system = item_dict.get("organ_system")
     task_area = item_dict.get("task_area")
     requested_topic = item_dict.get("topic_area")
-    topic_area = requested_topic if not _is_placeholder(requested_topic) else DEFAULT_TOPIC_AREA
+    topic_area = (requested_topic if allowed_organ_systems is not None or not _is_placeholder(requested_topic)
+                  else DEFAULT_TOPIC_AREA)
     summary = item_dict.get("summary")
 
     if not organ_system:
@@ -464,7 +486,8 @@ async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_
         deficit = num_needed - len(verified_questions)
         print(f"DEBUG: [{label}] Generating batch of {deficit} questions (Attempt {attempts})")
 
-        prompt = conv_manager.build_PANCE_batch_prompt(organ_system, topic_area, task_area, deficit, summary)
+        context = {} if allowed_organ_systems is None else {"allowed_organ_systems": allowed_organ_systems}
+        prompt = conv_manager.build_PANCE_batch_prompt(organ_system, topic_area, task_area, deficit, summary, **context)
         try:
             response = await conv_manager.chat_completion(prompt, max_tokens=10000)
         except Exception as error:
@@ -489,12 +512,20 @@ async def process_topic_batch(item_dict, num_needed, conv_manager, conv_manager_
                 _record(stats, "generator_invalid_question")
                 print(f"DEBUG: [{q_label}] Generated question is not a JSON object. Discarding.")
                 continue
+            if allowed_organ_systems is not None:
+                try:
+                    q_data = _apply_requested_metadata(
+                        q_data, organ_system, task_area, requested_topic, q_label, **context,
+                    )
+                except ValueError:
+                    _record(stats, "generator_wrong_classification")
+                    continue
 
             is_good_question, final_q_data = await Question_Verification(
                 conv_manager_verify, q_data, label=q_label, stats=stats)
 
             if is_good_question:
-                final_q_data = _apply_requested_metadata(final_q_data, organ_system, task_area, requested_topic, q_label)
+                final_q_data = _apply_requested_metadata(final_q_data, organ_system, task_area, requested_topic, q_label, **context)
                 target_letter = random.choice(['A', 'B', 'C', 'D', 'E'])
                 shuffled_q = shuffle_answer_choices(final_q_data, target_letter, label=q_label)
                 verified_questions.append(shuffled_q)
