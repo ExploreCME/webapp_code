@@ -55,7 +55,8 @@ SOURCE_ORGAN_ALIASES = {
 
 def category_key(value):
     """Compare source categories without confusing them with disease/topic text."""
-    return re.sub(r"\s*[-–]\s*", "-", " ".join(str(value or "").split())).casefold()
+    value = " ".join(str(value or "").split()).replace("–", "-")
+    return "-".join(part.strip() for part in value.split("-")).casefold()
 
 
 _SOURCE_ORGANS = {category_key(label): label for label in SOURCE_ORGAN_ALIASES}
