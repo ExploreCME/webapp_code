@@ -7,44 +7,58 @@
     "Sexual assault",
     "Spouse or partner neglect/violence"
   ],
-  "Reproductive System": [
+  "GYN - Menstration": [
     "Amenorrhea",
     "Dysfunctional uterine bleeding",
     "Dysmenorrhea",
     "Menopause",
     "Normal physiology",
-    "Premenstrual syndrome",
+    "Premenstrual syndrome"
+  ],
+  "GYN - Infections": [
     "Cervicitis (gonorrhea, chlamydia, herpes simplex, human papilloma virus)",
     "Chancroid",
     "Lymphogranuloma venereum",
     "Pelvic Inflammatory disease",
     "Syphilis",
-    "Vaginitis (trichomoniasis, bacterial vaginosis, atrophic vaginitis, candidiasis)",
+    "Vaginitis (trichomoniasis, bacterial vaginosis, atrophic vaginitis, candidiasis)"
+  ],
+  "GYN - Neoplasms": [
     "Breast cancer",
     "Cervical carcinoma",
     "Cervical dysplasia",
     "Endometrial cancer",
     "Ovarian neoplasms",
-    "Vaginal/vulvar neoplasms",
+    "Vaginal/vulvar neoplasms"
+  ],
+  "GYN - Disorders of the breast": [
     "Breast abscess",
     "Breast fibroadenoma",
     "Fibrocystic disease",
-    "Mastitis",
+    "Mastitis"
+  ],
+  "GYN - Structural abnormalities": [  
     "Cystocele",
     "Ovarian torsion",
     "Rectocele",
-    "Uterine prolapse",
+    "Uterine prolapse"
+  ],
+  "GYN - Other": [  
     "Contraceptive methods",
     "Endometriosis",
     "Infertility",
     "Leiomyoma",
-    "Ovarian cyst",
+    "Ovarian cyst"
+  ],
+  "OB - Prenatal care/Normal pregnancy": [  
     "Apgar score",
     "Fetal position",
     "Multiple gestation",
     "Normal labor and delivery (stages, duration, mechanism of delivery, monitoring)",
     "Physiology of pregnancy",
-    "Prenatal diagnosis/care",
+    "Prenatal diagnosis/care"
+  ],
+  "OB - Prganancy complications": [  
     "Abortion",
     "Ectopic pregnancy",
     "Gestational diabetes",
@@ -54,13 +68,17 @@
     "Placenta previa",
     "Preeclampsia/eclampsia",
     "Pregnancy induced hypertension",
-    "Rh incompatibility",
+    "Rh incompatibility"
+  ],
+  "OB - Labor and delivery complications": [  
     "Breech presentation",
     "Dystocia",
     "Fetal distress",
     "Premature rupture of membranes",
     "Preterm labor",
-    "Prolapsed umbilical cord",
+    "Prolapsed umbilical cord"
+  ],
+  "OB - Postpartum care": [  
     "Endometritis",
     "Normal physiology changes of puerperium",
     "Perineal laceration/episiotomy care",
