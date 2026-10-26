@@ -1,12 +1,4 @@
 {
-  "Genitourinary System": [
-    "Urinary incontinence"
-  ],
-  "Psychiatry/Behavioral Science": [
-    "Premenstrual dysphoric disorder",
-    "Sexual assault",
-    "Spouse or partner neglect/violence"
-  ],
   "GYN - Menstration": [
     "Amenorrhea",
     "Dysfunctional uterine bleeding",
@@ -48,6 +40,10 @@
     "Endometriosis",
     "Infertility",
     "Leiomyoma",
+    "Urinary incontinence",
+    "Premenstrual dysphoric disorder",
+    "Sexual assault",
+    "Spouse or partner neglect/violence",
     "Ovarian cyst"
   ],
   "OB - Prenatal care/Normal pregnancy": [  
