@@ -529,9 +529,11 @@ question, summary, and diagram prompts keep that scope through verification.
 Known aliases bypass broader canonical cached questions/remediations, which
 cannot establish the narrower source scope. Quiz questions and remediation
 assignments store the canonical groups above; remediation questions inherit
-their assignment's group. No schema migration or existing-record rewrite is
-required. Canonical blueprint generation and task-area standardization remain
-unchanged.
+their assignment's group. Alias mapping requires no additional schema migration
+or existing-record rewrite. Remediation source-heading display requires the
+separate migration described under “Uploaded remediation headings: display versus
+storage” below. Canonical blueprint generation and task-area standardization
+remain unchanged.
 
 Use zero to exclude an organ or task. Largest-remainder rounding converts each
 distribution to exactly 120 questions per version, so rounding can differ slightly
