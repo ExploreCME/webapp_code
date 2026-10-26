@@ -47,6 +47,7 @@ class QuizDatabase:
             CREATE TABLE quiz_questions_map (map_id INTEGER, quiz_id TEXT, question_id TEXT);
             CREATE TABLE question_bank (
                 id TEXT PRIMARY KEY, organ_system TEXT, task_area TEXT, topic_area TEXT,
+                source_organ_system TEXT,
                 question_stem TEXT, answer_choice_A TEXT, answer_choice_B TEXT,
                 answer_choice_C TEXT, answer_choice_D TEXT, answer_choice_E TEXT,
                 correct_answer TEXT, explanation TEXT, difficulty_rating INTEGER, created_date TEXT,

@@ -94,6 +94,7 @@ def init_mysql():
         CREATE TABLE IF NOT EXISTS question_bank (
             id VARCHAR(64) PRIMARY KEY,
             organ_system VARCHAR(255),
+            source_organ_system TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
             task_area VARCHAR(255),
             topic_area VARCHAR(255),
             question_stem TEXT,
@@ -279,6 +280,15 @@ def init_mysql():
     try:
         cursor.execute(
             "ALTER TABLE remediation_assignments ADD COLUMN source_organ_system "
+            "TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL"
+        )
+    except pymysql.MySQLError as exc:
+        if exc.args[0] != 1060:
+            raise
+
+    try:
+        cursor.execute(
+            "ALTER TABLE question_bank ADD COLUMN source_organ_system "
             "TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL"
         )
     except pymysql.MySQLError as exc:
