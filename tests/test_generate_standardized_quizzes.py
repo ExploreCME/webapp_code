@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 import generate_standardized_quizzes as generator
 from standardized_quizzes import STANDARDIZED_PREFIX, STANDARDIZED_QUIZZES
-from standardizers import TASK_AREAS
+from standardizers import SOURCE_ORGAN_ALIASES, TASK_AREAS, storage_organ_system
 import test_standardized_quizzes as quiz_tests
 
 
@@ -44,6 +44,24 @@ def make_versions():
 
 
 class GeneratorTests(unittest.TestCase):
+    def test_source_alias_dry_run_preserves_each_selected_allocation_without_publication(self):
+        topics = {source: [f"Specific disease {index}"]
+                  for index, source in enumerate(SOURCE_ORGAN_ALIASES)}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "topics.json"
+            path.write_text(json.dumps(topics))
+            output = io.StringIO()
+            with patch("builtins.input", side_effect=["4"] * 25 + list(map(str, TASKS.values()))), \
+                    patch.object(generator.importlib, "import_module") as import_engine, \
+                    patch.object(generator, "VersionPublisher") as publisher, redirect_stdout(output):
+                self.assertEqual(generator.main([
+                    "--quiz-name", "Source scopes", "--topics-file", str(path), "--dry-run",
+                ]), 0)
+            import_engine.assert_not_called()
+            publisher.assert_not_called()
+            for source in topics:
+                self.assertEqual(output.getvalue().count(f"  {source}: "), 3)
+
     def test_custom_categories_load_prompt_and_allocate_without_remapping(self):
         topics = {
             "Cardiovascular System": ["Hypertension"],
@@ -207,6 +225,150 @@ class GeneratorTests(unittest.TestCase):
 
 
 class GenerationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_all_source_aliases_keep_scope_until_validation_then_publish_canonical_organs(self):
+        from test_question_verification import engine as shared_engine
+
+        self.assertEqual(len(SOURCE_ORGAN_ALIASES), 25)
+        topics = {source: [f"Specific disease {index}"]
+                  for index, source in enumerate(SOURCE_ORGAN_ALIASES)}
+        tasks = dict.fromkeys(TASK_AREAS, 0)
+        tasks["Clinical Intervention"] = 100
+        blueprints = generator.build_blueprints(
+            topics, dict.fromkeys(topics, 4), tasks, random.Random(7),
+        )
+        expected_counts = generator.allocate(dict.fromkeys(topics, Decimal(4)))
+        calls = Counter()
+        sequence = 0
+
+        async def responder(item_dict, num_needed, allowed_organ_systems, **kwargs):
+            nonlocal sequence
+            source = item_dict["organ_system"]
+            self.assertIn(source, topics)
+            self.assertEqual(item_dict["topic_area"], topics[source][0])
+            self.assertEqual(set(allowed_organ_systems), set(topics))
+            variant = source.swapcase().replace(" - ", "–").replace(" – ", "-")
+            self.assertEqual(shared_engine.standardize_categories(
+                variant, item_dict["task_area"], allowed_organ_systems=allowed_organ_systems,
+            ), (source, item_dict["task_area"]))
+            calls[source] += num_needed
+            results = []
+            for _ in range(num_needed):
+                sequence += 1
+                result = question(item_dict, f"Alias vignette {sequence}")
+                result["organ_system"] = source.swapcase()
+                results.append(result)
+            return results
+
+        engine = self.engine(responder)
+        engine.standardize_categories = shared_engine.standardize_categories
+        with patch.object(generator, "validate_question", wraps=generator.validate_question) as validate:
+            versions = await generator.generate_versions(
+                blueprints, engine, "test-only", "model", None, 3, 1,
+            )
+        self.assertEqual(sequence, 360)
+        self.assertEqual(validate.call_count, 360)
+        for call in validate.call_args_list:
+            self.assertIn(call.args[1]["organ_system"], topics)
+            self.assertEqual(set(call.kwargs["allowed_organ_systems"]), set(topics))
+        self.assertEqual(calls, {source: count * 3 for source, count in expected_counts.items()})
+        for blueprint, version in zip(blueprints, versions):
+            self.assertEqual(Counter(item["organ_system"] for item in blueprint), expected_counts)
+            for item, result in zip(blueprint, version):
+                self.assertEqual(result["organ_system"], SOURCE_ORGAN_ALIASES[item["organ_system"]])
+                self.assertEqual(result["topic_area"], item["topic_area"])
+                self.assertEqual(result["task_area"], item["task_area"])
+        db = quiz_tests.QuizDatabase()
+        try:
+            generator.VersionPublisher(lambda: db, "Source aliases").publish(versions)
+            rows = db.connection.execute(
+                "SELECT organ_system, topic_area, COUNT(*) AS n FROM question_bank "
+                "GROUP BY organ_system, topic_area"
+            ).fetchall()
+            self.assertEqual(
+                {(row["organ_system"], row["topic_area"]): row["n"] for row in rows},
+                {(target, topics[source][0]): expected_counts[source] * 3
+                 for source, target in SOURCE_ORGAN_ALIASES.items()},
+            )
+            self.assertEqual(db.connection.execute(
+                "SELECT COUNT(*) AS n FROM standardized_quiz_versions"
+            ).fetchone()["n"], 3)
+        finally:
+            db.connection.close()
+
+    async def test_shared_storage_target_does_not_merge_source_allocations_or_custom_categories(self):
+        sources = list(SOURCE_ORGAN_ALIASES)[1:3]
+        topics = {source: [f"Disease in scope {index}"] for index, source in enumerate((
+            *sources, "Psychiatry/Behavioral Science", "Growth and Development",
+            "Pediatric Renal Development",
+        ))}
+        percentages = dict(zip(topics, (10, 20, 30, 25, 15)))
+        blueprints = generator.build_blueprints(topics, percentages, TASKS, random.Random(9))
+        sequence = 0
+
+        async def responder(item_dict, num_needed, **kwargs):
+            nonlocal sequence
+            self.assertEqual(item_dict["topic_area"], topics[item_dict["organ_system"]][0])
+            results = []
+            for _ in range(num_needed):
+                sequence += 1
+                results.append(question(item_dict, f"Separate scope {sequence}"))
+            return results
+
+        versions = await generator.generate_versions(
+            blueprints, self.engine(responder), "test-only", "model", None, 2, 1,
+        )
+        for blueprint, version in zip(blueprints, versions):
+            self.assertEqual(Counter(item["organ_system"] for item in blueprint),
+                             dict(zip(topics, (12, 24, 36, 30, 18))))
+            self.assertEqual(Counter(result["organ_system"] for result in version), {
+                "Psychiatry/Behavioral Science": 72,
+                "Growth and Development": 30, "Pediatric Renal Development": 18,
+            })
+            self.assertEqual(Counter(result["topic_area"] for result in version),
+                             {topics[source][0]: count for source, count
+                              in zip(topics, (12, 24, 36, 30, 18))})
+            self.assertEqual(Counter(result["task_area"] for result in version),
+                             Counter(item["task_area"] for item in blueprint))
+
+    async def test_wrong_source_scope_task_or_topic_is_rejected_before_storage_mapping(self):
+        sources = list(SOURCE_ORGAN_ALIASES)[1:3]
+        topics = {source: ["Shared disease"] for source in (*sources, "Psychiatry/Behavioral Science")}
+        tasks = dict.fromkeys(TASK_AREAS, 0)
+        tasks["Clinical Intervention"] = 100
+        blueprints = generator.build_blueprints(
+            topics, dict(zip(topics, (40, 40, 20))), tasks, random.Random(1),
+        )
+        for blueprint in blueprints:
+            blueprint.sort(key=lambda item: list(topics).index(item["organ_system"]))
+        for kind in ("broad-organ", "sibling-source", "unknown-organ", "wrong-task", "wrong-topic"):
+            with self.subTest(kind=kind):
+                calls = 0
+
+                async def responder(item_dict, num_needed, **kwargs):
+                    nonlocal calls
+                    calls += 1
+                    result = question(item_dict, f"Rejected {calls}")
+                    if kind == "broad-organ":
+                        result["organ_system"] = "Psychiatry/Behavioral Science"
+                    elif kind == "sibling-source":
+                        result["organ_system"] = next(source for source in sources
+                                                      if source != item_dict["organ_system"])
+                    elif kind == "unknown-organ":
+                        result["organ_system"] = "Unselected category"
+                    elif kind == "wrong-task":
+                        result["task_area"] = TASK_AREAS[0]
+                    else:
+                        result["topic_area"] = "Unrequested disease"
+                    return [result] * num_needed
+
+                with patch.object(generator, "storage_organ_system") as storage, \
+                        redirect_stdout(io.StringIO()), self.assertRaisesRegex(ValueError, "shortfall"):
+                    await generator.generate_versions(
+                        blueprints, self.engine(responder), "test-only", "model", None, 1, 2,
+                    )
+                self.assertEqual(calls, 2)
+                storage.assert_not_called()
+
     async def test_real_engine_preserves_custom_labels_through_publication(self):
         from test_question_verification import engine
 
@@ -393,6 +555,24 @@ class PublicationTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.publisher.publish(make_versions())
         self.assertEqual(self.db.connection.execute("SELECT COUNT(*) AS n FROM question_bank").fetchone()["n"], 360)
+
+    def test_publisher_defensively_maps_known_aliases_without_mutating_source_questions(self):
+        labels = [*SOURCE_ORGAN_ALIASES, "Growth and Development", "Pediatric Renal Development"]
+        versions = make_versions()
+        expected = Counter()
+        for index, result in enumerate(result for version in versions for result in version):
+            source = labels[index % len(labels)]
+            result["organ_system"] = source
+            expected[storage_organ_system(source)] += 1
+        self.publisher.publish(versions)
+        rows = self.db.connection.execute(
+            "SELECT organ_system, COUNT(*) AS n FROM question_bank GROUP BY organ_system"
+        ).fetchall()
+        self.assertEqual({row["organ_system"]: row["n"] for row in rows}, expected)
+        self.assertEqual(
+            [result["organ_system"] for version in versions for result in version],
+            [labels[index % len(labels)] for index in range(360)],
+        )
 
     def test_incomplete_or_duplicate_sets_never_open_publication_transaction(self):
         for versions in (make_versions()[:2], [[], [], []]):

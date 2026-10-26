@@ -470,10 +470,70 @@ The script prompts for:
 For standardized generation, the selected JSON defines the allowed organ-system
 labels, including custom categories such as Pediatrics' `Growth and Development`.
 Labels and file order are preserved; category names must be nonempty, trimmed,
-at most 255 characters, and distinct ignoring case. Generated labels may differ
-only in case and are stored using the selected spelling, never fuzzy-mapped to
-canonical organs or `Misc`. Wrong organ, task, or topic classifications are
-rejected. Other generators retain their existing canonical behavior.
+at most 255 characters, and distinct ignoring case (and typography for the known
+aliases below). For those aliases, the shared engine recognizes
+case/whitespace and hyphen/en-dash spacing variants and restores the selected
+spelling before final metadata validation. The source labels remain
+distinct throughout percentage allocation, blueprint construction, generation
+prompts, verification, and metadata validation. For example, two psychiatric
+source categories retain separate percentages and topic lists even though they
+eventually share a database organ system. A broad canonical classification or a
+sibling source category is **not** accepted in place of the requested source
+label; wrong organ, task, or topic classifications are rejected before mapping.
+
+Only **after validation**, the following explicit source aliases map to
+`question_bank.organ_system` for persistence and reporting (the publisher also
+applies this mapping defensively). `topic_area` retains the specific requested
+disease/keyword; category labels never substitute for topics.
+
+| Selected source label | Persisted organ system |
+| --- | --- |
+| Neurology/Developmental | Neurologic System |
+| Anxiety disorders; Trauma- and stress-related disorders | Psychiatry/Behavioral Science |
+| Depressive disorders; Bipolar and related disorders | Psychiatry/Behavioral Science |
+| Substance-related disorders | Psychiatry/Behavioral Science |
+| Schizophrenia spectrum and other psychotic disorders | Psychiatry/Behavioral Science |
+| Disruptive, impulse-control, and conduct disorders; Neurodevelopmental disorders | Psychiatry/Behavioral Science |
+| Feeding or eating disorders | Psychiatry/Behavioral Science |
+| Personality disorders; Obsessive-compulsive and related disorders | Psychiatry/Behavioral Science |
+| Somatic symptom and related disorders; Nonadherence to medical treatment | Psychiatry/Behavioral Science |
+| Paraphilic disorders; Sexual dysfunctions | Psychiatry/Behavioral Science |
+| OB - Prenatal care/normal pregnancy | Reproductive System |
+| GYN – Menstruation | Reproductive System |
+| OB - Pregnancy complications | Reproductive System |
+| GYN – Infections | Reproductive System |
+| GYN – Neoplasms | Reproductive System |
+| GYN - Disorders of the breast | Reproductive System |
+| OB - Labor and delivery complications | Reproductive System |
+| OB - Postpartum care | Reproductive System |
+| GYN – Other | Reproductive System |
+| GYN - Structural abnormalities | Reproductive System |
+| Pulmonary/Thoracic Surgery | Pulmonary System |
+| Breast Surgery | Reproductive System |
+| Trauma/Acute Care | Misc |
+| Neurologic/Neurosurgery | Neurologic System |
+| Pain Medicine/Anesthesia | Misc |
+
+Alias lookup ignores case, surrounding/repeated whitespace, and spacing around
+hyphens or en dashes. No fuzzy/default organ mapping is applied at persistence:
+unrelated custom labels, including `Growth and Development` and
+`Pediatric Renal Development`, remain unchanged rather than becoming `Misc`,
+`Neurologic System`, or `Renal System`. Existing canonical labels stay unchanged.
+
+Uploaded-document quizzes (`/generate_from_document` → `quiz_worker` → EOR
+extraction/generation) and faculty PDF remediations (`/remediation/create` →
+`quiz_worker` → `create_remediation_assignment`) accept the same source aliases.
+The local-file wrappers use these same pipelines. Extraction preserves source
+categories and their specific topics without canonical fuzzy-topic substitution;
+question, summary, and diagram prompts keep that scope through verification.
+Known aliases bypass broader canonical cached questions/remediations, which
+cannot establish the narrower source scope. Quiz questions and remediation
+assignments store the canonical groups above; remediation questions inherit
+their assignment's group. Alias mapping requires no additional schema migration
+or existing-record rewrite. Remediation source-heading display requires the
+separate migration described under “Uploaded remediation headings: display versus
+storage” below. Canonical blueprint generation and task-area standardization
+remain unchanged.
 
 Use zero to exclude an organ or task. Largest-remainder rounding converts each
 distribution to exactly 120 questions per version, so rounding can differ slightly

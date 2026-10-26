@@ -13,7 +13,7 @@ from pathlib import Path
 import sys
 import uuid
 
-from standardizers import TASK_AREAS
+from standardizers import TASK_AREAS, selected_category_key
 
 ROOT = Path(__file__).resolve().parent
 ORGAN_SYSTEMS = (
@@ -83,13 +83,16 @@ def load_topics(path, *, allow_custom_categories=False):
     if not isinstance(data, dict) or not data:
         raise ValueError("Topics JSON must be a nonempty organ-system-to-topic-array mapping")
     result = {}
+    seen_normalized = set()
     for system, topics in data.items():
         if not trimmed_string(system) or len(system) > 255:
             raise ValueError("Organ systems must be nonempty trimmed strings of at most 255 characters")
         if not allow_custom_categories and system not in ORGAN_SYSTEMS:
             raise ValueError(f"Noncanonical organ system: {system!r}")
-        if system.casefold() in {label.casefold() for label in result}:
-            raise ValueError(f"Duplicate organ system ignoring case: {system!r}")
+        normalized_key = selected_category_key(system)
+        if normalized_key in seen_normalized:
+            raise ValueError(f"Duplicate organ system ignoring case/source typography: {system!r}")
+        seen_normalized.add(normalized_key)
         if not isinstance(topics, list) or not topics:
             raise ValueError(f"{system}: expected a nonempty topic array")
         if any(not trimmed_string(topic) or len(topic) > 255 for topic in topics):
@@ -141,8 +144,9 @@ def validate_question(question, item, standardize, *, allowed_organ_systems=None
     # Never feed arbitrary labels to the engine's fuzzy/defaulting normalizer.
     organs = ORGAN_SYSTEMS if allowed_organ_systems is None else allowed_organ_systems
     for field, labels in (("organ_system", organs), ("task_area", TASK_AREAS)):
-        labels_by_case = {label.casefold(): label for label in labels}
-        value = labels_by_case.get(cleaned[field].casefold())
+        key = selected_category_key if field == "organ_system" else str.casefold
+        labels_by_case = {key(label): label for label in labels}
+        value = labels_by_case.get(key(cleaned[field]))
         if value != item[field]:
             raise ValueError(f"Wrong {field}")
         cleaned[field] = value

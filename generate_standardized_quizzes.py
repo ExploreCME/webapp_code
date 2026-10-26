@@ -19,7 +19,7 @@ from fill_database_topics import (
     validate_question,
 )
 from standardized_quizzes import STANDARDIZED_PREFIX, STANDARDIZED_QUESTION_PREFIX, STANDARDIZED_QUIZZES
-from standardizers import TASK_AREAS
+from standardizers import TASK_AREAS, storage_organ_system
 
 QUESTIONS_PER_VERSION = 120
 VERSION_COUNT = 3
@@ -151,7 +151,8 @@ class VersionPublisher:
                     cursor.executemany(
                         f"INSERT INTO question_bank ({', '.join(columns)}) "
                         f"VALUES ({', '.join(['%s'] * len(columns))})",
-                        [(question_id, *(question[field] for field in QUESTION_FIELDS), datetime.now())
+                        [(question_id, *(storage_organ_system(question[field]) if field == "organ_system"
+                                         else question[field] for field in QUESTION_FIELDS), datetime.now())
                          for question_id, question in zip(question_ids, questions)],
                     )
                     cursor.execute(
@@ -220,6 +221,8 @@ async def generate_versions(blueprints, engine, api_key, model, verify_model, co
                         if stem in stems:
                             reasons["duplicate_stem"] += 1
                             continue
+                        # Source scope is enforced before broad storage classifications are applied.
+                        question["organ_system"] = storage_organ_system(question["organ_system"])
                         stems.add(stem)
                         version, slot = remaining.pop(0)
                         versions[version][slot] = question
