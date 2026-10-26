@@ -124,6 +124,42 @@ class RemediationSchemaTests(unittest.TestCase):
         self.assertEqual(self.conversions(), [])
         self.assertEqual(self.connection.close.call_count, 2)
 
+    def test_source_heading_migration_is_additive_and_duplicate_safe(self):
+        statement = (
+            "ALTER TABLE remediation_assignments ADD COLUMN source_organ_system "
+            "TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL")
+
+        def execute(sql, *args):
+            if sql == statement:
+                raise MySQLError(1060, "Duplicate column")
+
+        self.cursor.execute.side_effect = execute
+        self.cursor.fetchall.return_value = []
+        env = {key: "test" for key in (
+            "MYSQL_HOST", "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DB")}
+        with patch.dict(os.environ, env), patch("builtins.print"):
+            self.init.init_mysql()
+        self.assertIn(call(statement), self.cursor.execute.call_args_list)
+        self.connection.commit.assert_called_once()
+        sql = (ROOT / "migrations/20261025_remediation_source_heading.sql").read_text()
+        self.assertIn("information_schema.COLUMNS", sql)
+        self.assertIn("ADD COLUMN source_organ_system", sql)
+        self.assertNotIn("UPDATE remediation_assignments", sql)
+
+    def test_source_heading_migration_errors_are_not_silently_ignored(self):
+        def execute(sql, *args):
+            if "ADD COLUMN source_organ_system" in sql:
+                raise MySQLError(1142, "ALTER denied")
+
+        self.cursor.execute.side_effect = execute
+        self.cursor.fetchall.return_value = []
+        env = {key: "test" for key in (
+            "MYSQL_HOST", "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DB")}
+        with patch.dict(os.environ, env), patch("builtins.print"), \
+                self.assertRaises(MySQLError):
+            self.init.init_mysql()
+        self.connection.commit.assert_not_called()
+
     def test_both_schema_definitions_support_utf8mb4(self):
         for path in ("init.db.py", "flask_app.py10011137"):
             with self.subTest(path=path):

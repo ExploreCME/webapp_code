@@ -14,6 +14,7 @@ import secrets
 # --- PERFORMANCE IMPORTS ---
 from db_pool import get_db_connection
 from document_storage import upload_document, list_documents
+from remediation_display import remediation_label, remediation_groups
 from preview_app import (
     load_preview, preview_responses, save_preview, protect_preview_response,
     SAMPLE_QUIZ_NAME, SAMPLE_REMEDIATION_NAME,
@@ -32,6 +33,8 @@ from standardized_quizzes import (
 # BLUEPRINT INITIALIZATION
 # ==========================================
 quiz_bp = Blueprint('quiz', __name__, template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates', 'template standardization'))
+quiz_bp.add_app_template_filter(remediation_label, 'remediation_label')
+quiz_bp.add_app_template_filter(remediation_groups, 'remediation_groups')
 
 # ==========================================
 # MYSQL CONNECTION POOL (SCALABLE)
@@ -2204,7 +2207,7 @@ def remediation_modules(remediation_name):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT id, topic_area, task_area
+        SELECT id, topic_area, task_area, organ_system, source_organ_system
         FROM remediation_assignments
         WHERE TRIM(LOWER(remediation_name)) = TRIM(LOWER(%s))
         ORDER BY created_date ASC, id ASC
@@ -2237,6 +2240,8 @@ def remediation_modules(remediation_name):
             'id': mod['id'],
             'topic_area': mod['topic_area'],
             'task_area': mod['task_area'],
+            'organ_system': mod.get('organ_system'),
+            'source_organ_system': mod.get('source_organ_system'),
             'total': q_count,
             'answered': answered,
             'correct': correct,

@@ -98,6 +98,40 @@ class FacultyReviewRouteTests(unittest.TestCase):
                 )
                 self.db.commit.assert_not_called()
 
+    def test_remediation_details_use_owner_scoped_source_labels_and_module_ids(self):
+        labels = ["OB - Prenatal care/normal pregnancy", "OB - Pregnancy complications"]
+        self.cursor.fetchall.return_value = [
+            dict(id=f"module-{i}", remediation_name="Upload",
+                 organ_system="Reproductive System", source_organ_system=label,
+                 task_area="Diagnosis", topic_area="Topic")
+            for i, label in enumerate(labels)
+        ]
+        response = self.client.get("/faculty/review_remediation/Upload")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        for i, label in enumerate(labels):
+            self.assertIn(label, html)
+            self.assertIn(f"/remediation/review/module-{i}", html)
+            self.assertIn(f"/faculty/review_remediation_module/module-{i}", html)
+        self.assertNotIn("Reproductive System", html)
+        query, params = self.cursor.execute.call_args_list[0].args
+        self.assertIn("source_organ_system", query)
+        self.assertIn("WHERE username_norm = LOWER(TRIM(%s))", query)
+        self.assertEqual(params, ("faculty-user",))
+
+    def test_remediation_question_review_preserves_source_label_and_owner_lookup(self):
+        self.cursor.fetchone.return_value = {
+            "id": "module-1", "remediation_name": "Upload",
+            "organ_system": "Reproductive System",
+            "source_organ_system": "OB - Prenatal care/normal pregnancy",
+        }
+        response = self.client.get("/faculty/review_remediation_module/module-1")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("OB - Prenatal care/normal pregnancy", response.get_data(as_text=True))
+        query, params = self.cursor.execute.call_args_list[0].args
+        self.assertIn("source_organ_system", query)
+        self.assertIn("WHERE id = %s AND username_norm = LOWER(TRIM(%s))", query)
+        self.assertEqual(params, ("module-1", "faculty-user"))
     def test_attach_questions_and_review_redirect(self):
         for quiz_name in self.quiz_names:
             with self.subTest(quiz_name=quiz_name):
