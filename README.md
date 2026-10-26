@@ -855,6 +855,75 @@ python -m unittest discover -s tests -p 'test_quiz_worker.py' -v
 
 The repository includes database migration scripts in `migrations/`.
 
+### Uploaded remediation headings: display versus storage
+
+Remediation extraction now copies the original document heading into
+`remediation_assignments.source_organ_system` before category normalization.
+For example, **OB - Prenatal care/normal pregnancy** is displayed and grouped
+separately from other uploaded headings even when their canonical
+`organ_system` is **Reproductive System**. Original wording and punctuation
+are retained (only surrounding whitespace is trimmed). Missing, NULL, or blank
+source headings fall back to `organ_system`; historical headings are never
+guessed or backfilled.
+
+`create_remediation_assignment.py` carries the heading through both worker
+OpenAI-file and local-file generation, summary/diagram verification, and
+strict selected-category question generation. Question verification receives
+the requested educational scope; existing confidence/retry checks remain intact.
+Canonical `organ_system`/`organ_system_norm` and question associations remain
+unchanged for backend classification, scoring, and reporting.
+
+`flask_app.py`'s remediation module-list route and `faculty_routes.py`'s
+owner-scoped module queries return source metadata. `remediation_display.py`
+groups by the exact source label, not a normalized canonical key. Remediation
+module-list, faculty details/question-review, and flashcard templates use
+escaped labels. Faculty live search reads escaped DOM data attributes and
+filters source headings and topics without interpolating labels into JavaScript,
+HTML, selectors, or URLs. Module links and question queries still use module IDs.
+Quiz, blueprint, and reporting category displays are not changed.
+
+New source-labeled uploads deliberately bypass cached modules, including
+legacy modules whose narrower scope cannot be established. This costs new
+generation but prevents borrowing another upload's heading/content. No per-upload
+association table is needed because these modules are not shared across uploads.
+Unlabeled legacy reuse is limited to the same owner, remediation name, canonical
+organ/task/topic, and a blank source field; reuse never writes guessed metadata.
+
+**Deployment:** back up the target database, test on a restored copy, pause web
+remediation traffic and workers, then run the additive, rerunnable
+`migrations/20261025_remediation_source_heading.sql` with the target database
+selected and ALTER privileges, in normal fail-fast MySQL batch mode. Inspect the
+final query: the new nullable TEXT column must use `utf8mb4_unicode_ci`. DDL may
+lock/rebuild the table and commits implicitly. Deploy/restart web and worker
+code together only after the column exists, then resume traffic. `init.db.py`
+also creates/adds the column (duplicate-column errors are safe; other errors
+fail initialization). Older code can ignore the column on rollback; keep it and
+its data. No production DB changes are performed by the tests.
+
+**PR #65 compatibility / merge order:** inspected #65 at
+`b908608b5a65cef92b5936f1a67d56ba3b12aa20`; it was open/draft and unmerged,
+while default `main` was `ffd4ab4d772d9caa1705077b04d4a3489c9e412b`.
+This follow-up is based on `main`, not #65, and does not copy or revert its
+alias mappings. It independently implements the persisted display requirement.
+Prefer merging #65 first, then reconcile the overlapping
+`create_remediation_assignment.py` extraction/generation/cache edits: retain
+#65's source-alias/topic-scope rules and final `storage_organ_system` mapping,
+alongside this PR's verbatim `source_organ_system` field, strict source scope,
+source-labeled cache bypass, and display fallback. An alias-normalized generation
+category must never replace the original display heading. Apply this PR's
+migration before deploying its readers/writers, regardless of merge order.
+Re-run both PRs' focused tests after resolving overlap. This intentional
+`flask_app.py` change requires reviewer label `paxcel-change-approved`.
+
+Focused offline regressions (mocked APIs, in-memory DB, no paid API calls):
+
+```bash
+python -m unittest discover -s tests -p 'test_remediation_*.py' -v
+python -m unittest discover -s tests -p 'test_faculty_routes.py' -v
+python -m unittest discover -s tests -p 'test_public_previews.py' -v
+python -m unittest discover -s tests -p 'test_question_verification.py' -v
+```
+
 ### Remediation Unicode storage
 
 Async remediation reads/writes use `db_pool.get_async_db_connection()`, which
