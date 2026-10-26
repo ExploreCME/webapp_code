@@ -15,6 +15,7 @@ import secrets
 from db_pool import get_db_connection
 from document_storage import upload_document, list_documents
 from remediation_display import remediation_label, remediation_groups
+from standardized_display import standardized_category_breakdown, standardized_label
 from preview_app import (
     load_preview, preview_responses, save_preview, protect_preview_response,
     SAMPLE_QUIZ_NAME, SAMPLE_REMEDIATION_NAME,
@@ -1975,10 +1976,12 @@ def quiz_results():
                 'percentage': round((m_cor / m_ans) * 100, 1) if m_ans > 0 else 0
             })
 
+    is_standardized = get_standardized_questions(attempt_data['quiz_name']) is not None
+    category_breakdown = standardized_category_breakdown(cursor, attempt_id) if is_standardized else []
     return render_template(
         'quiz_results.html', attempt=attempt, quiz_name=quiz_name,
         is_remediation=is_remediation, module_breakdown=module_breakdown,
-        is_standardized=get_standardized_questions(quiz_name) is not None,
+        is_standardized=is_standardized, category_breakdown=category_breakdown,
     )
 
 @quiz_bp.route('/review_attempt')
@@ -2012,7 +2015,8 @@ def review_attempt():
                COALESCE(qb.answer_choice_C, rq.answer_choice_C) as answer_choice_C,
                COALESCE(qb.answer_choice_D, rq.answer_choice_D) as answer_choice_D,
                COALESCE(qb.answer_choice_E, rq.answer_choice_E) as answer_choice_E,
-               COALESCE(qb.explanation, rq.explanation) as explanation
+               COALESCE(qb.explanation, rq.explanation) as explanation,
+               qb.organ_system, qb.source_organ_system
         FROM attempt_responses ar
         LEFT JOIN question_bank qb ON ar.question_id = qb.id
         LEFT JOIN remediation_questions rq ON ar.question_id = rq.id
@@ -2021,6 +2025,8 @@ def review_attempt():
     responses = cursor.fetchall()
 
     for resp in responses:
+        if attempt_row and (attempt_row.get('quiz_name') or '').startswith(STANDARDIZED_PREFIX):
+            resp['category_label'] = standardized_label(resp)
         if resp.get('submitted_time'):
             resp['submitted_time'] = str(resp['submitted_time'])
 

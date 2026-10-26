@@ -15,6 +15,7 @@ import flask_app
 from report_engine import ReportEngine
 from shared_utils import SHARED_VALID_TASK_AREAS
 from standardized_quizzes import STANDARDIZED_QUIZZES, list_standardized_versions
+from standardized_display import standardized_label
 
 
 student_reports_bp = Blueprint(
@@ -111,7 +112,7 @@ def standardized_report(connection, username, category, attempt_filter):
         if all_ids:
             placeholders = ",".join(["%s"] * len(all_ids))
             cursor.execute(
-                f"SELECT id, organ_system, task_area FROM question_bank WHERE id IN ({placeholders})",
+                f"SELECT id, organ_system, source_organ_system, task_area FROM question_bank WHERE id IN ({placeholders})",
                 all_ids,
             )
             questions = {row["id"]: row for row in cursor.fetchall()}
@@ -196,8 +197,10 @@ def standardized_report(connection, username, category, attempt_filter):
             ):
                 labels = {}
                 for qid in ids:
-                    raw = questions[qid][field]
-                    label = str(raw or "Unknown").strip() or "Unknown"
+                    if field == "organ_system":
+                        label = standardized_label(questions[qid])
+                    else:
+                        label = str(questions[qid][field] or "Unknown").strip() or "Unknown"
                     labels.setdefault(label, []).append(qid)
                 groups.append({"title": title, "rows": [
                     {"label": label, "student": summarize(labels.get(label, []), own_counts),

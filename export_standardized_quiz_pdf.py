@@ -17,6 +17,7 @@ from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Space
 
 from db_pool import get_db_connection
 from standardized_quizzes import STANDARDIZED_PREFIX
+from standardized_display import standardized_label
 
 CHOICES = "ABCDE"
 
@@ -84,7 +85,9 @@ def build_pdf(path, meta, questions):
         block = [
             Paragraph(f"Question {number}", head),
             Paragraph(
-                " / ".join(para_text(q.get(k)) for k in ("organ_system", "task_area", "topic_area")),
+                " / ".join(para_text(value) for value in (
+                    standardized_label(q), q.get("task_area"), q.get("topic_area"),
+                )),
                 tags,
             ),
             Paragraph(para_text(q.get("question_stem")), body),
@@ -122,8 +125,8 @@ def build_txt(path, meta, questions):
         )
         for number, q in enumerate(questions, 1):
             output.write(f"{'=' * 70}\nQuestion {number}\n\n")
-            output.write(" / ".join(str(q.get(k) or "") for k in (
-                "organ_system", "task_area", "topic_area"
+            output.write(" / ".join(str(value or "") for value in (
+                standardized_label(q), q.get("task_area"), q.get("topic_area"),
             )) + "\n\n")
             output.write(f"{q.get('question_stem') or ''}\n\n")
             for choice in CHOICES:

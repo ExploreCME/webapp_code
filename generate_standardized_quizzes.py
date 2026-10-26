@@ -110,7 +110,7 @@ class VersionPublisher:
         try:
             with conn.cursor() as cursor:
                 for table, columns in (
-                    ("question_bank", ("id", *QUESTION_FIELDS, "created_date")),
+                    ("question_bank", ("id", *QUESTION_FIELDS, "source_organ_system", "created_date")),
                     ("standardized_quiz_versions", ("quiz_name", "category", "question_ids", "created_date")),
                 ):
                     cursor.execute(f"SELECT {', '.join(columns)} FROM {table} LIMIT 0")
@@ -147,12 +147,13 @@ class VersionPublisher:
             with conn.cursor() as cursor:
                 for name, questions in zip(self.names(), versions):
                     question_ids = [STANDARDIZED_QUESTION_PREFIX + uuid.uuid4().hex for _ in questions]
-                    columns = ("id", *QUESTION_FIELDS, "created_date")
+                    columns = ("id", *QUESTION_FIELDS, "source_organ_system", "created_date")
                     cursor.executemany(
                         f"INSERT INTO question_bank ({', '.join(columns)}) "
                         f"VALUES ({', '.join(['%s'] * len(columns))})",
                         [(question_id, *(storage_organ_system(question[field]) if field == "organ_system"
-                                         else question[field] for field in QUESTION_FIELDS), datetime.now())
+                                         else question[field] for field in QUESTION_FIELDS),
+                          question.get("source_organ_system"), datetime.now())
                          for question_id, question in zip(question_ids, questions)],
                     )
                     cursor.execute(
@@ -222,6 +223,7 @@ async def generate_versions(blueprints, engine, api_key, model, verify_model, co
                             reasons["duplicate_stem"] += 1
                             continue
                         # Source scope is enforced before broad storage classifications are applied.
+                        question["source_organ_system"] = item["organ_system"]
                         question["organ_system"] = storage_organ_system(question["organ_system"])
                         stems.add(stem)
                         version, slot = remaining.pop(0)

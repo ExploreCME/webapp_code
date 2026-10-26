@@ -482,9 +482,28 @@ sibling source category is **not** accepted in place of the requested source
 label; wrong organ, task, or topic classifications are rejected before mapping.
 
 Only **after validation**, the following explicit source aliases map to
-`question_bank.organ_system` for persistence and reporting (the publisher also
+`question_bank.organ_system` for canonical storage and shared workflows (the publisher also
 applies this mapping defensively). `topic_area` retains the specific requested
 disease/keyword; category labels never substitute for topics.
+
+Newly generated standardized questions also retain the exact validated input
+heading in `question_bank.source_organ_system`, independently of canonical storage.
+Standardized results, answer reviews, report category breakdowns (screen/print/PDF),
+and PDF/TXT answer-key exports use this heading verbatim, including spelling,
+case, and punctuation. Headings sharing a canonical organ system stay separate.
+Ordinary quiz, Overall Usage, and remediation behavior are unchanged.
+
+**Deployment order:** pause publication and web traffic, back up and test on a
+restored database, then apply
+`migrations/20261026_standardized_source_heading.sql` to the application's MySQL
+database **before deploying these readers/writers or generating versions**.
+The additive, rerunnable migration adds a nullable utf8mb4 question column;
+`init.db.py` also supports fresh and existing databases. MySQL DDL commits
+implicitly and may lock/rebuild the table. Publisher preflight checks the column
+before API calls. Resume traffic after deployment and verification.
+Historical questions are not rewritten: missing/NULL/blank provenance falls back
+to canonical `organ_system`. Lost source labels are never inferred, and existing
+published question IDs and version memberships remain unchanged.
 
 | Selected source label | Persisted organ system |
 | --- | --- |
@@ -673,8 +692,8 @@ only, never other students' identities or individual response histories.
 Deploy the existing
 `migrations/20261016_add_standardized_quiz_versions.sql` before publishing or
 reporting on versions, along with the application's existing normalized lookup
-columns and unique attempt/question response constraint. No new migration is
-required for reports. Without the catalog table, reports show an empty state
+columns and unique attempt/question response constraint. Also apply the source-heading
+migration above before deploying these reports. Without the catalog table, reports show an empty state
 and the catalog helper logs the migration prerequisite; report and selection
 GET requests never create or modify schema.
 

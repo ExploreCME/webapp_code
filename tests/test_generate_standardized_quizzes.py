@@ -13,7 +13,12 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, urlparse
 
+from pypdf import PdfReader
+
 import generate_standardized_quizzes as generator
+import export_standardized_quiz_pdf as exporter
+import student_reports
+from standardized_display import standardized_category_breakdown, standardized_label
 from standardized_quizzes import STANDARDIZED_PREFIX, STANDARDIZED_QUIZZES
 from standardizers import SOURCE_ORGAN_ALIASES, TASK_AREAS, storage_organ_system
 import test_standardized_quizzes as quiz_tests
@@ -223,6 +228,26 @@ class GeneratorTests(unittest.TestCase):
             publisher.preflight()
         conn.close.assert_called_once()
 
+    def test_preflight_requires_source_column_before_generation(self):
+        conn = MagicMock()
+        cursor = conn.cursor.return_value.__enter__.return_value
+        cursor.execute.side_effect = RuntimeError("Unknown column source_organ_system")
+        with self.assertRaisesRegex(RuntimeError, "source_organ_system"):
+            generator.VersionPublisher(lambda: conn, "New quiz").preflight()
+        self.assertIn("source_organ_system", cursor.execute.call_args.args[0])
+        conn.close.assert_called_once()
+
+    def test_display_fallback_does_not_invent_or_normalize_provenance(self):
+        for source in (None, "", " \t\n"):
+            self.assertEqual(standardized_label({
+                "organ_system": "Reproductive System", "source_organ_system": source,
+            }), "Reproductive System")
+        self.assertEqual(standardized_label({"organ_system": "Legacy"}), "Legacy")
+        for source in ("OB - Prenatal care/normal progancy", "Case & punctuation–", " Raw "):
+            self.assertEqual(standardized_label({
+                "organ_system": "Canonical", "source_organ_system": source,
+            }), source)
+
 
 class GenerationTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_source_aliases_keep_scope_until_validation_then_publish_canonical_organs(self):
@@ -275,6 +300,7 @@ class GenerationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(Counter(item["organ_system"] for item in blueprint), expected_counts)
             for item, result in zip(blueprint, version):
                 self.assertEqual(result["organ_system"], SOURCE_ORGAN_ALIASES[item["organ_system"]])
+                self.assertEqual(result["source_organ_system"], item["organ_system"])
                 self.assertEqual(result["topic_area"], item["topic_area"])
                 self.assertEqual(result["task_area"], item["task_area"])
         db = quiz_tests.QuizDatabase()
@@ -573,6 +599,9 @@ class PublicationTests(unittest.TestCase):
             [result["organ_system"] for version in versions for result in version],
             [labels[index % len(labels)] for index in range(360)],
         )
+        self.assertEqual(self.db.connection.execute(
+            "SELECT COUNT(*) AS n FROM question_bank WHERE source_organ_system IS NULL"
+        ).fetchone()["n"], 360)
 
     def test_incomplete_or_duplicate_sets_never_open_publication_transaction(self):
         for versions in (make_versions()[:2], [[], [], []]):
@@ -594,7 +623,11 @@ class PublicationTests(unittest.TestCase):
             return original(query, parameters)
         with patch.object(self.db, "execute", side_effect=execute):
             with self.assertRaises(RuntimeError):
-                self.publisher.publish(make_versions())
+                versions = make_versions()
+                for version in versions:
+                    for result in version:
+                        result["source_organ_system"] = "Exact source heading"
+                self.publisher.publish(versions)
         for table in ("question_bank", "standardized_quiz_versions"):
             self.assertEqual(self.db.connection.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"], 0)
 
@@ -614,6 +647,128 @@ class PublishedVersionFlowTests(unittest.TestCase):
     token = quiz_tests.StandardizedQuizTests.token
     start = quiz_tests.StandardizedQuizTests.start
     answer = quiz_tests.StandardizedQuizTests.answer
+
+    def test_source_headings_from_generation_through_results_and_print_reports(self):
+        topics = {label: ["Specific topic"] for label in (
+            "OB - Prenatal care/normal progancy",
+            "OB - Prenatal care/normal pregnancy",
+            "OB - Pregnancy complications",
+            'Custom <script>alert("x")</script> & heading',
+        )}
+        tasks = dict.fromkeys(TASK_AREAS, 0)
+        tasks[TASK_AREAS[0]] = 100
+        blueprints = generator.build_blueprints(
+            topics, dict.fromkeys(topics, 25), tasks, random.Random(1),
+        )
+        sequence = 0
+
+        async def responder(item_dict, num_needed, **kwargs):
+            nonlocal sequence
+            batch = []
+            for _ in range(num_needed):
+                sequence += 1
+                result = question(item_dict, f"Source question {sequence}")
+                result["organ_system"] = item_dict["organ_system"].swapcase()
+                result["source_organ_system"] = "Untrusted model provenance"
+                batch.append(result)
+            return batch
+
+        from test_question_verification import engine as shared_engine
+        engine = GenerationTests().engine(responder)
+        engine.standardize_categories = shared_engine.standardize_categories
+        versions = asyncio.run(generator.generate_versions(
+            blueprints, engine, "test-only", "model", None, 2, 1,
+        ))
+        generator.VersionPublisher(lambda: self.db, "Source labels").publish(versions)
+        self.quiz_name = STANDARDIZED_PREFIX + "Source labels version 1"
+        rows = self.db.connection.execute(
+            "SELECT id, organ_system, source_organ_system FROM question_bank"
+        ).fetchall()
+        self.assertEqual(len(rows), 360)
+        for row in rows:
+            self.assertIn(row["source_organ_system"], topics)
+            self.assertEqual(row["organ_system"], storage_organ_system(row["source_organ_system"]))
+        reproductive = [row for row in rows if row["organ_system"] == "Reproductive System"]
+        self.assertEqual({row["source_organ_system"] for row in reproductive}, {
+            "OB - Prenatal care/normal pregnancy", "OB - Pregnancy complications",
+        })
+        response = self.start()
+        attempt_id = parse_qs(urlparse(response.location).query)["attempt_id"][0]
+        meta, questions = exporter.load_version(self.db, "Source labels", 1)
+        for q in questions:
+            correct = q["source_organ_system"] != "OB - Pregnancy complications"
+            response = self.answer(attempt_id, choice="B" if correct else "A", question=q["id"])
+            self.assertEqual(response.status_code, 302)
+
+        breakdown = standardized_category_breakdown(self.db, attempt_id)
+        self.assertEqual({row["label"]: (row["correct"], row["answered"]) for row in breakdown},
+                         {label: (0 if label == "OB - Pregnancy complications" else 30, 30)
+                          for label in topics})
+        html = self.client.get(response.location).get_data(as_text=True)
+        review = self.client.get("/review_attempt", query_string={"attempt_id": attempt_id}).text
+        arguments = {"report_type": "standardized", "category": "Source labels"}
+        preview = self.client.get("/student_reports/preview", query_string=arguments).text
+        from markupsafe import escape
+        for label in topics:
+            for page in (html, review, preview):
+                self.assertIn(str(escape(label)), page)
+                self.assertNotIn('<script>alert("x")</script>', page)
+        sections = student_reports.standardized_report(self.db, "student", "Source labels", "recent")
+        self.assertEqual(sections[0]["student"], student_reports.metric(90, 120))
+        organ_rows = sections[0]["groups"][0]["rows"]
+        self.assertEqual(len(organ_rows), 4)
+        for row in organ_rows:
+            expected = student_reports.metric(
+                0 if row["label"] == "OB - Pregnancy complications" else 30, 30,
+            )
+            self.assertEqual(row["student"], expected)
+            self.assertEqual(row["platform"], expected)
+        pdf = self.client.get("/student_reports/download", query_string=arguments)
+        self.assertEqual(pdf.status_code, 200)
+        text = "\n".join(page.extract_text() for page in PdfReader(io.BytesIO(pdf.data)).pages)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            exporter.build_pdf(path / "key.pdf", meta, questions)
+            key_text = "\n".join(page.extract_text()
+                                 for page in PdfReader(path / "key.pdf").pages)
+            exporter.build_txt(path / "key.txt", meta, questions)
+            for label in topics:
+                self.assertIn(label, " ".join(text.split()))
+                self.assertIn(label, " ".join(key_text.split()))
+                self.assertIn(label, (path / "key.txt").read_text())
+        self.assertNotIn("Untrusted model provenance", html + review + preview + text)
+
+    def test_legacy_fallback_and_nonstandardized_isolation(self):
+        versions = make_versions()
+        for index, q in enumerate(versions[0]):
+            q["source_organ_system"] = (None, "", " \t", "Exact Source")[index % 4]
+        generator.VersionPublisher(lambda: self.db, "Emergency Medicine").publish(versions)
+        self.quiz_name = STANDARDIZED_PREFIX + "Emergency Medicine version 1"
+        response = self.start()
+        attempt_id = parse_qs(urlparse(response.location).query)["attempt_id"][0]
+        meta, questions = exporter.load_version(self.db, "Emergency Medicine", 1)
+        for q in questions[:4]:
+            self.answer(attempt_id, choice="B", question=q["id"])
+        breakdown = standardized_category_breakdown(self.db, attempt_id)
+        self.assertEqual(sum(row["answered"] for row in breakdown), 4)
+        self.assertEqual({row["label"] for row in breakdown},
+                         {q["organ_system"] for q in questions[:3]} | {"Exact Source"})
+        self.assertIn("Exact Source", self.client.get("/review_attempt", query_string={
+            "attempt_id": attempt_id,
+        }).text)
+        self.db.execute("UPDATE quiz_attempts SET quiz_name = %s, quiz_name_norm = %s",
+                        ("Ordinary quiz", "ordinary quiz"))
+        html = self.client.get("/quiz_results", query_string={
+            "attempt_id": attempt_id, "quiz_name": "Ordinary quiz",
+        }).text
+        review = self.client.get("/review_attempt", query_string={"attempt_id": attempt_id}).text
+        self.assertNotIn("Organ System Sub-Scores", html)
+        self.assertNotIn("Exact Source", html + review)
+        spoofed = self.client.get("/quiz_results", query_string={
+            "attempt_id": attempt_id, "quiz_name": self.quiz_name,
+        }).text
+        self.assertNotIn("Organ System Sub-Scores", spoofed)
+        self.assertNotIn("Exact Source", spoofed)
 
     def test_published_versions_are_immediately_visible_and_playable_for_all_accounts(self):
         # Reuse the existing SQLite-backed flow fixture and real shared templates.

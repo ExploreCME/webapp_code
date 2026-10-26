@@ -123,6 +123,23 @@
         </div>
         {% endif %}
 
+        {% if is_standardized and category_breakdown %}
+        <div class="remediation-section">
+            <h3 class="remediation-title">Organ System Sub-Scores</h3>
+            <div class="module-list">
+                {% for category in category_breakdown %}
+                <div class="module-card">
+                    <div class="module-info">
+                        <span class="module-name">{{ category.label }}</span>
+                        <span class="module-subtext">{{ category.correct }} / {{ category.answered }} answered correctly</span>
+                    </div>
+                    <div class="module-score">{{ category.percentage }}%</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <div class="action-buttons">
             <a href="{{ url_for('quiz.review_attempt', attempt_id=attempt.attempt_id) }}" class="btn btn-secondary">
                 Review Answers

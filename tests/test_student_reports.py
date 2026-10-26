@@ -74,6 +74,34 @@ class StudentReportTests(unittest.TestCase):
             self.db, "student", "Emergency Medicine", attempt_filter,
         )
 
+    def test_source_groups_use_exact_keys_and_blank_legacy_fallback(self):
+        self.db.execute("UPDATE question_bank SET organ_system = %s WHERE id IN (%s,%s)",
+                        ("Reproductive System", "q1", "q2"))
+        self.attempt("source-attempt", {"q1": 1, "q2": 0})
+        for labels in (
+            ("OB - Prenatal care/normal progancy", "OB - Pregnancy complications"),
+            ("Case & Punctuation", "case & punctuation"),
+            ("Heading - one", "Heading – one"),
+            (None, " \t"),
+            ("", None),
+        ):
+            with self.subTest(labels=labels):
+                for qid, label in zip(("q1", "q2"), labels):
+                    self.db.execute("UPDATE question_bank SET source_organ_system = %s WHERE id = %s",
+                                    (label, qid))
+                rows = self.sections()[0]["groups"][0]["rows"]
+                if not labels[0]:
+                    self.assertEqual(rows, [{
+                        "label": "Reproductive System",
+                        "student": student_reports.metric(1, 2),
+                        "platform": student_reports.metric(1, 2),
+                    }])
+                else:
+                    self.assertEqual({row["label"]: row["student"] for row in rows}, {
+                        labels[0]: student_reports.metric(1, 1),
+                        labels[1]: student_reports.metric(0, 1),
+                    })
+
     def test_exact_membership_completion_latest_tie_and_modes(self):
         self.attempt("a", {"q1": 1, "q2": 1})
         self.attempt("b", {"q1": 1, "q2": 0}, mode="study_no_exp")
