@@ -14,6 +14,7 @@ from jwt import PyJWKClient
 
 # --- PERFORMANCE IMPORTS ---
 from db_pool import get_db_connection  # <-- Uses the new global pool
+from standardizers import ORGAN_SYSTEMS
 
 # 1. Use the repo root instead of a PythonAnywhere absolute path
 basedir = os.path.dirname(os.path.abspath(__file__))
@@ -241,35 +242,41 @@ def inject_premium_status():
 # ==========================================
 # DATABASE HELPER FUNCTIONS
 # ==========================================
-@cache.cached(timeout=300, key_prefix='dashboard_stats')
+@cache.cached(timeout=300, key_prefix='dashboard_stats_canonical_v1')
 def fetch_data_for_dashboard():
-    """Cached for 5 minutes to prevent MySQL overload."""
+    """Count only exact stored canonical organs; cache for 5 minutes."""
     try:
         conn = get_mysql_db()
         cursor = conn.cursor()
+        placeholders = ', '.join(['%s'] * len(ORGAN_SYSTEMS))
+        organ_filter = f"BINARY organ_system IN ({placeholders})"
 
         # DictCursor expects aliased queries to extract variables safely
-        cursor.execute("SELECT COUNT(id) as c FROM question_bank")
+        cursor.execute(
+            f"SELECT COUNT(id) as c FROM question_bank WHERE {organ_filter}",
+            ORGAN_SYSTEMS,
+        )
         count_res = cursor.fetchone()
         total_questions = count_res['c'] if count_res else 0
 
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT organ_system, COUNT(id) as c
             FROM question_bank
-            WHERE organ_system IS NOT NULL AND organ_system != ''
+            WHERE {organ_filter}
             GROUP BY organ_system
             ORDER BY COUNT(id) DESC
-        """)
+        """, ORGAN_SYSTEMS)
         # Convert dictionary rows back to tuples so the charts don't break
         organ_data = [(row['organ_system'], row['c']) for row in cursor.fetchall()]
 
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT task_area, COUNT(id) as c
             FROM question_bank
-            WHERE task_area IS NOT NULL AND task_area != ''
+            WHERE {organ_filter}
+                AND task_area IS NOT NULL AND task_area != ''
             GROUP BY task_area
             ORDER BY COUNT(id) DESC
-        """)
+        """, ORGAN_SYSTEMS)
         # Convert dictionary rows back to tuples so the charts don't break
         task_data_raw = [(row['task_area'], row['c']) for row in cursor.fetchall()]
 
