@@ -2,6 +2,8 @@
 
 {% block title %}PANCE Quiz App | Board Review & Practice for PA Students{% endblock %}
 {% block description %}Master the PANCE with confidence. A powerful, personalized quiz application and study databank designed specifically for Physician Assistant (PA) students to track progress and achieve high scores.{% endblock %}
+{% block og_title %}PANCE Quiz App | Board Review for PA Students{% endblock %}
+{% block og_description %}A powerful, personalized quiz application designed for Physician Assistant Students to master the PANCE and track their progress.{% endblock %}
 
 {% block container_class %}container-large{% endblock %}
 
@@ -9,20 +11,6 @@
     <!-- SEO Meta Tags -->
     <meta name="keywords" content="PANCE, PA students, Physician Assistant board prep, PANCE practice questions, PANCE quiz, medical study app">
     <meta name="author" content="PANCE Quiz App">
-    <meta name="robots" content="index, follow">
-
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="PANCE Quiz App | Board Review for PA Students">
-    <meta property="og:description" content="A powerful, personalized quiz application designed for Physician Assistant Students to master the PANCE and track their progress.">
-    <meta property="og:image" content="{{ url_for('static', filename='FullLogo.png', _external=True) }}">
-
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:title" content="PANCE Quiz App | Board Review for PA Students">
-    <meta property="twitter:description" content="A powerful, personalized quiz application designed for Physician Assistant Students to master the PANCE and track their progress.">
-    <meta property="twitter:image" content="{{ url_for('static', filename='FullLogo.png', _external=True) }}">
-
     <!-- Load Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 

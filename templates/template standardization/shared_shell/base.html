@@ -9,6 +9,21 @@
          ========================================= -->
     <title>{% block title %}ExploreCME | PANCE Practice Questions & Reviews{% endblock %}</title>
     <meta name="description" content="{% block description %}Master the PANCE with ExploreCME. Track your CME, practice topic-specific questions, and review core medical concepts.{% endblock %}">
+    <meta name="robots" content="{% block robots %}index,follow{% endblock %}">
+    <link rel="canonical" href="{% block canonical_url %}{{ request.base_url if request is defined else '' }}{% endblock %}">
+    {% block open_graph %}
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}{{ self.description() }}{% endblock %}">
+    <meta property="og:url" content="{{ self.canonical_url() }}">
+    <meta property="og:image" content="{% block og_image %}{{ url_for('static', filename='FullLogo.png', _external=True) }}{% endblock %}">
+    {% endblock %}
+    {% block twitter %}
+    <meta name="twitter:card" content="{% block twitter_card %}summary_large_image{% endblock %}">
+    <meta name="twitter:title" content="{% block twitter_title %}{{ self.og_title() }}{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}{{ self.og_description() }}{% endblock %}">
+    <meta name="twitter:image" content="{% block twitter_image %}{{ self.og_image() }}{% endblock %}">
+    {% endblock %}
 
     <!-- Optional block for page-specific scripts (like Chart.js on the dashboard) -->
     {% block head %}{% endblock %}
