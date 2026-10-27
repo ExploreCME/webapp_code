@@ -86,6 +86,7 @@
     "Hypospadias",
     "Paraphimosis",
     "Phimosis",
+    "Glomerulonephritis",
     "Testicular torsion",
     "Vesicourethral reflux"
   ],
@@ -179,8 +180,5 @@
      "Tanner staging",
      "Teething",
      "Vitamin/Nutritional deficiencies"
-  ],
-  "Renal System": [
-    "Glomerulonephritis"
   ]
 }
