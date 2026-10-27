@@ -186,7 +186,8 @@ class VersionPublisher:
             conn.close()
 
 
-async def generate_versions(blueprints, engine, api_key, model, verify_model, concurrency, max_rounds):
+async def generate_versions(blueprints, engine, api_key, model, verify_model, concurrency, max_rounds,
+                            quiz_name=None):
     allowed_organ_systems = tuple(dict.fromkeys(
         item["organ_system"] for blueprint in blueprints for item in blueprint
     ))
@@ -212,6 +213,11 @@ async def generate_versions(blueprints, engine, api_key, model, verify_model, co
                 item["summary"] = (
                     f"Required clinical setting: {item['setting']}. "
                     "Every question in this batch must take place in this setting "
+                    "while retaining the requested organ system, task area, and topic."
+                )
+            elif quiz_name and quiz_name.strip().casefold() == "pediatrics":
+                item["summary"] = (
+                    "Every question in this batch must be geared toward the pediatric population "
                     "while retaining the requested organ system, task area, and topic."
                 )
             remaining = list(slots)
@@ -333,6 +339,7 @@ def main(argv=None):
         model = args.model or os.getenv("OPENAI_MODEL") or engine.DEFAULT_MODEL
         versions = asyncio.run(generate_versions(
             blueprints, engine, api_key, model, args.verify_model, args.concurrency, args.max_rounds,
+            quiz_name=name,
         ))
         publisher.publish(versions)
         print("Published all three 120-question versions. Available under Standardized Quizzes immediately.")
