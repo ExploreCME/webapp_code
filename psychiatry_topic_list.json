@@ -1,15 +1,19 @@
 {
-  "Psychiatry/Behavioral Science": [
+  "Depressive Disorders; Bipolar and related disorders": [
     "Bipolar I disorder",
     "Bipolar II disorder",
     "Cyclothymic disorder",
     "Major depressive disorder",
-    "Persistent depressive disorder (dysthymia)",
+    "Persistent depressive disorder (dysthymia)"
+  ],
+  "Anxiety Disorder; Trauma and stress-related disorders": [
     "Generalized anxiety disorder",
     "Panic disorder",
     "Phobic disorders",
     "Post-traumatic stress disorder",
-    "Specific phobias",
+    "Specific phobias"
+  ],
+  "Substance-related disorders": [
     "Alcohol-related disorders",
     "Cannabis-related disorders",
     "Hallucinogen-related disorders",
@@ -17,15 +21,21 @@
     "Opioid-related disorders",
     "Sedative-, hypnotic-, or anxiolytic-related disorders",
     "Stimulant-related disorders",
-    "Tobacco-related disorders",
+    "Tobacco-related disorders"
+  ],
+  "Schizophrenia spectrum and other psychotic disorders": [
     "Delusional disorder",
     "Schizoaffective disorder",
     "Schizophrenia",
-    "Schizophreniform disorder",
+    "Schizophreniform disorder"
+  ],
+  "Disruptive, Impulse-control and conduct disorders; Neurodevelopmental disorders": [
     "Attention-deficit/hyperactivity disorder",
     "Autism spectrum disorder",
     "Conduct disorder",
-    "Oppositional defiant disorder",
+    "Oppositional defiant disorder"
+  ],
+  "Personality disorers; Obsessive-compulsive and related disorders": [
     "Antisocial personality disorder",
     "Avoidant personality disorder",
     "Body dysmorphic disorder",
@@ -37,12 +47,18 @@
     "Obsessive-compulsive personality disorder",
     "Paranoid personality disorder",
     "Schizoid personality disorder",
-    "Schizotypal personality disorder",
+    "Schizotypal personality disorder"
+  ],
+  "Somatic symptom and related disorders; Nonadherance to medical treatment": [
     "Factitious disorder",
     "Illness anxiety disorder",
-    "Somatic symptom disorder",
+    "Somatic symptom disorder"
+  ],
+  "Feeding or eating disorders": [
     "Anorexia nervosa",
-    "Bulimia nervosa",
+    "Bulimia nervosa"
+  ],
+  "Paraphilic disorders; Sexual dysfunctions": [
     "Exhibitionistic disorder",
     "Female sexual interest/arousal disorder",
     "Fetishistic disorder",
