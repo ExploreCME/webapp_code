@@ -24,6 +24,11 @@ from standardizers import TASK_AREAS, storage_organ_system
 QUESTIONS_PER_VERSION = 120
 VERSION_COUNT = 3
 BATCH_SIZE = 5
+SURGERY_SETTING_PERCENTAGES = {
+    "Preoperative": 35,
+    "Intraoperative": 25,
+    "Postoperative": 40,
+}
 
 
 def normalized_stem(question):
@@ -81,9 +86,12 @@ def allocate(percentages):
     return counts
 
 
-def build_blueprints(topics, organ_percentages, task_percentages, rng):
+def build_blueprints(topics, organ_percentages, task_percentages, rng, quiz_name=None):
     organ_counts = allocate(validate_percentages(topics, organ_percentages))
     task_counts = allocate(validate_percentages(TASK_AREAS, task_percentages))
+    setting_counts = (allocate(validate_percentages(
+        SURGERY_SETTING_PERCENTAGES, SURGERY_SETTING_PERCENTAGES,
+    )) if quiz_name and quiz_name.strip().casefold() == "surgery" else None)
     blueprints = []
     for _ in range(VERSION_COUNT):
         organs = [organ for organ, count in organ_counts.items() for _ in range(count)]
@@ -94,6 +102,11 @@ def build_blueprints(topics, organ_percentages, task_percentages, rng):
             {"organ_system": organ, "task_area": task, "topic_area": rng.choice(topics[organ])}
             for organ, task in zip(organs, tasks)
         ])
+        if setting_counts is not None:
+            settings = [setting for setting, count in setting_counts.items() for _ in range(count)]
+            rng.shuffle(settings)
+            for item, setting in zip(blueprints[-1], settings):
+                item["setting"] = setting
     return blueprints
 
 
@@ -182,14 +195,25 @@ async def generate_versions(blueprints, engine, api_key, model, verify_model, co
     for version, blueprint in enumerate(blueprints):
         for slot, item in enumerate(blueprint):
             key = (item["organ_system"], item["task_area"], item["topic_area"])
+            if "setting" in item:
+                key += (item["setting"],)
             jobs.setdefault(key, []).append((version, slot))
     managers, workers = [], []
     reasons, stems = Counter(), set()
     pending = iter(jobs.items())
 
     async def worker():
-        for (organ, task, topic), slots in pending:
+        for key, slots in pending:
+            organ, task, topic = key[:3]
             item = {"organ_system": organ, "task_area": task, "topic_area": topic}
+            if len(key) == 4:
+                item["setting"] = key[3]
+                # The shared engine includes summary in its generation prompt.
+                item["summary"] = (
+                    f"Required clinical setting: {item['setting']}. "
+                    "Every question in this batch must take place in this setting "
+                    "while retaining the requested organ system, task area, and topic."
+                )
             remaining = list(slots)
             while remaining:
                 # Keep prompts within the shared engine's response-token budget.
@@ -225,6 +249,8 @@ async def generate_versions(blueprints, engine, api_key, model, verify_model, co
                         # Source scope is enforced before broad storage classifications are applied.
                         question["source_organ_system"] = item["organ_system"]
                         question["organ_system"] = storage_organ_system(question["organ_system"])
+                        if "setting" in item:
+                            question["setting"] = item["setting"]
                         stems.add(stem)
                         version, slot = remaining.pop(0)
                         versions[version][slot] = question
@@ -271,13 +297,17 @@ def main(argv=None):
         topics = load_topics(path, allow_custom_categories=True)
         organs = prompt_percentages(topics, "Organ system percentages")
         tasks = prompt_percentages(TASK_AREAS, "Task area percentages")
-        blueprints = build_blueprints(topics, organs, tasks, random.Random(args.seed))
+        blueprints = build_blueprints(topics, organs, tasks, random.Random(args.seed), quiz_name=name)
         for index, blueprint in enumerate(blueprints, 1):
             print(f"\n{name} version {index}: {len(blueprint)} questions")
             for label, count in Counter(item["organ_system"] for item in blueprint).items():
                 print(f"  {label}: {count}")
             for task in TASK_AREAS:
                 print(f"  {task}: {sum(item['task_area'] == task for item in blueprint)}")
+            for setting in SURGERY_SETTING_PERCENTAGES:
+                count = sum(item.get("setting") == setting for item in blueprint)
+                if count:
+                    print(f"  {setting}: {count}")
             print("  Topics: " + json.dumps(dict(Counter(
                 f"{item['organ_system']} / {item['topic_area']}" for item in blueprint
             )), ensure_ascii=False))
