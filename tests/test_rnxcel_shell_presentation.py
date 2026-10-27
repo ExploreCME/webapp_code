@@ -12,12 +12,12 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES = ROOT / "templates" / "template standardization"
-# Originally captured before extraction; refreshed for the guarded Clerk auth bridge.
+# Originally captured before extraction; refreshed for the Clerk auth bridge and SEO metadata.
 # HTML boundary whitespace is normalized; scripts/styles and the shell are exact.
 PA_RENDER_DIGESTS = {
-    "base.html": "71b6ee0d1c13208a36a79f86dde8e0ffba9076351139f8d715cb9c461ff93dae",
-    "student_dashboard.html": "7e4c13d2556cd497d270ec953856bc3be462787a6ad0755974934126f0f247f2",
-    "index_for_display.html": "d5d31325f8701de463d3ac8fdd0cc9753aaaa5db64ae8cc3dc7654450037678a",
+    "base.html": "0ad67443b69567634705e5cd3fd899f7f71bcbc1a64f9a8c902a79648e40e6da",
+    "student_dashboard.html": "976464fca3787ca936b9b2dd7410270634acd4a63148ed8ebb26969c3df5ad92",
+    "index_for_display.html": "766a47269646304460b17ddac6d5dd83a3b7ee821aa27216c7e7a99cc947931f",
 }
 
 

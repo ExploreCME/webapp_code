@@ -1,4 +1,5 @@
 {% extends "rnxcel_base.html" %}
+{% block robots %}noindex,follow{% endblock %}
 {% block title %}Dashboard | RNXcel{% endblock %}
 {% block nursing_content %}
 {% from "shared_dashboard/dashboard.html" import dashboard, tile with context %}
