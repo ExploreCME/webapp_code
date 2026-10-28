@@ -120,6 +120,7 @@ class LandingPageTests(unittest.TestCase):
                     'onclick="document.getElementById(\'pricingModal\').style.display=\'block\'; return false;">Pricing</a>',
                     html,
                 )
+                self.assertIn('id="pricingModal"', html)
                 for link in ("Feedback", "About"):
                     self.assertIn(f">{link}</a>", html)
                 for link in (

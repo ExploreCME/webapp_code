@@ -15,8 +15,8 @@ TEMPLATES = ROOT / "templates" / "template standardization"
 # Originally captured before extraction; refreshed for the Clerk auth bridge and SEO metadata.
 # HTML boundary whitespace is normalized; scripts/styles and the shell are exact.
 PA_RENDER_DIGESTS = {
-    "base.html": "0ad67443b69567634705e5cd3fd899f7f71bcbc1a64f9a8c902a79648e40e6da",
-    "student_dashboard.html": "976464fca3787ca936b9b2dd7410270634acd4a63148ed8ebb26969c3df5ad92",
+    "base.html": "b41bee3cf586247e0e8f3a5e9b3f0847239d3b303ca651c467ee9d460a6a7383",
+    "student_dashboard.html": "0c66fc0f17ddd489e567f9dfce46724fdab2dc962b8417029cef490af3847419",
     "index_for_display.html": "766a47269646304460b17ddac6d5dd83a3b7ee821aa27216c7e7a99cc947931f",
 }
 
