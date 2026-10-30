@@ -707,3 +707,6 @@ app.register_blueprint(preview_bp)
 
 from rnxcel_routes import rnxcel_bp
 app.register_blueprint(rnxcel_bp)
+
+from paxcel_game import paxcel_game_bp
+app.register_blueprint(paxcel_game_bp)
