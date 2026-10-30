@@ -63,11 +63,22 @@
     }
     .game-header-title { font-size: 1.15em; color: #1a4b57; }
     .game-header-title img { height: 34px; width: auto; vertical-align: middle; margin-right: 8px; }
-    .game-meta dt { font-size: .75em; text-transform: uppercase; letter-spacing: 1px; color: #6c757d; margin-top: 14px; }
-    .game-meta dd { margin: 2px 0 0; font-weight: 600; color: #1a4b57; }
-    .game-timer { height: 8px; border-radius: 4px; background: #e9ecef; overflow: hidden; margin-bottom: 18px; }
-    .game-timer > div { height: 100%; width: 100%; background: linear-gradient(90deg, #198754, #ffc107, #dc3545); transform-origin: left; }
-    .game-timer-label { font-size: .85em; color: #6c757d; margin-bottom: 6px; font-weight: 600; }
+    .game-viewport { height: 100dvh; }
+    .game-viewport .quiz-body { display: block; overflow-y: auto; }
+    .game-viewport .quiz-sidebar { display: none; }
+    .game-viewport .question-pane, .game-viewport .answers-pane {
+        max-width: 900px; margin: 0 auto; padding: 24px;
+        overflow: visible; border: none;
+    }
+    .game-viewport .answers-pane { background: #fff; padding-top: 0; }
+    .game-viewport .quiz-header, .game-viewport .quiz-footer { padding: 12px 20px; }
+    @media (max-width: 575px) {
+        .game-viewport .quiz-header { flex-wrap: wrap; gap: 6px; }
+        .game-header-title { font-size: 1em; }
+        .game-header-title img { height: 26px; }
+        .game-viewport .question-pane, .game-viewport .answers-pane { padding: 20px; }
+        .game-viewport .answers-pane { padding-top: 0; }
+    }
     .game-viewport [hidden] { display: none !important; }
     .game-result { font-weight: 800; font-size: 1.15em; margin-bottom: 8px; }
     .game-viewport.is-revealed .choice-label { cursor: default; }
@@ -113,23 +124,16 @@
 </div>
 {% endblock %}
 
-{% block player_progress %}
-<h5 style="margin-top: 0; margin-bottom: 5px; color: #555; font-size: 0.95em; text-transform: uppercase; letter-spacing: 1px;">PANCE Prep</h5>
-<p style="color: #666; font-size: .9em; margin: 0;">One random question at a time.</p>
-<dl class="game-meta">
-    {% if question.organ_system %}<dt>Organ System</dt><dd>{{ question.organ_system }}</dd>{% endif %}
-    {% if question.task_area %}<dt>Task Area</dt><dd>{{ question.task_area }}</dd>{% endif %}
-</dl>
-{% endblock %}
+{% block player_progress %}{% endblock %}
 
 {% block player_question %}
-<div id="gameTimerWrap" hidden>
-    <div class="game-timer-label" id="gameTimerLabel"></div>
-    <div class="game-timer"><div id="gameTimerBar"></div></div>
-</div>
 <div class="question-text">
     {{ question.question_stem | safe }}
 </div>
+{% endblock %}
+
+{% block player_answers %}
+{{ super() }}
 <div class="explanation-box" id="gameExplanation" hidden>
     <div class="game-result" id="gameResult"></div>
     <h5 style="color: #087990; margin-bottom: 10px;">Correct answer: {{ question.correct_answer | upper }}</h5>
@@ -142,7 +146,6 @@
     <a href="{{ url_for('paxcel_game.start') }}" class="btn btn-outline-secondary" style="font-weight: bold;">&larr; Start</a>
 </div>
 <div style="display: flex; gap: 10px; align-items: center;">
-    <button type="button" id="revealBtn" class="btn btn-primary" style="padding: 10px 30px; font-weight: bold;">Reveal Answer</button>
     <a href="{{ url_for('paxcel_game.play') }}" id="nextBtn" class="btn btn-success" style="padding: 10px 30px; font-weight: bold;" hidden>New Question &#8635;</a>
 </div>
 {% endblock %}
@@ -153,9 +156,6 @@
     const organs = {{ organ_systems | tojson }};
     const target = {{ (question.organ_system or 'PANCE') | tojson }};
     const correct = {{ (question.correct_answer or '') | upper | tojson }};
-    const params = new URLSearchParams(window.location.search);
-    const timerParam = parseInt(params.get('timer'), 10);
-    const timerSeconds = Number.isNaN(timerParam) ? 15 : Math.max(0, Math.min(timerParam, 120));
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     const overlay = document.getElementById('gameOverlay');
@@ -165,20 +165,15 @@
     const counter = document.getElementById('counterValue');
     const countdown = document.getElementById('countdown');
     const viewport = document.getElementById('gameForm');
-    const revealBtn = document.getElementById('revealBtn');
     const nextBtn = document.getElementById('nextBtn');
     const explanation = document.getElementById('gameExplanation');
     const result = document.getElementById('gameResult');
-    const timerWrap = document.getElementById('gameTimerWrap');
-    const timerBar = document.getElementById('gameTimerBar');
-    const timerLabel = document.getElementById('gameTimerLabel');
     if (!overlay || !viewport) return;
 
     viewport.addEventListener('submit', (e) => e.preventDefault());
 
     let finished = false;
     let revealed = false;
-    let timerId = null;
     const timeouts = [];
     const later = (fn, ms) => timeouts.push(setTimeout(fn, ms));
 
@@ -229,29 +224,11 @@
             el.style.transitionDelay = (0.25 + i * 0.12) + 's';
         });
         setTimeout(() => overlay.remove(), 700);
-        startTimer();
     }
-
-    function startTimer() {
-        if (!timerSeconds || revealed) return;
-        timerWrap.hidden = false;
-        const end = Date.now() + timerSeconds * 1000;
-        const tick = () => {
-            const left = Math.max(0, end - Date.now());
-            timerBar.style.transform = 'scaleX(' + (left / (timerSeconds * 1000)) + ')';
-            timerLabel.textContent = left > 0 ? Math.ceil(left / 1000) + 's to answer' : "Time's up!";
-            if (left <= 0) { stopTimer(); reveal(null); }
-        };
-        tick();
-        timerId = setInterval(tick, 100);
-    }
-    function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
 
     function reveal(choice) {
         if (revealed) return;
         revealed = true;
-        stopTimer();
-        timerWrap.hidden = true;
         viewport.classList.add('is-revealed');
         document.querySelectorAll('.choice-label').forEach((label) => {
             const input = label.querySelector('.choice-input');
@@ -260,14 +237,9 @@
             if (input.value === correct) label.classList.add('correct-answer');
             else if (input.value === choice) label.classList.add('incorrect-answer');
         });
-        if (choice) {
-            result.textContent = choice === correct ? '✅ Correct!' : '❌ Not quite!';
-            result.style.color = choice === correct ? '#198754' : '#dc3545';
-        } else {
-            result.textContent = '';
-        }
+        result.textContent = choice === correct ? '✅ Correct!' : '❌ Not quite!';
+        result.style.color = choice === correct ? '#198754' : '#dc3545';
         explanation.hidden = false;
-        revealBtn.hidden = true;
         nextBtn.hidden = false;
         explanation.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
     }
@@ -275,7 +247,6 @@
     document.querySelectorAll('.choice-input').forEach((input) => {
         input.addEventListener('change', () => reveal(input.value));
     });
-    revealBtn.addEventListener('click', () => reveal(null));
     overlay.addEventListener('click', finishIntro);
 
     later(spin, 150);

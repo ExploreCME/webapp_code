@@ -62,10 +62,11 @@ recordings) showing "PANCE prep one random question at a time" and a **GO**
 button. GO opens `/paxcel/the_game/play`, which plays a short slot-machine
 style animation (organ-system reel, 3-2-1 countdown) and then reveals one
 random `question_bank` question (canonical organ systems only) in the standard
-PAXcel quiz player. Tapping an answer (or **Reveal Answer**) marks it
-correct/incorrect and shows the explanation; nothing is saved. A 15-second
-answer timer auto-reveals the answer; change it with `?timer=<seconds>` (`0`
-disables it, max 120). Tap the animation to skip it. Routes live in
+PAXcel quiz player. The full-width question stem and answer choices share one
+scrolling area, with the choices below the end of the stem on phones and desktops.
+There is no answer timer or separate reveal button: the correct answer and
+explanation appear only after an answer is selected; nothing is saved.
+The animation's 3-2-1 countdown remains; tap the animation to skip it. Routes live in
 `paxcel_game.py`; templates are `paxcel_game.html` and `paxcel_game_play.html`.
 
 ```bash

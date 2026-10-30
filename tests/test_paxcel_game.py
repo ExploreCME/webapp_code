@@ -75,6 +75,17 @@ class PaxcelGameTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("No questions are available", response.get_data(as_text=True))
 
+    def test_answers_follow_stem_and_only_selection_reveals_feedback(self):
+        response = self.client.get("/paxcel/the_game/play?timer=1")
+        html = response.get_data(as_text=True)
+        self.assertLess(html.index(QUESTION["question_stem"]), html.index('value="A"'))
+        self.assertLess(html.index('value="D"'), html.index('id="gameExplanation" hidden'))
+        self.assertIn('.quiz-body { display: block; overflow-y: auto; }', html)
+        self.assertIn("input.addEventListener('change', () => reveal(input.value))", html)
+        for removed in ("gameTimer", "timerSeconds", "startTimer", "setInterval",
+                        "revealBtn", "Reveal Answer", "reveal(null)"):
+            self.assertNotIn(removed, html)
+
 
 if __name__ == "__main__":
     unittest.main()
