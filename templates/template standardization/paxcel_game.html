@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% set show_app_header = false %}
+
+{% block title %}PANCE Prep: One Random Question at a Time | PAXcel{% endblock %}
+{% block description %}PANCE prep one random question at a time. Tap GO for a random PAXcel board-style practice question.{% endblock %}
+
+{% block head %}
+<style>
+    nav, header, footer, .navbar { display: none !important; }
+    body, html { margin: 0 !important; padding: 0 !important; height: 100% !important; overflow: hidden !important; }
+    .container, .container-large, main { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0 !important; }
+
+    .game-start {
+        position: fixed; inset: 0;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 4vh; padding: 24px; text-align: center; color: #fff;
+        background: radial-gradient(circle at 50% 30%, #2b7080 0%, #1a4b57 55%, #0e2a31 100%);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .game-start img { width: min(80vw, 420px); max-height: 18vh; height: auto; object-fit: contain; background: #fff; border-radius: 20px; padding: 10px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+    .game-title {
+        margin: 0; max-width: 900px; font-weight: 800; line-height: 1.15;
+        font-size: clamp(2rem, 7vw, 4.2rem); letter-spacing: .5px; color: #fff !important;
+        text-shadow: 0 4px 18px rgba(0,0,0,.35);
+    }
+    .game-title span { display: block; color: #ffd166 !important; }
+    .go-button {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: clamp(150px, 38vw, 220px); height: clamp(150px, 38vw, 220px);
+        border-radius: 50%; border: 6px solid #fff; background: #ffd166; color: #1a4b57;
+        font-size: clamp(2.8rem, 11vw, 4.5rem); font-weight: 900; letter-spacing: 3px;
+        text-decoration: none; box-shadow: 0 0 0 0 rgba(255,209,102,.7), 0 12px 30px rgba(0,0,0,.35);
+        animation: go-pulse 1.6s ease-out infinite; transition: transform .15s;
+    }
+    .go-button:hover, .go-button:focus { color: #1a4b57; transform: scale(1.06); }
+    .go-button:active { transform: scale(.94); }
+    @keyframes go-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(255,209,102,.7), 0 12px 30px rgba(0,0,0,.35); }
+        70% { box-shadow: 0 0 0 28px rgba(255,209,102,0), 0 12px 30px rgba(0,0,0,.35); }
+        100% { box-shadow: 0 0 0 0 rgba(255,209,102,0), 0 12px 30px rgba(0,0,0,.35); }
+    }
+    .game-brand { font-size: clamp(.9rem, 3vw, 1.1rem); opacity: .85; letter-spacing: 1px; }
+    @media (prefers-reduced-motion: reduce) { .go-button { animation: none; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="game-start">
+    <img src="{{ url_for('static', filename='images/paxcel_logo.png') }}" alt="PAXcel logo">
+    <h1 class="game-title">PANCE prep <span>one random question at a time</span></h1>
+    <a href="{{ url_for('paxcel_game.play') }}" class="go-button" id="goButton" aria-label="GO - show a random question">GO</a>
+    <div class="game-brand">PAXcel by ExploreCME</div>
+</div>
+{% endblock %}

@@ -55,6 +55,23 @@ python -m unittest discover -s tests -p 'test_landing_pages.py' -v
 python -m unittest discover -s tests -p 'test_entitlements.py' -v
 ```
 
+## PAXcel "the game" (random question of the day)
+
+`/paxcel/the_game` is a public, sign-in-free marketing page (for daily TikTok
+recordings) showing "PANCE prep one random question at a time" and a **GO**
+button. GO opens `/paxcel/the_game/play`, which plays a short slot-machine
+style animation (organ-system reel, 3-2-1 countdown) and then reveals one
+random `question_bank` question (canonical organ systems only) in the standard
+PAXcel quiz player. Tapping an answer (or **Reveal Answer**) marks it
+correct/incorrect and shows the explanation; nothing is saved. A 15-second
+answer timer auto-reveals the answer; change it with `?timer=<seconds>` (`0`
+disables it, max 120). Tap the animation to skip it. Routes live in
+`paxcel_game.py`; templates are `paxcel_game.html` and `paxcel_game_play.html`.
+
+```bash
+python -m unittest discover -s tests -p 'test_paxcel_game.py' -v
+```
+
 ## PAXcel payments and sign-in deployment
 
 Set these variables in the **server environment** before starting/redeploying the
