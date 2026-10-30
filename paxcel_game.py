@@ -173,10 +173,11 @@ def start():
         number = request.form.get('question_number', '').strip()
         if (len(number) <= 19 and number.isascii() and number.isdigit()
                 and 0 < int(number) <= 9223372036854775807):
-            return redirect(url_for('.question', number=int(number)), code=303)
+            endpoint = '.results' if is_host() else '.question'
+            return redirect(url_for(endpoint, number=int(number)), code=303)
         error = 'Enter a valid question number.'
     if is_host():
-        return render_template('paxcel_game.html')
+        return render_template('paxcel_game.html', error=error), 400 if error else 200
     return render_template('paxcel_game_join.html', error=error), 400 if error else 200
 
 

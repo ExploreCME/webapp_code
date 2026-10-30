@@ -154,6 +154,45 @@ class PaxcelGameTests(unittest.TestCase):
         self.assertEqual(response.status_code, 303)
         self.assertEqual(self.client.get('/paxcel/the_game/draw/1000').status_code, 403)
 
+    def test_host_lookup_opens_existing_results_without_creating_question(self):
+        number = self.create_question()
+        html = self.client.get('/paxcel/the_game').get_data(as_text=True)
+        self.assertIn('id="goButton"', html)
+        self.assertIn('Review a previous question', html)
+        self.assertIn('id="reviewQuestionNumber"', html)
+        response = self.client.post('/paxcel/the_game', data={
+            'csrf_token': self.token(), 'question_number': str(number),
+        })
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.location, f'/paxcel/the_game/question/{number}/results')
+        self.assertEqual(self.client.get(response.location).status_code, 200)
+        self.assertEqual(self.db.connection.execute(
+            'SELECT COUNT(*) FROM paxcel_game_questions',
+        ).fetchone()[0], 1)
+
+    def test_host_lookup_invalid_number_shows_error_and_preserves_both_paths(self):
+        self.login()
+        for value in ('', 'abc', '0', '-1', '1' * 100):
+            with self.subTest(value=value):
+                response = self.client.post('/paxcel/the_game', data={
+                    'csrf_token': self.token(), 'question_number': value,
+                })
+                self.assertEqual(response.status_code, 400)
+                html = response.get_data(as_text=True)
+                self.assertIn('Enter a valid question number.', html)
+                self.assertIn('id="goButton"', html)
+                self.assertIn('id="reviewQuestionNumber"', html)
+
+    def test_host_lookup_missing_number_does_not_generate_question(self):
+        self.login()
+        response = self.client.post('/paxcel/the_game', data={
+            'csrf_token': self.token(), 'question_number': '999999',
+        }, follow_redirects=True)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self.db.connection.execute(
+            'SELECT COUNT(*) FROM paxcel_game_questions',
+        ).fetchone()[0], 0)
+
     def test_login_unconfigured_or_short_code_is_disabled(self):
         for code in ('', '123456'):
             with self.subTest(code=code), patch.dict(os.environ, {'PAXCEL_GAME_ADMIN_CODE': code}):
