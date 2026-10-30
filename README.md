@@ -57,16 +57,55 @@ python -m unittest discover -s tests -p 'test_entitlements.py' -v
 
 ## PAXcel "the game" (random question of the day)
 
-`/paxcel/the_game` is a public, sign-in-free marketing page (for daily TikTok
-recordings) showing "PANCE prep one random question at a time" and a **GO**
-button. GO opens `/paxcel/the_game/play`, which plays a short slot-machine
-style animation (organ-system reel, 3-2-1 countdown) and then reveals one
-random `question_bank` question (canonical organ systems only) in the standard
-PAXcel quiz player. Tapping an answer (or **Reveal Answer**) marks it
-correct/incorrect and shows the explanation; nothing is saved. A 15-second
-answer timer auto-reveals the answer; change it with `?timer=<seconds>` (`0`
-disables it, max 120). Tap the animation to skip it. Routes live in
-`paxcel_game.py`; templates are `paxcel_game.html` and `paxcel_game_play.html`.
+The public `/paxcel/the_game` page lets viewers enter the question number shown
+by the host. They see the stem and choices in one scrolling area, submit a
+response, and get confirmation. **Audience pages never receive the correct
+answer or explanation**, even after voting. Multiple responses per browser
+are intentionally allowed; totals count submissions, not unique people.
+
+On your phone, open `/paxcel/the_game/admin` (also linked from the public entry
+page) and enter the private host code. Host access lasts 12 hours on that
+browser. The host sees the original "PANCE prep one random question at a time"
+screen and **GO** button. GO saves a random canonical-organ PANCE question as
+a numbered, immutable snapshot and plays an organ-system reel animation.
+The number is the actual persistent audience reference (starting at 1000),
+not a decorative random counter. **Let's see the question** below the number
+opens that exact question. Refreshing or using Back does not draw another one.
+
+The small **Results** button on the host's question screen opens private
+results that refresh every three seconds. Counts and percentages are scoped
+to that generated question number. Tabs switch between **Live results**,
+**Question stem**, and **Answer choices** without leaving the results page.
+The correct choice is marked; **Show explanation** is an explicit toggle.
+No answer timer, auto-grading, or audience-facing reveal is provided.
+Host access does not grant access to paid quizzes or other admin features.
+
+### Game deployment (required before use)
+
+1. Apply `migrations/20261030_add_paxcel_game.sql` to your MySQL database.
+   The existing `init.db.py` also includes these two `CREATE TABLE IF NOT EXISTS`
+   statements for newly initialized databases. Do not rely on an application
+   restart to run migrations.
+2. Set `PAXCEL_GAME_ADMIN_CODE` on the web server to a **private, random code
+   of at least 16 characters** (a password-manager-generated code is suitable).
+   Do not put it in a URL, source control, TikTok video, or public message.
+   The login form sends it by POST over HTTPS. Missing/short codes disable
+   administrator login. Changing the code revokes existing host sessions.
+3. Keep `FLASK_SECRET_KEY` stable across web workers and deployments, use HTTPS
+   with secure session cookies, and configure the existing `REDIS_URL` for shared
+   login throttling across workers (five attempts per peer address per 15 minutes;
+   the local development fallback is per-process).
+4. Deploy, sign in from your phone, press GO, and share only the question number
+   and public URL with viewers. **Exit host mode** returns that browser to the
+   audience entry screen. Maintenance mode still applies to all game routes.
+
+`paxcel_game_questions` stores each public number, bank question ID, and content
+snapshot; `paxcel_game_responses` stores each number, bank question ID, selected
+letter, and timestamp. No viewer sign-in or identifying information is required.
+Responses are isolated from quiz attempts and learning statistics. Re-drawing
+the same bank question creates a new number with its own distribution.
+Database failures return an error, never a false "saved" confirmation.
+Routes live in `paxcel_game.py`; templates use the `paxcel_game` prefix.
 
 ```bash
 python -m unittest discover -s tests -p 'test_paxcel_game.py' -v

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% set show_app_header = false %}
+{% block title %}PAXcel Live Questions | ExploreCME{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
+{% block app_modals %}{% endblock %}
+{% block head %}
+<style>
+    body { background: #edf5f6; }
+    .game-page { max-width: 860px; margin: 24px auto; padding: 20px; color: #233d46; }
+    .game-page h1, .game-page h2 { color: #1a4b57; }
+    .game-card { background: #fff; padding: 24px; border-radius: 16px; box-shadow: 0 6px 24px #1a4b5714; }
+    .game-logo { width: min(100%, 300px); height: auto; margin-bottom: 20px; }
+    .game-field { display: block; width: 100%; box-sizing: border-box; padding: 14px; margin: 10px 0 18px; font-size: 1.15rem; border: 2px solid #9ab6be; border-radius: 8px; }
+    .game-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 20px; }
+    .game-error { color: #a51d2d; background: #fff0f2; padding: 12px; border-radius: 8px; }
+    .game-muted { color: #52646b; }
+    .game-small { font-size: .85rem; }
+    .game-page [hidden] { display: none !important; }
+    .game-page button, .game-page a { touch-action: manipulation; }
+    @media (max-width: 575px) {
+        .game-page { padding: 8px; margin: 12px auto; }
+        .game-card { padding: 18px; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<main class="game-page">
+    {% block game_content %}{% endblock %}
+</main>
+{% endblock %}

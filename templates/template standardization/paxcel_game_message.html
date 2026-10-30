@@ -1,0 +1,8 @@
+{% extends "paxcel_game_shell.html" %}
+{% block game_content %}
+<section class="game-card">
+    <h1>PAXcel game</h1>
+    <p role="alert">{{ message }}</p>
+    <a class="btn btn-primary" href="{{ url_for('paxcel_game.start') }}">Back to the game</a>
+</section>
+{% endblock %}

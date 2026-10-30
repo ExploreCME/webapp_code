@@ -1,0 +1,16 @@
+{% extends "paxcel_game_shell.html" %}
+{% block game_content %}
+<section class="game-card">
+    <img class="game-logo" src="{{ url_for('static', filename='images/paxcel_logo.png') }}" alt="PAXcel">
+    <h1>PANCE prep one random question at a time</h1>
+    <p>Enter the question number shown by the host to join in.</p>
+    {% if error %}<p class="game-error" role="alert">{{ error }}</p>{% endif %}
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ game_csrf }}">
+        <label for="questionNumber">Question number</label>
+        <input class="game-field" id="questionNumber" name="question_number" inputmode="numeric" pattern="[0-9]+" maxlength="19" required autocomplete="off">
+        <button class="btn btn-primary" type="submit">See the question</button>
+    </form>
+    <p class="game-muted game-small" style="margin-top: 24px;">Hosting? <a href="{{ url_for('paxcel_game.admin') }}">Administrator access</a></p>
+</section>
+{% endblock %}

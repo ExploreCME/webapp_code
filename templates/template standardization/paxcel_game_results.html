@@ -1,0 +1,130 @@
+{% extends "paxcel_game_shell.html" %}
+{% block title %}Results for #{{ number }} | PAXcel{% endblock %}
+{% block head %}
+{{ super() }}
+<style>
+    .result-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
+    .result-tabs [aria-selected="true"] { background: #1a4b57; color: #fff; }
+    .result-row { padding: 14px 0; border-bottom: 1px solid #dde7e9; }
+    .result-label { display: flex; justify-content: space-between; gap: 12px; }
+    .result-bar { height: 18px; margin-top: 8px; border-radius: 9px; background: #edf2f4; overflow: hidden; }
+    .result-fill { height: 100%; width: 0; background: #2b7080; transition: width .5s; }
+    .result-correct .result-fill { background: #198754; }
+    .correct-marker { color: #146c43; font-weight: 700; }
+    .result-stem { font-size: 1.15rem; line-height: 1.65; }
+    .result-choice { padding: 14px; margin: 12px 0; background: #f3f7f8; border-radius: 8px; }
+    .host-explanation { margin-top: 20px; padding: 18px; border-left: 4px solid #2b7080; background: #edf7fb; }
+    @media (prefers-reduced-motion: reduce) { .result-fill { transition: none; } }
+</style>
+{% endblock %}
+{% block game_content %}
+<section class="game-card">
+    <h1>Question #{{ number }}</h1>
+    <div class="game-actions">
+        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('paxcel_game.question', number=number) }}">Question screen</a>
+        <a href="{{ url_for('paxcel_game.start') }}">Host home</a>
+    </div>
+    <div class="result-tabs" role="tablist" aria-label="Question views">
+        <button type="button" class="btn" role="tab" id="tabResults" aria-controls="panelResults" aria-selected="true">Live results</button>
+        <button type="button" class="btn" role="tab" id="tabStem" aria-controls="panelStem" aria-selected="false" tabindex="-1">Question stem</button>
+        <button type="button" class="btn" role="tab" id="tabChoices" aria-controls="panelChoices" aria-selected="false" tabindex="-1">Answer choices</button>
+    </div>
+    <section id="panelResults" role="tabpanel" aria-labelledby="tabResults">
+        <p id="resultsStatus" role="status">Loading responses...</p>
+        <strong id="responseTotal">Total responses: —</strong>
+        {% for letter, text in game_choices %}
+        <div class="result-row{% if letter == question.correct_answer %} result-correct{% endif %}">
+            <div class="result-label">
+                <span><strong>{{ letter }}</strong>{% if letter == question.correct_answer %} <span class="correct-marker">Correct answer</span>{% endif %}</span>
+                <span id="count{{ letter }}">—</span>
+            </div>
+            <div class="result-bar" role="meter" aria-label="Responses for {{ letter }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="meter{{ letter }}">
+                <div class="result-fill" id="bar{{ letter }}"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+    <section id="panelStem" role="tabpanel" aria-labelledby="tabStem" hidden>
+        <div class="result-stem">{{ question.question_stem | safe }}</div>
+    </section>
+    <section id="panelChoices" role="tabpanel" aria-labelledby="tabChoices" hidden>
+        {% for letter, text in game_choices %}
+        <div class="result-choice"><strong>{{ letter }}.</strong> {{ text }}
+            {% if letter == question.correct_answer %}<span class="correct-marker"> &mdash; Correct answer</span>{% endif %}
+        </div>
+        {% endfor %}
+    </section>
+    <button class="btn btn-outline-primary" type="button" id="toggleExplanation" aria-expanded="false" aria-controls="hostExplanation" style="margin-top: 20px;">Show explanation</button>
+    <div class="host-explanation" id="hostExplanation" hidden>
+        <h2>Explanation</h2>
+        {% if question.explanation %}{{ question.explanation | safe }}{% else %}<p>No explanation is available for this question.</p>{% endif %}
+    </div>
+    <noscript>Live results require JavaScript. Enable it and reload this page.</noscript>
+</section>
+<script>
+(() => {
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    function selectTab(tab) {
+        tabs.forEach(item => {
+            const active = item === tab;
+            item.setAttribute('aria-selected', String(active));
+            item.tabIndex = active ? 0 : -1;
+            document.getElementById(item.getAttribute('aria-controls')).hidden = !active;
+        });
+    }
+    tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => selectTab(tab));
+        tab.addEventListener('keydown', event => {
+            let next;
+            if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+            else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+            else if (event.key === 'Home') next = 0;
+            else if (event.key === 'End') next = tabs.length - 1;
+            else return;
+            event.preventDefault();
+            selectTab(tabs[next]);
+            tabs[next].focus();
+        });
+    });
+    const explanation = document.getElementById('hostExplanation');
+    document.getElementById('toggleExplanation').addEventListener('click', event => {
+        explanation.hidden = !explanation.hidden;
+        event.currentTarget.setAttribute('aria-expanded', String(!explanation.hidden));
+        event.currentTarget.textContent = explanation.hidden ? 'Show explanation' : 'Hide explanation';
+    });
+    let stopped = false;
+    window.addEventListener('pagehide', () => { stopped = true; });
+    window.addEventListener('pageshow', event => { if (event.persisted) { stopped = false; refresh(); } });
+    async function refresh() {
+        const status = document.getElementById('resultsStatus');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        try {
+            const response = await fetch({{ url_for('paxcel_game.results_data', number=number) | tojson }}, {
+                cache: 'no-store', signal: controller.signal,
+            });
+            if (response.status === 403) {
+                status.textContent = 'Host access expired. Sign in again to view results.';
+                stopped = true;
+                return;
+            }
+            if (!response.ok) throw new Error('Unable to load response counts.');
+            const data = await response.json();
+            document.getElementById('responseTotal').textContent = 'Total responses: ' + data.total;
+            data.choices.forEach(choice => {
+                document.getElementById('count' + choice.letter).textContent = choice.count + ' (' + choice.percent + '%)';
+                document.getElementById('bar' + choice.letter).style.width = choice.percent + '%';
+                document.getElementById('meter' + choice.letter).setAttribute('aria-valuenow', choice.percent);
+            });
+            status.textContent = 'Live · updated ' + new Date().toLocaleTimeString() + ' · refreshes every 3 seconds';
+        } catch (error) {
+            status.textContent = 'Results unavailable. Retrying shortly; displayed counts may be out of date.';
+        } finally {
+            clearTimeout(timeout);
+            if (!stopped) setTimeout(refresh, 3000);
+        }
+    }
+    refresh();
+})();
+</script>
+{% endblock %}

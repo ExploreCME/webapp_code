@@ -3,6 +3,8 @@
 
 {% block title %}PANCE Prep: One Random Question at a Time | PAXcel{% endblock %}
 {% block description %}PANCE prep one random question at a time. Tap GO for a random PAXcel board-style practice question.{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
+{% block app_modals %}{% endblock %}
 
 {% block head %}
 <style>
@@ -13,7 +15,7 @@
     .game-start {
         position: fixed; inset: 0;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        gap: 4vh; padding: 24px; text-align: center; color: #fff;
+        gap: 4vh; padding: 24px; text-align: center; color: #fff; overflow-y: auto;
         background: radial-gradient(circle at 50% 30%, #2b7080 0%, #1a4b57 55%, #0e2a31 100%);
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
@@ -40,15 +42,30 @@
         100% { box-shadow: 0 0 0 0 rgba(255,209,102,0), 0 12px 30px rgba(0,0,0,.35); }
     }
     .game-brand { font-size: clamp(.9rem, 3vw, 1.1rem); opacity: .85; letter-spacing: 1px; }
+    .host-controls { position: absolute; top: 12px; right: 12px; }
+    .host-controls button { border: 1px solid #fff9; background: transparent; color: #fff; border-radius: 6px; padding: 6px 12px; }
+    .draw-link { display: inline-block; padding: 16px 24px; border-radius: 10px; background: #ffd166; color: #1a4b57; font-weight: 800; text-decoration: none; }
+    .draw-number { font-size: clamp(2.5rem, 12vw, 5rem); color: #ffd166; font-weight: 900; }
+    .draw-reel { border: 3px solid #ffd166; border-radius: 14px; padding: 20px; min-height: 84px; display: grid; place-items: center; width: min(90%, 600px); font-size: clamp(1.2rem, 5vw, 2rem); }
+    .game-start [hidden] { display: none !important; }
     @media (prefers-reduced-motion: reduce) { .go-button { animation: none; } }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="game-start">
+    {% block start_content %}
+    <form class="host-controls" method="post" action="{{ url_for('paxcel_game.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ game_csrf }}">
+        <button type="submit">Exit host mode</button>
+    </form>
     <img src="{{ url_for('static', filename='images/paxcel_logo.png') }}" alt="PAXcel logo">
     <h1 class="game-title">PANCE prep <span>one random question at a time</span></h1>
-    <a href="{{ url_for('paxcel_game.play') }}" class="go-button" id="goButton" aria-label="GO - show a random question">GO</a>
+    <form method="post" action="{{ url_for('paxcel_game.play') }}">
+        <input type="hidden" name="csrf_token" value="{{ game_csrf }}">
+        <button type="submit" class="go-button" id="goButton" aria-label="GO - generate a random question">GO</button>
+    </form>
     <div class="game-brand">PAXcel by ExploreCME</div>
+    {% endblock %}
 </div>
 {% endblock %}
