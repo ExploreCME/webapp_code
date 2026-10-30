@@ -143,6 +143,7 @@ class PaxcelGameTests(unittest.TestCase):
         self.assertIn('href="https://www.tiktok.com/@explorecme"', html)
         self.assertIn('>revealed daily on TikTok</a>', html)
         self.assertIn('Follow ExploreCME on TikTok', html)
+        self.assertIn('href="/">Visit ExploreCME</a>', html)
         self.assertNotIn('id="goButton"', html)
         self.assertIn('no-store', response.headers['Cache-Control'])
         self.assertIn('noindex', response.headers['X-Robots-Tag'])
