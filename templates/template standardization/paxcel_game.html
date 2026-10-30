@@ -14,8 +14,8 @@
 
     .game-start {
         position: fixed; inset: 0;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        gap: 4vh; padding: 24px; text-align: center; color: #fff; overflow-y: auto;
+        display: flex; flex-direction: column; align-items: center; justify-content: safe center;
+        gap: 4vh; padding: 54px 24px 24px; text-align: center; color: #fff; overflow-y: auto;
         background: radial-gradient(circle at 50% 30%, #2b7080 0%, #1a4b57 55%, #0e2a31 100%);
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
@@ -48,6 +48,13 @@
     .draw-number { font-size: clamp(2.5rem, 12vw, 5rem); color: #ffd166; font-weight: 900; }
     .draw-reel { border: 3px solid #ffd166; border-radius: 14px; padding: 20px; min-height: 84px; display: grid; place-items: center; width: min(90%, 600px); font-size: clamp(1.2rem, 5vw, 2rem); }
     .game-start [hidden] { display: none !important; }
+    .game-start > * { flex-shrink: 0; }
+    .game-start img { box-sizing: border-box; max-width: 100%; }
+    .host-review { width: min(100%, 400px); padding: 18px; box-sizing: border-box; border: 1px solid #ffffff80; border-radius: 12px; }
+    .host-review label { display: block; font-size: 1.1rem; font-weight: 700; margin-bottom: 12px; }
+    .host-review input[type="text"] { display: block; width: 100%; box-sizing: border-box; padding: 12px; margin-bottom: 12px; font-size: 1.1rem; color: #1a4b57; background: #fff; border: 2px solid #ffd166; border-radius: 8px; }
+    .host-review button { background: #ffd166; color: #1a4b57; border: none; border-radius: 8px; padding: 12px 20px; font-weight: 700; }
+    .host-review-error { background: #fff0f2; color: #a51d2d; padding: 10px; border-radius: 8px; }
     @media (prefers-reduced-motion: reduce) { .go-button { animation: none; } }
 </style>
 {% endblock %}
@@ -64,6 +71,13 @@
     <form method="post" action="{{ url_for('paxcel_game.play') }}">
         <input type="hidden" name="csrf_token" value="{{ game_csrf }}">
         <button type="submit" class="go-button" id="goButton" aria-label="GO - generate a random question">GO</button>
+    </form>
+    <form class="host-review" method="post" action="{{ url_for('paxcel_game.start') }}">
+        <input type="hidden" name="csrf_token" value="{{ game_csrf }}">
+        <label for="reviewQuestionNumber">Review a previous question</label>
+        {% if error %}<p class="host-review-error" role="alert">{{ error }}</p>{% endif %}
+        <input type="text" id="reviewQuestionNumber" name="question_number" inputmode="numeric" pattern="[0-9]+" maxlength="19" placeholder="Question number" aria-label="Previously released question number" required autocomplete="off">
+        <button type="submit">View results</button>
     </form>
     <div class="game-brand">PAXcel by ExploreCME</div>
     {% endblock %}

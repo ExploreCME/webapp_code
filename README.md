@@ -71,6 +71,10 @@ a numbered, immutable snapshot and plays an organ-system reel animation.
 The number is the actual persistent audience reference (starting at 1000),
 not a decorative random counter. **Let's see the question** below the number
 opens that exact question. Refreshing or using Back does not draw another one.
+For the second host workflow, use **Review a previous question** below GO:
+enter a previously released question number and tap **View results** to open
+its live response distribution directly, without generating a new question.
+Public visitors still use question-number entry to answer, not to view results.
 
 The small **Results** button on the host's question screen opens private
 results that refresh every three seconds. Counts and percentages are scoped
