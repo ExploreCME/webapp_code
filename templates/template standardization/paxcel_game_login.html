@@ -1,0 +1,15 @@
+{% extends "paxcel_game_shell.html" %}
+{% block game_content %}
+<section class="game-card">
+    <h1>Administrator access</h1>
+    <p>Enter your private host code. Never share this code with viewers.</p>
+    {% if error %}<p class="game-error" role="alert">{{ error }}</p>{% endif %}
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ game_csrf }}">
+        <label for="adminCode">Administrator code</label>
+        <input class="game-field" id="adminCode" type="password" name="code" required autocomplete="current-password">
+        <button class="btn btn-primary" type="submit">Enter host mode</button>
+    </form>
+    <div class="game-actions"><a href="{{ url_for('paxcel_game.start') }}">Back to audience entry</a></div>
+</section>
+{% endblock %}

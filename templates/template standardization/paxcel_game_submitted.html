@@ -1,0 +1,12 @@
+{% extends "paxcel_game_shell.html" %}
+{% block game_content %}
+<section class="game-card">
+    <h1>Response saved!</h1>
+    <p>Your answer for question <strong>#{{ number }}</strong> has been recorded.</p>
+    <p>Watch the host for the discussion.</p>
+    <div class="game-actions">
+        <a class="btn btn-primary" href="{{ url_for('paxcel_game.question', number=number) }}">Submit another response</a>
+        <a href="{{ url_for('paxcel_game.start') }}">Enter a different question number</a>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "paxcel_game.html" %}
+{% block title %}Question #{{ number }} | PAXcel{% endblock %}
+{% block start_content %}
+<img src="{{ url_for('static', filename='images/paxcel_logo.png') }}" alt="PAXcel logo">
+<h1 class="game-title" id="drawStatus">Picking a random PANCE question...</h1>
+<div class="draw-reel" id="drawReel">{{ organ_systems[0] }}</div>
+<div>Question number <div class="draw-number" id="drawNumber" aria-live="polite">...</div></div>
+<a class="draw-link" id="seeQuestion" href="{{ url_for('paxcel_game.question', number=number) }}" hidden>Let's see the question</a>
+<div class="game-brand">Join at www.explorecme.com/paxcel/the_game</div>
+<noscript><p>Question #{{ number }}</p><a class="draw-link" href="{{ url_for('paxcel_game.question', number=number) }}">Let's see the question</a></noscript>
+<script>
+(() => {
+    const organs = {{ organ_systems | tojson }};
+    const reel = document.getElementById('drawReel');
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let step = 0;
+    function spin() {
+        if (reduced || step >= 26) {
+            reel.textContent = {{ (organ_system or 'PANCE') | tojson }};
+            document.getElementById('drawNumber').textContent = {{ number | tojson }};
+            document.getElementById('drawStatus').textContent = 'Your PANCE question is ready';
+            document.getElementById('seeQuestion').hidden = false;
+            return;
+        }
+        reel.textContent = organs[Math.floor(Math.random() * organs.length)];
+        step += 1;
+        setTimeout(spin, step > 16 ? 55 * Math.pow(1.22, step - 16) : 55);
+    }
+    spin();
+})();
+</script>
+{% endblock %}

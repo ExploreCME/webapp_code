@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import pymysql
 from dotenv import load_dotenv
 from db_pool import get_db_connection
@@ -248,6 +249,9 @@ def init_mysql():
         ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
         '''
     ]
+
+    game_schema = Path(__file__).resolve().parent / 'migrations' / '20261030_add_paxcel_game.sql'
+    tables.extend(statement for statement in game_schema.read_text().split(';') if statement.strip())
 
     for sql in tables:
         if "CREATE TABLE IF NOT EXISTS remediation_questions" in sql:
