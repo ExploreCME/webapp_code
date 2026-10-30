@@ -1,4 +1,14 @@
 {% extends "paxcel_game_shell.html" %}
+{% block head %}
+{{ super() }}
+<style>
+    .game-page { display: flex; flex-direction: column; min-height: calc(100svh - 48px); box-sizing: border-box; }
+    .game-admin-access { margin: auto 0 0; padding-top: 24px; text-align: center; }
+    @media (max-width: 575px) {
+        .game-page { min-height: calc(100svh - 24px); }
+    }
+</style>
+{% endblock %}
 {% block game_content %}
 <section class="game-card">
     <img class="game-logo" src="{{ url_for('static', filename='images/paxcel_logo.png') }}" alt="PAXcel">
@@ -11,9 +21,8 @@
         <input class="game-field" id="questionNumber" name="question_number" inputmode="numeric" pattern="[0-9]+" maxlength="19" required autocomplete="off">
         <button class="btn btn-primary" type="submit">See the question</button>
     </form>
-    <p class="game-muted game-small" style="margin-top: 24px;">Hosting? <a href="{{ url_for('paxcel_game.admin') }}">Administrator access</a></p>
-    <p class="game-muted game-small">Question answers are <a href="https://www.tiktok.com/@explorecme" target="_blank" rel="noopener noreferrer">revealed daily on TikTok</a>.</p>
-    <p class="game-muted game-small"><a href="https://www.tiktok.com/@explorecme" target="_blank" rel="noopener noreferrer">Follow ExploreCME on TikTok</a></p>
-    <p class="game-muted game-small"><a href="{{ url_for('explorecme_home') }}">Visit ExploreCME</a></p>
+    <p class="game-muted game-small" style="margin-top: 24px;">Question answers are <a href="https://www.tiktok.com/@explorecme" target="_blank" rel="noopener noreferrer">revealed daily on TikTok</a>.</p>
+    <p class="game-muted game-small"><a href="{{ url_for('explorecme_home') }}">Full access at ExploreCME</a></p>
 </section>
+<p class="game-admin-access game-muted game-small">Hosting? <a href="{{ url_for('paxcel_game.admin') }}">Administrator access</a></p>
 {% endblock %}
