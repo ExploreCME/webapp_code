@@ -18,7 +18,7 @@ from flask import (
 from db_pool import get_db_connection
 from standardizers import ORGAN_SYSTEMS
 
-paxcel_game_bp = Blueprint('paxcel_game', __name__, url_prefix='/paxcel/the_game')
+paxcel_game_bp = Blueprint('paxcel_game', __name__, url_prefix='/the_game')
 HOST_TTL = 12 * 60 * 60
 LOGIN_WINDOW = 15 * 60
 LOGIN_LIMIT = 5

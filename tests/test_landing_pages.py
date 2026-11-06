@@ -66,7 +66,7 @@ class LandingPageTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 302)
                 self.assertEqual(response.location, "/rnxcel/")
                 html = self.get_html(f"/coming-soon/{product}", follow_redirects=True)
-                self.assertIn("RNXcel", html)
+                self.assertIn("ExploreCME RN", html)
                 self.assertIn("NCLEX-RN", html)
 
     def test_paxcel_route_exists(self):
@@ -135,21 +135,26 @@ class LandingPageTests(unittest.TestCase):
 
     def test_product_logo_references_and_static_responses(self):
         home = self.get_html("/")
-        for product in ("paxcel", "rnxcel", "mdxcel"):
+        products = {
+            "paxcel": ("explorecme_pa", "ExploreCME PA"),
+            "rnxcel": ("explorecme_rn", "ExploreCME RN"),
+            "mdxcel": ("explorecme_md", "ExploreCME MD"),
+        }
+        for product, (image_name, display_name) in products.items():
             with self.subTest(product=product):
-                image_url = f"/static/images/{product}_logo.png"
+                image_url = f"/static/{image_name}.png"
                 self.assertIn(f'src="{image_url}"', home)
                 path = "/paxcel" if product == "paxcel" else f"/coming-soon/{product}"
                 html = self.get_html(path, follow_redirects=product == "rnxcel")
                 self.assertIn(f'src="{image_url}"', html)
                 if product == "rnxcel":
                     self.assertIn('class="rn-brand"', html)
-                    self.assertIn("RNXcel", html)
+                self.assertIn(display_name, html)
         for image_url in (
             "/static/FullLogo.png",
-            "/static/images/paxcel_logo.png",
-            "/static/images/rnxcel_logo.png",
-            "/static/images/mdxcel_logo.png",
+            "/static/explorecme_pa.png",
+            "/static/explorecme_rn.png",
+            "/static/explorecme_md.png",
         ):
             with self.subTest(image_url=image_url):
                 with self.client.get(image_url) as response:

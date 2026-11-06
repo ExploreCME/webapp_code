@@ -1,6 +1,6 @@
 {% extends "shared_player_layout.html" %}
 {% set show_app_header = false %}
-{% block title %}Question #{{ number }} | PAXcel{% endblock %}
+{% block title %}Question #{{ number }} | ExploreCME PA{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block app_modals %}{% endblock %}
 {% block head %}
@@ -31,7 +31,7 @@
 <input type="hidden" name="csrf_token" value="{{ game_csrf }}">
 {% endblock %}
 {% block player_header %}
-<strong>PAXcel &middot; Question #{{ number }}</strong>
+<strong>ExploreCME PA &middot; Question #{{ number }}</strong>
 {% if game_host %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('paxcel_game.results', number=number) }}">Results</a>{% endif %}
 {% endblock %}
 {% block player_progress %}{% endblock %}

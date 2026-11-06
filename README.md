@@ -38,15 +38,13 @@ with `show_app_header = false`; the shared base defaults to showing the header.
 
 Product images use these case-sensitive paths:
 
-- `static/images/paxcel_logo.png` — home card and PAXcel landing page
-- `static/images/rnxcel_logo.png` — home card and RNXcel coming-soon page
-- `static/images/mdxcel_logo.png` — home card and MDXcel coming-soon page
+- `static/explorecme_pa.png` — ExploreCME PA home card and practice pages
+- `static/explorecme_rn.png` — ExploreCME RN home card and nursing pages
+- `static/explorecme_md.png` — ExploreCME MD home card and coming-soon page
 
-The current product files are placeholders, not newly uploaded user logos.
-Replace them with the real PNG logos at these exact paths, or supply the actual
-upload paths and branch so the references can be updated. Uploading files only
-to the `static/` root (or a directory named `ststic`) does not change references
-to `static/images/`. The main ExploreCME brand uses `static/FullLogo.png`.
+The main ExploreCME brand uses `static/FullLogo.png`. Existing PA and RN route
+slugs remain in place for compatibility; the product names and image paths shown
+to users use ExploreCME PA and ExploreCME RN.
 
 Run the focused regressions from the repository root:
 
@@ -57,13 +55,13 @@ python -m unittest discover -s tests -p 'test_entitlements.py' -v
 
 ## PAXcel "the game" (random question of the day)
 
-The public `/paxcel/the_game` page lets viewers enter the question number shown
+The public `/the_game` page lets viewers enter the question number shown
 by the host. They see the stem and choices in one scrolling area, submit a
 response, and get confirmation. **Audience pages never receive the correct
 answer or explanation**, even after voting. Multiple responses per browser
 are intentionally allowed; totals count submissions, not unique people.
 
-On your phone, open `/paxcel/the_game/admin` (also linked from the public entry
+On your phone, open `/the_game/admin` (also linked from the public entry
 page) and enter the private host code. Host access lasts 12 hours on that
 browser. The host sees the original "PANCE prep one random question at a time"
 screen and **GO** button. GO saves a random canonical-organ PANCE question as

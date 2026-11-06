@@ -47,7 +47,7 @@ class SEOTemplateTests(unittest.TestCase):
             is_premium=False, is_faculty=False, is_app=False, upcoming_assignments=[],
             total_questions=0, organ_labels=[], organ_counts=[], task_labels=[],
             task_counts=[], experiences=[], categories=[], available=0, case_count=0,
-            history=[], reports={}, product_name="MDXcel", product_tagline="MD platform",
+            history=[], reports={}, product_name="ExploreCME MD", product_tagline="MD platform",
         )
 
     def render(self, template, path="/", base_url="https://example.test"):

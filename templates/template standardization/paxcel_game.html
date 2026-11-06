@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% set show_app_header = false %}
 
-{% block title %}PANCE Prep: One Random Question at a Time | PAXcel{% endblock %}
-{% block description %}PANCE prep one random question at a time. Tap GO for a random PAXcel board-style practice question.{% endblock %}
+{% block title %}PANCE Prep: One Random Question at a Time | ExploreCME PA{% endblock %}
+{% block description %}PANCE prep one random question at a time. Tap GO for a random ExploreCME PA board-style practice question.{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block app_modals %}{% endblock %}
 
@@ -66,7 +66,7 @@
         <input type="hidden" name="csrf_token" value="{{ game_csrf }}">
         <button type="submit">Exit host mode</button>
     </form>
-    <img src="{{ url_for('static', filename='images/paxcel_logo.png') }}" alt="PAXcel logo">
+    <img src="{{ url_for('static', filename='explorecme_pa.png') }}" alt="ExploreCME PA logo">
     <h1 class="game-title">PANCE prep <span>one random question at a time</span></h1>
     <form method="post" action="{{ url_for('paxcel_game.play') }}">
         <input type="hidden" name="csrf_token" value="{{ game_csrf }}">
@@ -79,7 +79,7 @@
         <input type="text" id="reviewQuestionNumber" name="question_number" inputmode="numeric" pattern="[0-9]+" maxlength="19" placeholder="Question number" aria-label="Previously released question number" required autocomplete="off">
         <button type="submit">View results</button>
     </form>
-    <div class="game-brand">PAXcel by ExploreCME</div>
+    <div class="game-brand">ExploreCME PA by ExploreCME</div>
     {% endblock %}
 </div>
 {% endblock %}

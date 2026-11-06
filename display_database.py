@@ -20,22 +20,22 @@ from standardizers import ORGAN_SYSTEMS
 basedir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
 stripe.api_key = (os.getenv('STRIPE_SECRET_KEY') or '').strip() or None
-# Recurring Price for PAXcel individual checkout; override with STRIPE_PRICE_ID.
+# Recurring Price for ExploreCME PA individual checkout; override with STRIPE_PRICE_ID.
 DEFAULT_STRIPE_PRICE_ID = 'price_1UTsSC1IrD5jMp4rcIhmylIf'
 
 COMING_SOON_PRODUCTS = {
     'rnxcel': {
-        'product_name': 'RNXcel',
+        'product_name': 'ExploreCME RN',
         'product_tagline': 'Nursing Question Bank',
-        'product_description': 'Board-style practice questions for nursing students, built with the same generation and verification process as PAXcel.',
-        'logo_file': 'images/rnxcel_logo.png',
+        'product_description': 'Board-style practice questions for nursing students, built with the same generation and verification process as ExploreCME PA.',
+        'logo_file': 'explorecme_rn.png',
         'launch_date': '01/01/2027',
     },
     'mdxcel': {
-        'product_name': 'MDXcel',
+        'product_name': 'ExploreCME MD',
         'product_tagline': 'Medical Doctor Question Bank',
-        'product_description': 'Board-style practice questions for medical students and physicians, built with the same generation and verification process as PAXcel.',
-        'logo_file': 'images/mdxcel_logo.png',
+        'product_description': 'Board-style practice questions for medical students and physicians, built with the same generation and verification process as ExploreCME PA.',
+        'logo_file': 'explorecme_md.png',
         'launch_date': '06/02/2027',
     },
 }
@@ -710,3 +710,12 @@ app.register_blueprint(rnxcel_bp)
 
 from paxcel_game import paxcel_game_bp
 app.register_blueprint(paxcel_game_bp)
+
+
+@app.route('/paxcel/the_game', defaults={'legacy_path': ''}, methods=['GET', 'POST'], strict_slashes=False)
+@app.route('/paxcel/the_game/<path:legacy_path>', methods=['GET', 'POST'])
+def legacy_paxcel_game(legacy_path):
+    target = request.full_path.replace('/paxcel/the_game', '/the_game', 1).rstrip('?')
+    response = redirect(target, code=308)
+    response.headers['Cache-Control'] = 'no-store'
+    return response

@@ -2,7 +2,7 @@
 {% set show_app_header = false %}
 
 {% block title %}ExploreCME | Question Banks for Healthcare Students{% endblock %}
-{% block description %}ExploreCME builds AI-generated, verified board-style question banks for healthcare students. Explore PAXcel, RNXcel and MDXcel.{% endblock %}
+{% block description %}ExploreCME builds AI-generated, verified board-style question banks for healthcare students. Explore ExploreCME PA, ExploreCME RN and ExploreCME MD.{% endblock %}
 
 {% block container_class %}container-large{% endblock %}
 
@@ -36,20 +36,20 @@
         <h2>Our Question Banks</h2>
         <div class="product-cards">
             <a class="product-card" href="{{ url_for('paxcel_landing') }}">
-                <img src="{{ url_for('static', filename='images/paxcel_logo.png') }}" alt="PAXcel logo">
-                <h3>PAXcel</h3>
+                <img src="{{ url_for('static', filename='explorecme_pa.png') }}" alt="ExploreCME PA logo">
+                <h3>ExploreCME PA</h3>
                 <div>Physician Assistant Question Bank</div>
                 <span class="badge">Available now</span>
             </a>
             <a class="product-card" href="{{ url_for('rnxcel.landing') }}">
-                <img src="{{ url_for('static', filename='images/rnxcel_logo.png') }}" alt="RNXcel logo">
-                <h3>RNXcel</h3>
+                <img src="{{ url_for('static', filename='explorecme_rn.png') }}" alt="ExploreCME RN logo">
+                <h3>ExploreCME RN</h3>
                 <div>NCLEX-RN Nursing Platform</div>
                 <span class="badge">Explore platform &middot; Content coming soon</span>
             </a>
             <a class="product-card" href="{{ url_for('coming_soon', product='mdxcel') }}">
-                <img src="{{ url_for('static', filename='images/mdxcel_logo.png') }}" alt="MDXcel logo">
-                <h3>MDXcel</h3>
+                <img src="{{ url_for('static', filename='explorecme_md.png') }}" alt="ExploreCME MD logo">
+                <h3>ExploreCME MD</h3>
                 <div>Medical Doctor Question Bank</div>
                 <span class="badge">Coming Soon &middot; 06/02/2027</span>
             </a>

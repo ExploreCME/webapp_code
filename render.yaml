@@ -20,7 +20,7 @@ services:
         value: production
       - key: FLASK_SECRET_KEY
         sync: false
-      # Private host login for /paxcel/the_game/admin (at least 16 characters).
+      # Private host login for /the_game/admin (at least 16 characters).
       - key: PAXCEL_GAME_ADMIN_CODE
         sync: false
       - key: PORT

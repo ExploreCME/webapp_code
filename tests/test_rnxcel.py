@@ -45,7 +45,7 @@ class RNXcelRouteTests(unittest.TestCase):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
                 html = response.text
-                self.assertIn("RNXcel", html)
+                self.assertIn("ExploreCME RN", html)
                 self.assertIn("NCLEX-RN", html)
                 self.assertIn('href="/"', html)
                 for category in RNXCEL_CATEGORIES:

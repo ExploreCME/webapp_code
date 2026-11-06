@@ -1,6 +1,6 @@
 {% extends "rnxcel_base.html" %}
 {% block robots %}noindex,follow{% endblock %}
-{% block title %}Sign in | RNXcel{% endblock %}
+{% block title %}Sign in | ExploreCME RN{% endblock %}
 {% block nursing_head %}
 {% if clerk_publishable_key %}
 <script
@@ -34,12 +34,12 @@
 {% endif %}
 {% endblock %}
 {% block nursing_content %}
-<h1>Sign in to RNXcel</h1>
-<p>Your nursing attempts and progress remain separate from PAXcel.</p>
+<h1>Sign in to ExploreCME RN</h1>
+<p>Your nursing attempts and progress remain separate from ExploreCME PA.</p>
 <div class="rn-card">
     <p id="rnxcel-signin-status" role="status">{% if signed_in %}You are already signed in.{% elif clerk_publishable_key %}Loading secure sign-in…{% else %}Sign-in is currently unavailable. Please try again later.{% endif %}</p>
     <div id="rnxcel-signin"></div>
     <noscript><p>JavaScript is required for secure sign-in. Already signed in? Use the continue link.</p></noscript>
 </div>
-<a class="btn btn-primary" href="{{ return_to }}">Continue to RNXcel</a>
+<a class="btn btn-primary" href="{{ return_to }}">Continue to ExploreCME RN</a>
 {% endblock %}

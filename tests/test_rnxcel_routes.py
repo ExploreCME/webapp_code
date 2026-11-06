@@ -270,8 +270,8 @@ class RNXcelEndToEndTests(unittest.TestCase):
             self.assertEqual(landing.status_code, 200)
             self.assertNotIn("Location", landing.headers)
             self.assertEqual(self.templates[-1][0], "rnxcel.html")
-            self.assertIn("images/rnxcel_logo.png", landing.text)
-            self.assertIn("Open RNXcel student dashboard", landing.text)
+            self.assertIn("explorecme_rn.png", landing.text)
+            self.assertIn("Open ExploreCME RN student dashboard", landing.text)
             self.assertIn("/rnxcel/dashboard", NursingForms(landing.text).links)
         dashboard = self.client.get("/rnxcel/dashboard")
         self.assertEqual(dashboard.status_code, 200)
@@ -292,7 +292,7 @@ class RNXcelEndToEndTests(unittest.TestCase):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 403)
-                self.assertIn("RNXcel access required", response.text)
+                self.assertIn("ExploreCME RN access required", response.text)
                 self.assertNotIn("PA student", response.text)
                 self.assertNotIn("create-checkout-session", response.text)
         self.assertFalse(any(
