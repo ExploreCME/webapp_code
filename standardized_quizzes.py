@@ -138,6 +138,26 @@ def get_standardized_questions(quiz_name, cursor=None):
     return None
 
 
+def has_completed_standardized_test(cursor, username, quiz_name, questions):
+    """Require responses to every catalog question within one test attempt."""
+    if not questions:
+        return False
+    question_ids = {question["id"] for question in questions}
+    placeholders = ','.join(['%s'] * len(question_ids))
+    cursor.execute(f"""
+        SELECT qa.attempt_id
+        FROM quiz_attempts qa
+        JOIN attempt_responses ar ON ar.attempt_id = qa.attempt_id
+        WHERE qa.username = %s AND qa.quiz_name = %s AND qa.mode = 'test'
+          AND ar.question_id IN ({placeholders})
+          AND ar.user_choice IS NOT NULL AND ar.user_choice != ''
+        GROUP BY qa.attempt_id
+        HAVING COUNT(DISTINCT ar.question_id) = %s
+        LIMIT 1
+    """, [username, quiz_name, *question_ids, len(question_ids)])
+    return cursor.fetchone() is not None
+
+
 def list_standardized_versions(cursor, category=None):
     query = "SELECT quiz_name, category, JSON_LENGTH(question_ids) AS question_count FROM standardized_quiz_versions"
     parameters = ()

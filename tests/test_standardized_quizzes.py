@@ -170,6 +170,13 @@ class StandardizedQuizTests(unittest.TestCase):
         self.quiz_name = STANDARDIZED_PREFIX + "Emergency Medicine version 1"
         return first, second
 
+    def complete_test(self, questions=None):
+        response = self.start()
+        attempt_id = parse_qs(urlparse(response.location).query)["attempt_id"][0]
+        for question in questions or STANDARDIZED_QUIZZES["Emergency Medicine"]:
+            self.answer(attempt_id, choice="B", question=question["id"])
+        return attempt_id
+
     def resume_from_page(self, page, attempt_id):
         forms = re.findall(r"<form\b[^>]*>(.*?)</form>", page.text, re.DOTALL)
         form = next(form for form in forms if f'value="{attempt_id}"' in form)
@@ -347,6 +354,7 @@ class StandardizedQuizTests(unittest.TestCase):
         self.assertEqual(count["n"], 0)
 
     def test_all_setup_modes_and_small_question_count(self):
+        self.complete_test()
         setup = self.client.get("/quiz_mode", query_string={"quiz_name": self.quiz_name})
         html = setup.get_data(as_text=True)
         for mode in ("test", "study_no_exp", "study_exp", "study_missed"):
@@ -356,6 +364,7 @@ class StandardizedQuizTests(unittest.TestCase):
         self.assertIn('href="/select_standardized_quiz"', html)
 
     def test_study_feedback_missed_filter_and_resume(self):
+        self.complete_test()
         response = self.start("study_exp")
         attempt_id = parse_qs(urlparse(response.location).query)["attempt_id"][0]
         wrong = self.answer(attempt_id, choice="B", mode="study_exp")
@@ -380,6 +389,8 @@ class StandardizedQuizTests(unittest.TestCase):
         ).fetchone()["n"], 1)
 
     def test_no_missed_questions_returns_history_and_history_can_start(self):
+        attempt_id = self.complete_test()
+        self.answer(attempt_id, choice="A")
         response = self.start("study_missed")
         redirect = self.client.get(response.location)
         self.assertIn("/quiz_attempts?", redirect.location)
@@ -391,6 +402,7 @@ class StandardizedQuizTests(unittest.TestCase):
         first = STANDARDIZED_QUIZZES["Emergency Medicine"][0]
         second = dict(first, id="std-emergency-sample-2", question_stem="Second sample question")
         with patch.dict(STANDARDIZED_QUIZZES, {"Emergency Medicine": [first, second]}):
+            self.complete_test([first, second])
             response = self.start("study_exp")
             attempt_id = parse_qs(urlparse(response.location).query)["attempt_id"][0]
             self.answer(attempt_id, mode="study_exp")
@@ -446,6 +458,7 @@ class StandardizedQuizTests(unittest.TestCase):
 
     def test_standardized_resume_skips_completed_and_other_students_attempts(self):
         first, second = self.publish_version()
+        self.complete_test([first, second])
         started = self.start("study_exp")
         incomplete_id = parse_qs(urlparse(started.location).query)["attempt_id"][0]
         self.answer(incomplete_id, mode="study_exp", question=first["id"])
@@ -479,6 +492,109 @@ class StandardizedQuizTests(unittest.TestCase):
         no_incomplete = self.client.get(resume_url)
         self.assertIn("/quiz_mode?", no_incomplete.location)
         self.assertNotIn(other_id, no_incomplete.location)
+
+    def test_study_modes_require_one_complete_test_of_same_version(self):
+        first, second = self.publish_version()
+        started = self.start()
+        test_id = parse_qs(urlparse(started.location).query)["attempt_id"][0]
+        self.answer(test_id, question=first["id"])
+        other_test = self.start()
+        other_id = parse_qs(urlparse(other_test.location).query)["attempt_id"][0]
+        self.answer(other_id, question=second["id"])
+        # A non-catalog response cannot substitute for the missing question.
+        self.db.connection.execute(
+            "INSERT INTO attempt_responses (attempt_id, question_id, user_choice) VALUES (?, ?, 'A')",
+            (test_id, "not-in-this-version"),
+        )
+        for mode in ("study_no_exp", "study_exp", "study_missed"):
+            with self.subTest(mode=mode):
+                page = self.client.get("/quiz_mode", query_string={"quiz_name": self.quiz_name})
+                radio = re.search(r'<input type="radio" name="mode" value="' + mode + r'"[^>]*>', page.text)
+                self.assertIn("disabled", radio.group())
+                self.assertIn("Test Mode Required", page.text)
+                blocked = self.client.post("/start_quiz", data={
+                    "quiz_name": self.quiz_name, "mode": mode,
+                    "standardized_csrf_token": self.token(),
+                })
+                self.assertIn("/quiz_mode?", blocked.location)
+        self.assertEqual(self.db.connection.execute(
+            "SELECT COUNT(*) AS n FROM quiz_attempts"
+        ).fetchone()["n"], 2)
+
+        self.db.connection.execute(
+            "INSERT INTO attempt_responses (attempt_id, question_id, user_choice) VALUES (?, ?, NULL)",
+            (test_id, second["id"]),
+        )
+        self.assertIn("/quiz_mode?", self.start("study_exp").location)
+        self.db.connection.execute(
+            "UPDATE attempt_responses SET user_choice = '' WHERE attempt_id = ? AND question_id = ?",
+            (test_id, second["id"]),
+        )
+        self.assertIn("/quiz_mode?", self.start("study_exp").location)
+        self.answer(test_id, choice="B", question=second["id"])
+        page = self.client.get("/quiz_mode", query_string={"quiz_name": self.quiz_name})
+        self.assertNotIn("Test Mode Required", page.text)
+        for mode in ("study_no_exp", "study_exp", "study_missed"):
+            radio = re.search(r'<input type="radio" name="mode" value="' + mode + r'"[^>]*>', page.text)
+            self.assertNotIn("disabled", radio.group())
+            self.assertIn("/question_page?", self.start(mode).location)
+
+    def test_other_students_versions_and_samples_do_not_unlock_study(self):
+        self.complete_test()
+        first, second = self.publish_version()
+        self.assertIn("/quiz_mode?", self.start("study_exp").location)
+        self.complete_test([first, second])
+        self.db.connection.execute("INSERT INTO users VALUES ('other', 1, 'N', 'NONE')")
+        self.login("other")
+        self.assertIn("/quiz_mode?", self.start("study_exp").location)
+        self.login()
+        name = "Emergency Medicine version 2"
+        self.db.connection.execute(
+            "INSERT INTO standardized_quiz_versions VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+            (name, "Emergency Medicine", json.dumps([first["id"], second["id"]])),
+        )
+        self.assertIn("/quiz_mode?", self.start(
+            "study_exp", quiz_name=STANDARDIZED_PREFIX + name,
+        ).location)
+
+    def test_study_only_assignment_allows_required_standardized_test_first(self):
+        self.db.connection.execute("""
+            INSERT INTO assigned_quizzes (quiz_name, clerk_id, required_mode, assigned_date)
+            VALUES (?, 'student', 'study', CURRENT_TIMESTAMP)
+        """, (self.quiz_name,))
+        page = self.client.get("/quiz_mode", query_string={"quiz_name": self.quiz_name})
+        test_radio = re.search(r'<input type="radio" name="mode" value="test"[^>]*>', page.text)
+        self.assertNotIn("disabled", test_radio.group())
+        self.assertIn("/quiz_mode?", self.start("study_exp").location)
+        self.complete_test()
+        self.assertIn("/question_page?", self.start("study_exp").location)
+        self.assertIn("/quiz_mode?", self.start().location)
+
+    def test_legacy_study_attempt_cannot_unlock_or_bypass_prerequisite(self):
+        first, second = self.publish_version()
+        self.db.connection.execute("""
+            INSERT INTO quiz_attempts (attempt_id, username, quiz_name, mode, start_time)
+            VALUES ('legacy-study', 'student', ?, 'study_exp', CURRENT_TIMESTAMP)
+        """, (self.quiz_name,))
+        self.client.get("/quiz_mode", query_string={"quiz_name": self.quiz_name})
+        for question in (first, second):
+            self.db.connection.execute(
+                "INSERT INTO attempt_responses (attempt_id, question_id, user_choice) VALUES (?, ?, 'A')",
+                ("legacy-study", question["id"]),
+            )
+        self.assertIn("/quiz_mode?", self.start("study_exp").location)
+        resumed = self.client.post("/start_quiz", data={
+            "quiz_name": self.quiz_name, "mode": "study_exp",
+            "resume_attempt_id": "legacy-study", "standardized_csrf_token": self.token(),
+        })
+        self.assertIn("/quiz_mode?", resumed.location)
+        page = self.client.get("/question_page", query_string={
+            "quiz_name": self.quiz_name, "attempt_id": "legacy-study",
+        })
+        self.assertIn("/quiz_mode?", page.location)
+        self.assertIn("/quiz_mode?", self.answer(
+            "legacy-study", mode="study_exp", question=second["id"],
+        ).location)
 
     def test_sample_quiz_selection_and_history_offer_resume_before_first_answer(self):
         started = self.start()
