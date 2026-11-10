@@ -27,7 +27,7 @@ from standardizers import ORGAN_SYSTEMS, TASK_AREAS, TASK_ALIASES, standardize_o
 from standardized_quizzes import (
     STANDARDIZED_PREFIX, STANDARDIZED_QUESTION_PREFIX, STANDARDIZED_QUIZZES,
     get_standardized_questions as get_catalog_questions, store_standardized_questions,
-    list_standardized_versions,
+    list_standardized_versions, has_completed_standardized_test,
 )
 
 # ==========================================
@@ -650,6 +650,16 @@ def require_standardized_access():
             session.get('standardized_csrf_token', ''), request.form.get('standardized_csrf_token', '')
         ) or not session.get('standardized_csrf_token'):
             return "Invalid quiz setup token.", 400
+    if request.endpoint in ('quiz.start_quiz', 'quiz.question_page', 'quiz.check_answer'):
+        mode = attempt['mode'] if attempt_id else values.get('mode')
+        if mode != 'test' and not has_completed_standardized_test(
+            cursor, session['username'], quiz_name, questions
+        ):
+            flash(
+                "Complete this standardized assessment in Test Mode before selecting a Study Mode.",
+                "warning",
+            )
+            return redirect(url_for('quiz.quiz_mode', quiz_name=quiz_name))
 
 
 @quiz_bp.context_processor
@@ -1618,6 +1628,10 @@ def quiz_mode():
     if standardized_questions is not None:
         total_questions = len(standardized_questions)
 
+    standardized_test_required = (
+        standardized_questions is not None
+        and not has_completed_standardized_test(cursor, username, quiz_name, standardized_questions)
+    )
     forced_mode = None
     if assign_row and assign_row.get('required_mode') and assign_row['required_mode'] != 'any':
         req_mode = assign_row['required_mode']
@@ -1633,6 +1647,9 @@ def quiz_mode():
                 forced_mode = 'test'
         else:
             forced_mode = req_mode
+
+    if standardized_test_required:
+        forced_mode = 'test'
 
     # Fetch all attempts and response counts together to avoid one query per attempt.
     cursor.execute('''
@@ -1668,7 +1685,7 @@ def quiz_mode():
     return render_template(
         'quiz_mode.html', quiz_name=quiz_name, incomplete_attempts=incomplete_attempts,
         forced_mode=forced_mode, is_standardized=standardized_questions is not None,
-        total_questions=total_questions,
+        total_questions=total_questions, standardized_test_required=standardized_test_required,
     )
 
 # Helper function to determine where a user left off in a remediation
@@ -1710,6 +1727,7 @@ def start_quiz():
 
     conn = get_db()
     cursor = conn.cursor()
+    standardized_questions = get_standardized_questions(quiz_name)
 
     is_remediation = False
 
@@ -1767,7 +1785,6 @@ def start_quiz():
 
             total_q_res = cursor.fetchone()
             total_questions = total_q_res['total'] if total_q_res else 0
-            standardized_questions = get_standardized_questions(quiz_name)
             if standardized_questions is not None:
                 total_questions = len(standardized_questions)
 
@@ -1801,12 +1818,16 @@ def start_quiz():
                 else:
                     return redirect(url_for('quiz.question_page', quiz_name=quiz_name, mode='test', attempt_id=incomplete_test['attempt_id']))
 
-        elif req_mode == 'study' and requested_mode == 'test':
+        elif req_mode == 'study' and requested_mode == 'test' and not (
+            standardized_questions is not None
+            and not has_completed_standardized_test(
+                cursor, username, quiz_name, standardized_questions
+            )
+        ):
             flash("This assignment is restricted to Study mode only.", "warning")
             return redirect(url_for('quiz.quiz_mode', quiz_name=quiz_name))
 
     # All validations passed. Now build or resume the attempt.
-    standardized_questions = get_standardized_questions(quiz_name)
     if standardized_questions is not None and quiz_name[len(STANDARDIZED_PREFIX):] in STANDARDIZED_QUIZZES:
         store_standardized_questions(cursor, standardized_questions)
 

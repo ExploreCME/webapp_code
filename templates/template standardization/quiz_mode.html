@@ -30,7 +30,7 @@
                         {% if is_standardized %}
                         <input type="hidden" name="standardized_csrf_token" value="{{ session.standardized_csrf_token }}">
                         {% endif %}
-                        <button type="submit" class="btn btn-warning btn-sm" style="font-weight: bold; background-color: #e67e22; border-color: #e67e22; color: white;">Resume &rarr;</button>
+                        <button type="submit" class="btn btn-warning btn-sm" style="font-weight: bold; background-color: #e67e22; border-color: #e67e22; color: white;" {% if standardized_test_required and att.mode != 'test' %}disabled{% endif %}>Resume &rarr;</button>
                     </form>
                 </div>
             {% endfor %}
@@ -45,7 +45,13 @@
     <!-- ========================================== -->
     <!-- FORCED MODE ALERT (FACULTY ASSIGNMENT)     -->
     <!-- ========================================== -->
-    {% if forced_mode %}
+    {% if standardized_test_required %}
+        <div role="alert" style="background-color: #fff9e6; color: #7f6000; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #e67e22; font-size: 0.95em;">
+            <strong>Test Mode Required:</strong><br>
+            Complete this standardized assessment in <strong>Test Mode</strong> before selecting a Study Mode.
+            Answer every question in a single Test Mode attempt to unlock all Study Modes for this assessment version.
+        </div>
+    {% elif forced_mode %}
         <div style="background-color: #fdedec; color: #c0392b; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #e74c3c; font-size: 0.95em;">
             <strong>📋 Faculty Requirement:</strong><br> 
             {% if forced_mode == 'test' %}

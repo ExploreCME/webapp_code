@@ -661,6 +661,14 @@ and ordinary blueprint generation excludes standardized question IDs.
 categories with no generated versions show a clearly labeled sample fallback or
 an empty-state message. The `Standardized:` internal quiz-name prefix is reserved.
 
+All standardized Study Modes (Standard, Detailed, and Missed Questions) require
+the student to first answer every catalog question in a single Test Mode attempt
+of that same assessment version. An incomplete test, a completed study attempt,
+or completion of another version does not unlock Study Modes. Correct answers
+are not required. The setup page disables study selections until completion;
+server-side checks also enforce the prerequisite when starting or resuming study.
+Ordinary generated quizzes are unchanged.
+
 To remove a published version (for example from the Render Shell), run from the
 project directory:
 
