@@ -1,0 +1,11 @@
+# Organ System: Topic: Task Area  (one request per line)
+Cardiovascular system: stable angina pectoris: using diagnostics and laboratory studies
+Dermatology: erythema nodosum: formulating the most likely diagnosis
+Endocrine: primary hyperparathyroidism: formulating the most likely diagnosis
+Endocrine: hypopituitarism: formulating the most likely diagnosis
+gastroenterology: esophageal foreign bodies: clinical intervention
+infectious disease: kawasaki disease: health maintenance, patient education, and preventative measures
+Neurology: concussion: clinical intervention
+Behavioral Health: delirium: formulating the most likely diagnosis
+Pulmonary: sarcoidosis: formulating the most likely diagnosis
+Women's Health: abruptio placentae: formulating the most likely diagnosis
