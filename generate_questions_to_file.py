@@ -18,6 +18,7 @@ Request files contain one request per line; blank lines and lines starting with
 
 import argparse
 import asyncio
+import os
 import sys
 from datetime import datetime
 
@@ -82,9 +83,9 @@ def write_questions(path, questions):
             f.write(format_question(number, q))
 
 
-async def generate(requests, count, model, concurrency):
-    conv_manager = ConversationManager(model=model)
-    conv_manager_verify = ConversationManager(model=model)
+async def generate(requests, count, api_key, model, concurrency):
+    conv_manager = ConversationManager(api_key=api_key, model=model)
+    conv_manager_verify = ConversationManager(api_key=api_key, model=model)
     semaphore = asyncio.Semaphore(concurrency)
 
     async def run(request):
@@ -110,7 +111,10 @@ def main(argv=None):
     parser.add_argument("-i", "--input", help="File with one request per line")
     parser.add_argument("-n", "--count", type=int, default=1, help="Questions per request (default: 1)")
     parser.add_argument("-o", "--output", help="Output text file (default: generated_questions_<timestamp>.txt)")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"OpenAI model (default: {DEFAULT_MODEL})")
+    parser.add_argument(
+        "--model",
+        help=f"OpenAI model (default: OPENAI_MODEL or {DEFAULT_MODEL})",
+    )
     parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help="Parallel requests")
     args = parser.parse_args(argv)
 
@@ -123,11 +127,20 @@ def main(argv=None):
     if not requests:
         parser.error("Provide at least one request or --input file")
 
+    api_key = next(
+        (value.strip() for value in (os.getenv("OPENAI_API_KEY"), os.getenv("MY_API_KEY"))
+         if value and value.strip()),
+        None,
+    )
+    if not api_key:
+        parser.error("Set OPENAI_API_KEY or MY_API_KEY in the environment or .env file.")
+    model = args.model or os.getenv("OPENAI_MODEL", "").strip() or DEFAULT_MODEL
+
     output = args.output or f"generated_questions_{datetime.now():%Y%m%d_%H%M%S}.txt"
     for request in requests:
         print(f"Request: {request['organ_system']} | {request['topic_area']} | {request['task_area']}")
 
-    results = asyncio.run(generate(requests, args.count, args.model, args.concurrency))
+    results = asyncio.run(generate(requests, args.count, api_key, model, args.concurrency))
     questions = [q for batch in results for q in batch]
     write_questions(output, questions)
 

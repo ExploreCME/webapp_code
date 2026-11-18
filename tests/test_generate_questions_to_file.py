@@ -36,8 +36,9 @@ class GenerateQuestionsToFileTests(unittest.TestCase):
         manager.chat_completion = AsyncMock(side_effect=chat)
         manager.client = MagicMock(close=AsyncMock())
         with tempfile.TemporaryDirectory() as tmp, \
-                patch.object(script, "ConversationManager", return_value=manager), \
-                patch.object(engine, "get_async_db_connection", side_effect=AssertionError("DB used")):
+                patch.object(script, "ConversationManager", return_value=manager) as manager_factory, \
+                patch.object(engine, "get_async_db_connection", side_effect=AssertionError("DB used")), \
+                patch.dict(os.environ, {"OPENAI_API_KEY": " env-test-key ", "OPENAI_MODEL": "env-model"}):
             output = os.path.join(tmp, "out.txt")
             code = script.main(["Cardiovascular system: stable angina pectoris: using diagnostics and laboratory studies",
                                 "-o", output])
@@ -50,6 +51,23 @@ class GenerateQuestionsToFileTests(unittest.TestCase):
         self.assertIn("Task Area: Using Diagnostic and Laboratory Studies", text)
         self.assertIn("Difficulty: 6", text)
         self.assertIn(question["question_stem"], text)
+        self.assertEqual(
+            [call.kwargs for call in manager_factory.call_args_list],
+            [{"api_key": "env-test-key", "model": "env-model"}] * 2,
+        )
+
+    def test_cli_model_overrides_environment(self):
+        manager = MagicMock(client=MagicMock(close=AsyncMock()))
+        with patch.object(script, "ConversationManager", return_value=manager) as manager_factory, \
+                patch.object(script, "process_topic_batch", new=AsyncMock(return_value=[])), \
+                patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", "OPENAI_MODEL": "env-model"}), \
+                patch.object(script, "write_questions"):
+            script.main(["Cardiovascular system: angina: clinical intervention", "--model", "cli-model"])
+
+        self.assertEqual(
+            [call.kwargs["model"] for call in manager_factory.call_args_list],
+            ["cli-model", "cli-model"],
+        )
 
 
 if __name__ == "__main__":
