@@ -1164,3 +1164,21 @@ Run the focused flow and no-persistence tests:
 ```bash
 python -m unittest discover -s tests -p 'test_public_previews.py' -v
 ```
+
+## Generating questions to a text file (console)
+
+`generate_questions_to_file.py` runs the same generation, verification, and
+difficulty pipeline as on-demand generation (`process_topic_batch`) but writes
+the verified questions to a text file instead of the database. Each request is
+`Organ System: Topic: Task Area`; organ systems and task areas are normalized to
+the canonical labels in `standardizers.py`. Requires `OPENAI_API_KEY` (or
+`MY_API_KEY`) in the environment or `.env`. The model defaults to
+`OPENAI_MODEL`, then `gpt-6.1-sol`; `--model` overrides the environment setting.
+
+```bash
+python generate_questions_to_file.py --input question_requests.txt --output questions.txt
+python generate_questions_to_file.py "Neurology: concussion: clinical intervention" --count 3
+```
+
+Use `--count` for questions per request. The script exits non-zero if any
+request yields fewer verified questions than requested.
