@@ -1182,3 +1182,20 @@ python generate_questions_to_file.py "Neurology: concussion: clinical interventi
 
 Use `--count` for questions per request. The script exits non-zero if any
 request yields fewer verified questions than requested.
+
+## Verifying a custom question to a text file (console)
+
+`verify_question_to_file.py` prompts for a question stem, answer choices A-E,
+and the number of verification attempts. Each attempt uses the pipeline's
+model, system message, and verification prompt (with an added explanation
+field) to pick the correct answer and explain it. Attempts are independent
+experiments: each uses a fresh client and a single stateless request. Every
+attempt's answer, confidence, and explanation, plus an answer tally, are written
+to a text file. Same API key and model settings as above.
+
+```bash
+python verify_question_to_file.py
+python verify_question_to_file.py --output my_question.txt --model gpt-6.1-sol
+```
+
+The script exits non-zero if any attempt produced no usable answer.
